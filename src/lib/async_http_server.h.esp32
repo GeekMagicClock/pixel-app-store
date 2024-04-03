@@ -1,0 +1,8 @@
+#ifndef _ASYNC_HTTP_SERVER_H
+#define _ASYNC_HTTP_SERVER_H
+
+boolean startPortal(char const *apName, char const *apPassword);
+
+void init_async_http_server();
+
+#endif

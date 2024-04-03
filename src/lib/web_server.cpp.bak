@@ -1,0 +1,21 @@
+#include "WebServer.h"
+#include "HTTPUpdateServer.h"
+WebServer server(80);// 建立esp8266网站服务器对象
+
+// DNS server
+
+HTTPUpdateServer httpUpdater;
+
+void handleNotFound(){
+    Serial.println("404");
+}
+
+void init_http_server(){
+    server.onNotFound(handleNotFound);
+    httpUpdater.setup(&server);
+    server.begin();
+}
+
+void update_http_server(){
+    server.handleClient();
+}

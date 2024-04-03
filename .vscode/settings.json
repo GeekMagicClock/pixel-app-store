@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "*.bak": "c",
+        "esp32-hub75-matrixpanel-i2s-dma.h": "c",
+        "agencyb8pt7b.h": "c"
+    }
+}

@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta name="viewport" content="width=device-width, initial-scale=0.8, minimal-ui">
+	<link rel="stylesheet" href="css/style.css">
+	<link rel="stylesheet" href="css/cropper.min.css">
+	<script src="js/jquery.min.js"></script>
+	<style>
+		body {
+			margin: 0;
+			padding: 0;
+			font-family: Arial, sans-serif;
+		}
+		#nav {
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			background-color: #333;
+			height: 60px;
+		}
+		#nav ul {
+			list-style: none;
+			margin: 0;
+			padding: 0;
+			display: flex;
+		}
+		#nav li {
+			margin: 0 10px;
+			font-size: 24px;
+		}
+		#nav a {
+			text-decoration: none;
+			color: white;
+			#padding: 2px;
+			border-radius: 5px;
+		}
+		#nav a.active {
+			background-color: #4285f4;
+		}
+		#content {
+			text-align: center;
+			padding: 20px;
+			background-color: #f2f2f2;
+			height: 200px; /* 设置合适的高度 */
+		}
+		.sub-settings {
+			display: none;
+			width:80%;
+			margin: 0 auto; /* 居中显示 */
+		}
+        .upload-container {
+            text-align: center;
+            background-color: #4a4a4a;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            margin: 10px;
+            width: 200px;
+            display: flex;
+            flex-direction: column; /* 垂直排列内部元素 */
+        }
+        .container-title {
+            text-align: center; /* 居中对齐文本 */
+            margin: 10px 0; /* 添加一些上下间距，以便与其他元素分隔开 */
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        #content5 label {
+            background-color: #2675eb;
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px auto;
+        }
+
+        label:hover {
+            background-color: #2980b9;
+        }
+
+        .image-container {
+            width: 100%;
+            height: 240px;
+            position: relative;
+            #display: none;
+        }
+
+        .uploaded-image {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        button {
+            background-color: #2675eb;
+            color: #fff;
+            border-radius: 5px;
+            cursor: pointer;
+            #display: none; 
+            margin: 10px auto;
+        }
+		[id^="cropButton"],
+		[id^="rotateButton"] {
+			display: none;
+		}
+		.message-box {
+			display: none;
+			background-color: #f44336;
+			color: white;
+			padding: 20px;
+			text-align: center;
+			position: fixed;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			z-index: 999;
+			border-radius: 10px; 
+		}	
+		input{background:#2f3136;border:1;}
+		#file-input input{height:44px;border-radius:4px;margin:-15px auto;font-size:15px}
+		#file-input{width:60%;margin:0 auto;padding:0 10px;box-sizing:border-box;border:1px solid #ddd;line-height:44px;text-align:left;display:block;cursor:pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
+		form{background:#2f3136;max-width:100%;margin:5px auto;padding:35px; padding-bottom: 30px;border-radius:12px;text-align:center; align-content: center;}
+  </style>
+</head>
+
+<body>
+  <div id="nav">
+    <ul>
+      <li><a href="#" class="active" data-item="1">Network</a></li>
+      <li><a href="#" data-item="2">Weather</a></li>
+      <li><a href="#" data-item="3">Time</a></li>
+      <li><a href="#" data-item="4">Photo</a></li>
+      <li><a href="#" data-item="5">DIY</a></li>
+      <li><a href="#" data-item="6">System</a></li>
+    </ul>
+  </div>
+
+  <div id="content1" class="sub-settings">
+    <div class="container">
+			<div class="row">
+				<div class="col-12">					
+					<div id="error" class="hide"></div>					
+					<h1 class="header">1. Scan WiFi</h1>					
+					<a id="scanInfo" style="visibility:hidden" class="left labelFix">Scanning...</a>					
+					<button onclick="scan()" id="apScanStart" class="right button-primary">SCAN</button>					
+					<p class="clear">
+						Networks found: <span id="networksFound">0</span><br />
+						<span class="red">Tips: </span><span class="bold">Please select strong signal 2.4G WiFi, 5G is not supported.</span>
+						<br />
+						<br />
+						<span id="selectAllBtns" style="visibility:hidden">
+							<br />
+						</span>						
+					</p>				
+					<table></table>
+					<p class="small">
+						
+						<br />
+					</p>
+				</div>
+			</div>
+			<div class="row">		
+				<div class="col-12">
+				SSID     :<input type="text" name="scan_ssid" id="scan_ssid" placeholder="1024"><p>
+				PASSWORD :<input type="text" name="scan_pwd" id="scan_pwd" placeholder="password">
+				</div>					
+				<div class="col-12">
+				<button class="button-primary left" onclick="set_wifi('scan')">SAVE</button>
+				</div>
+			</div>
+
+			<div class="row">
+				<div class="col-12">
+					<h1 class="header">2. Manual Input</h1>
+					<label for="delay">Useful for hidden WiFi, 2.4G only.</label><p>
+					SSID     :<input type="text" name="ssid" id="ssid" placeholder="1024"><p>
+					PASSWORD :<input type="text" name="pwd" id="pwd" placeholder="password">
+
+				</div>
+				<div class="col-12">
+					<button class="button-primary left" onclick="set_wifi('manual')">SAVE</button>
+				</div>
+			</div>		
+			<div class="row">
+				<div class="col-12">
+					<h1>3. Delay WiFi Connection</h1>
+				</div>
+			</div>			
+			<div class="row">
+				<div class="col-12">
+					<label for="delay">How long does it take to start connecting to the WiFi after starting up:</label>
+					<p>It's useful when used in car and the WiFi of the car starts slowly, or used at home when the router is powered off and restarted at regular intervals.
+				</div>
+				
+				<div class="col-12">
+					<input type="" name="delay" id="delay" value="30">s(seconds)
+				</div>
+				<br />
+				<div class="col-12">
+				<button class="button-primary left" onclick="set_delay()">SAVE</button>
+				</div>					
+			</div>
+  </div>
+  </div>
+  <div id="content2" class="sub-settings">
+    <div class="container">
+			<div class="row">
+				<div class="col-12">
+					<div id="error" class="hide"></div>
+					<h1>1. Set Your City</h1>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-12">
+				<h3>Set City Name,Country/Region Name, or city code</h3><p>
+					Input your location: <input type="text" name="city1" id="city1" placeholder="Seoul,KR">
+					<div id="ret" style="color:#FF0000"></div>
+					<p>Location example, Seoul, the capital city of Korea, please input: Seoul,KR</br>
+					<p> If there are several same city names in your country/region, you need to find the correct city code<p>
+					<b>Tips：Where to find Your Own city code >>></b><p><a href="https://openweathermap.org/find" target="_blank">1.Click me to search your city code after internet is connected</a><p>
+					2.Input your city name, click search and then choose the result, open it, the number at the link address tail is your city code! eg: Seoul,KR <b>https://openweathermap.org/city/1835848</b>, <b>1835848</b> is city code of Seoul,KR.
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-6">
+					<button class="button-primary left" onclick="set_weather()">SAVE</button>
+				</div>
+			</div>	
+			<div class="row">
+				<div class="col-12">
+					<h1>2. Unit format</h1>
+				</div>
+			</div>			
+			<div class="row">				
+				<div class="col-4">Wind Speed:<p>
+					<select id="windspeed" style="width:200px">
+					  <option value="m/s" style="display:none">m/s</option>
+					  <option value="m/s">m/s</option>
+					  <option value="km/h">km/h</option>
+					  <option value="mile/h">mile/h</option>				  
+					</select>	
+				</div>
+				<div class="col-4">
+				Temperature:<p>
+					<select id="temp" style="width:200px">
+					  <option value="°C" style="display:none">°C</option>
+					  <option value="°C">°C</option>
+					  <option value="°F">°F</option>
+					</select>
+				</div>
+				<div class="col-4">
+				Atmospheric pressure:<p>
+					<select id="pressure" style="width:200px">
+					  <option value="hPa" style="display:none">hPa</option>
+					  <option value="hPa">hPa</option>
+					  <option value="kPa">kPa</option>
+					  <option value="mmHg">mmHg</option>				  
+					</select>
+				</div>				
+			</div>	
+			<div class="row">
+				<div class="col-6">
+					<button class="button-primary left" onclick="set_unit()">SAVE</button>
+				</div>
+			</div>			
+			<div class="row">
+				<div class="col-12">
+					<h1>3. Weather Update Interval</h1>
+				</div>
+			</div>			
+			<div class="row">
+				<div class="col-6">
+					By default, weather update interval is 20 minutes fixed, if you use your own api key, higher interval is allowed.<p>
+					<input type="text" name="weather_interval" id="weather_interval" value="20">m(minutes)
+				</div>
+			</div>	
+			<div class="row">
+				<div class="col-6">
+					<button class="button-primary left" onclick="set_weather_itv()">SAVE</button>
+				</div>
+			</div>	
+			<div class="row">
+				<div class="col-12">
+					<h1>4. Weather API key</h1>
+				</div>
+			</div>			
+			<div class="row">
+				<div class="col-12">
+					Professional option, if you are not clear, please do not modify this.<p>
+					<input type="text" name="api" id="api" placeholder="xxxxxxxxxx">
+				</div>
+			</div>	
+			<div class="row">
+				<div class="col-6">
+					<button class="button-primary left" onclick="set_key()">SAVE</button>
+				</div>
+			</div>		
+	</div>
+  </div>
+  <div id="content3"class="sub-settings">
+    <div class="container">
+			<div class="row">
+				<div class="col-12">
+					<div id="error" class="hide"></div>
+					<h1>1. Time Number Color</h1>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-3">
+					<label for="enc">Hour：</label>
+				</div>
+				<div class="col-9">
+					<input type="color" id="hc" name="hc" value="#FFFFFF"/>
+				</div>
+				<div class="col-3">
+					<label for="enc">Minutes：</label>
+				</div>
+				<div class="col-9">
+					<input type="color" id="mc" name="mc" value="#FEBA01" />
+				</div>
+				<div class="col-3">
+					<label for="enc">Seconds：</label>
+				</div>
+				<div class="col-9">
+					<input type="color" id="sc" name="sc" value="#FF5900" />
+				</div>				
+				<div class="col-12">
+				<button class="button-primary left" onclick="set_timecolor()">SAVE</button>
+				</div>	
+			</div>
+			<div class="row">
+				<div class="col-12">
+					<div id="error" class="hide"></div>
+					<h1>2. 12/24 Hour Format</h1>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-4">
+					<label>Default is 24-Hour, enable 12-Hour or not:</label>
+				</div>
+				<div class="col-1">
+					<input type="checkbox" id="hour12" name="hour12" /><p>
+				</div>
+				<div class="col-12">
+				<button class="button-primary left" onclick="set_hour12()">SAVE</button>
+				</div>	
+			</div>
+			<div class="row">
+				<div class="col-12">
+					<div id="error" class="hide"></div>
+					<h1>3. Date Format</h1>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-6">
+					<select id="day-format" onchange="setDayFormat(this)" style="width:150px">
+					  <option value="-1" style="display:none">DD/MM/YYYY</option>
+					  <option value="1">DD/MM/YYYY</option>
+					  <option value="2">YYYY/MM/DD</option>
+					  <option value="3">MM/DD/YYYY</option>
+					  <option value="4">MM/DD</option>
+					  <option value="5">DD/MM</option>
+					  <option value="6">day-th/Month</option>
+					</select>
+				</div>	
+			</div>						
+			<div class="row">
+				<div class="col-12">
+					<div id="error" class="hide"></div>
+					<h1>4. Enable Colon Blink</h1>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-1">
+					<label>Enable</label>
+				</div>
+				<div class="col-1">
+					<input type="checkbox" id="colon" name="colon" /><p>
+				</div>
+				<div class="col-12">
+				<button class="button-primary left" onclick="set_colon()">SAVE</button>
+				</div>	
+			</div>			
+			<div class="row">
+				<div class="col-12">
+					<h1>5. Ntp Time server</h1>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-12">
+				<label>The device has multiple sets of time servers built in to ensure correct time synchronization. If you set your own NTP time server, it will be used first to synchronize.</label><p>
+				</div>
+				<div class="col-12">
+					NTP Server Domain: <input type="text" name="ntp" id="ntp" placeholder="pool.ntp.org">
+				</div>
+				<div class="col-12">
+				<button class="button-primary left" onclick="set_ntp()">SAVE</button>
+				</div>	
+			</div>
+			<div class="row">
+				<div class="col-12">
+					<div id="error" class="hide"></div>
+					<h1>6. DST(Daylight Saving Time) enable</h1>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-1">
+					<label>Enable</label>
+				</div>
+				<div class="col-1">
+					<input type="checkbox" id="dst" name="dst" /><p>
+				</div>
+				<div class="col-12">
+				<button class="button-primary left" onclick="set_dst()">SAVE</button>
+				</div>	
+			</div>		
+		</div>				
+  </div>
+  <div id="content4" class="sub-settings">
+    <div class="container">
+			<div class="row">
+				<div class="col-12">
+					<div id="error" class="hide"></div>
+					<h1>1. Auto display</h1>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-6">
+					<label >Enable image auto display:</label>
+				</div>
+				<div class="col-6">
+					<input type="checkbox" id="autoplay" name="autoplay" />
+				</div>
+				<div class="col-6">
+					<label >JPG image display interval:</label>
+				</div>
+				<div class="col-6">
+					<input type="text" name="image_interval" id="image_interval" value="30">s(seconds)
+				</div>
+			</div>				
+			<div class="row">
+
+				<div class="col-12">
+					<button class="button-primary left" onclick="set_image()">SAVE</button>
+				</div>
+			</div>		
+			<div class="row">
+				<div class="col-12">
+					<div id="error" class="hide"></div>
+					<h1>2. Picture management</h1>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-12">
+					<div id="error" class="hide"></div>
+					<form method="POST" action="/filesystem" enctype="multipart/form-data" id="upload_form">
+					  <div class="model cut-img-model" style="display: none;">
+						<div class="model-content" style="width: 350px;height: 400px;margin: 0px auto;">
+						  <div class="cut-img-box">
+							<img id="image" height="auto" width="100%">
+						  </div>
+						  <p class="instructions">Please crop and resize to 135x240px</p>
+						  <div class=" btn-container" style="width: 240px;margin: 0px auto;">
+							<div id="cancel" style="width: 40px;float:left;" class = "btn">CANCEL</div>
+							<div id="rotate" style="width: 40px;float:left;margin-left:10px;" class = "btn">ROTATE</div>
+							<div id="crop" style="width: 40px;float:left;margin-left:10px;" class = "btn">SAVE</div>
+						  </div>
+						</div>
+					  </div>
+					  <span>Picture support JPG/GIF format file only，and GIF files should be <a target="_blank" href="http://ezgif.com">resized</a> to 135x240px before upload.</span>
+					<input type="file" name="update" id="selectImg" onchange="sub(this)" accept="image/jpeg, image/gif" style="display:none">
+					<label id="file-input">   Choose...</label>
+
+					<input type="submit" id="updateBtn" class="btn2" disabled="true" value="UPLOAD">
+					<input type="button" id="btnback" class="btn" onclick="listDir(this)" path="/image" value="RELOAD">
+					<br>
+					<div id="prg" style="display:none">Ready to upload</div>
+					<br><div id="prgbar" style="width:60%;margin:0 auto;display:none"><div id="bar"></div></div>
+					<h4 style="text-align: ;"><span id="free"></span>, Current path:<span id="pwd">/image/</span></h4>
+						<span id="filelist"><table id="list"></table></span>
+					<br>
+					</form>	
+				</div>
+			</div>
+	</div>			
+  </div>
+  <div id="content5" class="sub-settings">
+<div class="container">
+			<div class="row">
+				<div class="col-12">
+					<div id="error" class="hide"></div>
+					<h1>1. Customise display</h1>
+					Upload your images to the screen directly. <p>
+					(jpg/jpeg/png/bmp format are supported)<p>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-12">
+					<div class="upload-container  left" id="drag-container6">
+						<h2 class="container-title">TUBE 6</h2>
+						<label id="drag6">Drag or drop here</label>
+						<input type="file" id="file6" accept="image/jpeg, image/jpg, image/png, image/bmp">
+						<label for="file6" class="file-label">Choose</label>
+						<div id ="image_div6" class="image-container">
+							<img class="uploaded-image" id="image6" src="" alt="">
+							<img class="cropped-image" id="crop_image6" src="" alt="">
+						</div>
+						<button id="cropButton6" class="crop-button">Crop&Upload</button>
+						<button id="rotateButton6" class="rotate-button">rotate</button>
+					</div>				
+					<div class="upload-container  left" id="drag-container5">
+						<h2 class="container-title">TUBE 5</h2>
+						<label id="drag5">Drag or drop here</label>
+						<input type="file" id="file5" accept="image/jpeg, image/jpg, image/png, image/bmp">
+						<label for="file5" class="file-label">Choose</label>
+						<div id ="image_div5" class="image-container">
+							<img class="uploaded-image" id="image5" src="" alt="">
+							<img class="cropped-image" id="crop_image5" src="" alt="">
+						</div>
+						<button id="cropButton5" class="crop-button">Crop&Upload</button>
+						<button id="rotateButton5" class="rotate-button">rotate</button>
+					</div>
+					<div class="upload-container  left" id="drag-container4">
+						<h2 class="container-title">TUBE 4</h2>
+						<label id="drag4">Drag or drop here</label>
+						<input type="file" id="file4" accept="image/jpeg, image/jpg, image/png, image/bmp">
+						<label for="file4" class="file-label">Choose</label>
+						<div id ="image_div4" class="image-container">
+							<img class="uploaded-image" id="image4" src="" alt="">
+							<img class="cropped-image" id="crop_image4" src="" alt="">
+						</div>
+						<button id="cropButton4" class="crop-button">Crop&Upload</button>
+						<button id="rotateButton4" class="rotate-button">rotate</button>
+					</div>
+					<div class="upload-container  left" id="drag-container3">
+					<h2 class="container-title">TUBE 3</h2>
+						<label id="drag3">Drag or drop here</label>
+						<input type="file" id="file3" accept="image/jpeg, image/jpg, image/png, image/bmp">
+						<label for="file3" class="file-label">Choose</label>
+						<div id ="image_div3" class="image-container">
+							<img class="uploaded-image" id="image3" src="" alt="">
+							<img class="cropped-image" id="crop_image3" src="" alt="">
+						</div>
+						<button id="cropButton3" class="crop-button">Crop&Upload</button>
+						<button id="rotateButton3" class="rotate-button">rotate</button>
+					</div>					
+					<div class="upload-container left" id="drag-container2">
+						<h2 class="container-title">TUBE 2</h2>
+						<label id="drag2">Drag or drop here</label>
+						<input type="file" id="file2" accept="image/jpeg, image/jpg, image/png, image/bmp">
+						<label for="file2" class="file-label">Choose</label>
+						<div id="image_div2" class="image-container">
+							<img class="uploaded-image" id="image2" src="" alt="">
+							<img class="cropped-image" id="crop_image2" src="" alt="">
+						</div>
+						<button id="cropButton2" class="crop-button">Crop&Upload</button>
+						<button id="rotateButton2" class="rotate-button">rotate</button>
+					</div>
+					<div class="upload-container left" id="drag-container1">
+						<h2 class="container-title">TUBE 1</h2>
+						<label id="drag1">Drag or drop here</label>
+						<input type="file" id="file1" accept="image/jpeg, image/jpg, image/png, image/bmp">
+						<label for="file1" class="file-label">Choose</label>
+						<div id="image_div1" class="image-container">
+							<img class="uploaded-image" id="image1" src="" alt="">
+							<img class="cropped-image" id="crop_image1" src="" alt="">
+						</div>
+						<button id="cropButton1" class="crop-button">Crop&Upload</button>
+						<button id="rotateButton1" class="rotate-button">rotate</button>
+					</div>
+				</div>
+			</div>
+		</div>
+  </div>
+  <div id="content6" class="sub-settings">
+    <div class="container">
+			<div class="row">
+				<div class="col-12">
+					<div id="error" class="hide"></div>
+					<h1>1. Choose theme</h1>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-12">
+				(Please disable Auto switch if you want to switch manually.)<p>
+					<input class="button-primary left btn-theme" type="button"  onclick="setTheme(1)" value="Flip Clock"/>
+					<input class="button-primary left btn-theme" type="button"  onclick="setTheme(2)" value="Image Clock"/>
+					<input class="button-primary left btn-theme" type="button"  onclick="setTheme(3)" value="Font Clock"/>
+					<input class="button-primary left btn-theme" type="button"  onclick="setTheme(4)" value="Photo Album"/>
+					<input class="button-primary left btn-theme" type="button"  onclick="setTheme(5)" value="Weather Clock"/>
+					<input class="button-primary left btn-theme" type="button"  onclick="setTheme(6)" value="Animations"/>
+					<input class="button-primary left btn-theme" type="button"  onclick="setTheme(7);" value="DIY Screen"/>
+				</div>
+			</div>	
+			<div class="row">
+				<div class="col-12">
+					<div id="error" class="hide"></div>
+					<h1>2. Auto Switch Themes</h1>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-12">
+					<input type="checkbox" id="th1" value="1"/>1.Flip Clock<br />
+					<input type="checkbox" id="th2" value="2"/>2.Image Clock<br />
+					<input type="checkbox" id="th3" value="3"/>3.Font Clock<br />
+					<input type="checkbox" id="th4" value="4"/>4.Photo Album<br/>
+					<input type="checkbox" id="th5" value="5"/>5.Weather Clock<br/>
+					<input type="checkbox" id="th6" value="6"/>6.Animations<br/>
+					<input type="checkbox" id="th7" value="7"/>7.DIY Screen<br/>
+					<label>Enable:</label><input id= "sw_en" type="checkbox" value="1" onchange = "">
+					<label>Interval(seconds):</label><input id= "theme_interval" type="text" style="width:60px" placeholder="10s"><p>					
+					<button class="button-primary left" onclick="set_theme_list()">SAVE</button><p>
+				</div>
+			</div>	
+			<div class="row">
+				<div class="col-12">					
+					<h1>3. Brightness</h1>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-12">
+					0<input type="range" style="width:300px" name="brt" id="brt" min="-10" max="255" onchange="set_brt()" value="100">255
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-12">
+					<div id="error" class="hide"></div>
+					<h1>2. Night Mode</h1>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-12">Enable:
+					<input type="checkbox" id="time_brt_en" name="time_brt_en" />
+				</div>
+				<div class="col-4">Start Time: <p>
+					<select id="time1" onchange="" style="width:100px">
+					  <option value="13">13:00</option>
+					  <option value="14">14:00</option>
+					  <option value="15">15:00</option>
+					  <option value="16">16:00</option>
+					  <option value="17">17:00</option>
+					  <option value="18">18:00</option>
+					  <option value="19">19:00</option>
+					  <option value="20">20:00</option>
+					  <option value="21">21:00</option>
+					  <option value="22" selected="selected">22:00</option>
+					  <option value="23">23:00</option>	  	
+					</select>
+					</div>
+					<div class="col-4">End Time: <p>
+					<select id="time2" onchange="" style="width:100px">
+					  <option value="0">00:00</option>
+					  <option value="1">01:00</option>
+					  <option value="2">02:00</option>
+					  <option value="3">03:00</option>
+					  <option value="4">04:00</option>
+					  <option value="5">05:00</option>
+					  <option value="6">06:00</option>
+					  <option value="7" selected="selected">07:00</option>
+					  <option value="8">08:00</option>
+					  <option value="9">09:00</option>
+					  <option value="10">10:00</option>
+					  <option value="11">11:00</option>
+					  <option value="12">12:00</option>
+					</select>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-12">Brightness at night: <p>
+					0<input type="range" style="width:300px" name="time_brt" id="time_brt" min="-10" max="255" value="50">255
+				</div>
+			</div>		
+			<div class="row">
+				<div class="col-6">
+					<button class="button-primary left" onclick="set_time_brt()">SAVE</button>
+				</div>
+			</div>		
+			<div class="row">
+				<div class="col-12">
+					<h1>5. Factory Reset</h1>
+					<label>The settings will be cleared, but the files you uploaded will not be affected.</label><p>
+					<button class="red" onclick="set_reset()">RESET</button> 
+				</div>
+			</div>			
+			<div class="row">
+				<div class="col-12">
+					<h1>6. Reboot</h1>
+					<button class="red" onclick="set_reboot()">REBOOT</button> 
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-12">
+					<h1>7. Firmware update</h1>
+					<button class="red"><a href="/update"  target="_blank">UPLOAD</a></button> 
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-12">
+ 					<div id="copyright">
+					</div>						
+					<!--script src="js/cropper.min.js"></script>
+					<script src="js/weather.js"></script>
+					<script src="js/time.js"></script>
+					<script src="js/photo.js"></script>
+					<script src="js/diy.js"></script>
+					<script src="js/system.js"></script-->
+					<script src="js/network.js"></script>
+					<script src="js/settings.js"></script>
+				</div>
+			</div>
+		</div>
+  </div>
+  <script>
+	function isScriptLoaded(scriptSrc) {
+		var scripts = document.querySelectorAll('script');
+		for (var i = 0; i < scripts.length; i++) {
+			console.log(scripts[i].src);
+			if (scripts[i].src === scriptSrc) {
+				return true;
+			}
+		}
+		return false;
+	}
+	function load_js(src){
+		// 加载 JavaScript 资源
+		console.log(src);
+		var script = document.createElement('script');
+		script.src = src;
+		if (!isScriptLoaded(script.src)) {
+			console.log("add");
+			document.head.appendChild(script);
+		}
+	}
+	var itemNumberToScript = {
+		1: 'js/network.js',
+		2: 'js/weather.js',
+		3: 'js/time.js',
+		4: 'js/photo.js',
+		5: 'js/diy.js',
+		6: 'js/system.js'
+	};
+	function loadScriptByItemNumber(itemNumber) {
+		var scriptPath = itemNumberToScript[itemNumber];
+		if (scriptPath) {
+			// 如果找到脚本路径，加载脚本
+			load_js(scriptPath);
+		} else {
+			console.error('Script path not found:', itemNumber);
+		}
+	}
+    $(document).ready(function () {
+		$('#content1').show();
+ 	    $('#nav a').click(function () {
+			var itemNumber = $(this).data('item');
+			$('[id^=content]').hide();
+			$('#content' + itemNumber).show();
+			console.log(itemNumber);
+			if(itemNumber == 4){
+				load_js("js/cropper.min.js");
+			}else
+			if(itemNumber == 5){
+				load_js("js/cropper.min.js");
+				if ($('#image6').attr('src') === '') $('#image6').attr('src',"/diy/tube6.jpg");
+				if ($('#image5').attr('src') === '') $('#image5').attr('src',"/diy/tube5.jpg");
+				if ($('#image4').attr('src') === '') $('#image4').attr('src',"/diy/tube4.jpg");
+				if ($('#image3').attr('src') === '') $('#image3').attr('src',"/diy/tube3.jpg");
+				if ($('#image2').attr('src') === '') $('#image2').attr('src',"/diy/tube2.jpg");
+				if ($('#image1').attr('src') === '') $('#image1').attr('src',"/diy/tube1.jpg");
+			}
+			loadScriptByItemNumber(itemNumber);
+			$('#nav a').removeClass('active');
+			$(this).addClass('active');
+		});
+    });
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,428 @@
+// Example sketch which shows how to display a 64x32 animated GIF image stored in FLASH memory
+// on a 64x32 LED matrix
+//
+// Credits: https://github.com/bitbank2/AnimatedGIF/tree/master/examples/ESP32_LEDMatrix_I2S
+// 
+
+/* INSTRUCTIONS
+ *
+ * 1. First Run the 'ESP32 Sketch Data Upload Tool' in Arduino from the 'Tools' Menu.
+ *    - If you don't know what this is or see it as an option, then read this:
+ *      https://github.com/me-no-dev/arduino-esp32fs-plugin 
+ *    - This tool will upload the contents of the data/ directory in the sketch folder onto
+ *      the ESP32 itself.
+ *
+ * 2. You can drop any animated GIF you want in there, but keep it to the resolution of the 
+ *    MATRIX you're displaying to. To resize a gif, use this online website: https://ezgif.com/
+ *
+ * 3. Have fun.
+ */
+
+#define FILESYSTEM LittleFS
+#include <LittleFS.h>
+#include <AnimatedGIF.h>
+#include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
+// ----------------------------
+
+/* 
+ * Below is an is the 'legacy' way of initialising the MatrixPanel_I2S_DMA class.
+ * i.e. MATRIX_WIDTH and MATRIX_HEIGHT are modified by compile-time directives.
+ * By default the library assumes a single 64x32 pixel panel is connected.
+ *
+ * Refer to the example '2_PatternPlasma' on the new / correct way to setup this library
+ * for different resolutions / panel chain lengths within the sketch 'setup()'.
+ * 
+ */
+
+#define PANEL_RES_X 64      // Number of pixels wide of each INDIVIDUAL panel module. 
+#define PANEL_RES_Y 32     // Number of pixels tall of each INDIVIDUAL panel module.
+#define PANEL_CHAIN 1      // Total number of panels chained one to another
+ 
+//MatrixPanel_I2S_DMA mdisplay;
+MatrixPanel_I2S_DMA *mdisplay = nullptr;
+
+uint16_t myBLACK = mdisplay->color565(0, 0, 0);
+uint16_t myWHITE = mdisplay->color565(255, 255, 255);
+uint16_t myRED = mdisplay->color565(255, 0, 0);
+uint16_t myGREEN = mdisplay->color565(0, 255, 0);
+uint16_t myBLUE = mdisplay->color565(0, 0, 255);
+
+
+AnimatedGIF gif;
+File f;
+int x_offset, y_offset;
+extern int brt;
+
+#include "font/agencyb8pt7b.h"
+#include "font/agencyb12pt7b.h"
+#include "font/agencyb20pt7b.h"
+#include "font/FreeSansBold8pt7b.h"
+#include "font/FreeSansBold10pt7b.h"
+//#include "font/FreeSansBold20pt7b.h"
+// Draw a line of image directly on the LED Matrix
+void GIFDraw(GIFDRAW *pDraw)
+{
+    uint8_t *s;
+    uint16_t *d, *usPalette, usTemp[320];
+    int x, y, iWidth;
+
+  iWidth = pDraw->iWidth;
+  if (iWidth > MATRIX_WIDTH)
+      iWidth = MATRIX_WIDTH;
+
+    usPalette = pDraw->pPalette;
+    y = pDraw->iY + pDraw->y; // current line
+    
+    s = pDraw->pPixels;
+    if (pDraw->ucDisposalMethod == 2) // restore to background color
+    {
+      for (x=0; x<iWidth; x++)
+      {
+        if (s[x] == pDraw->ucTransparent)
+           s[x] = pDraw->ucBackground;
+      }
+      pDraw->ucHasTransparency = 0;
+    }
+    // Apply the new pixels to the main image
+    if (pDraw->ucHasTransparency) // if transparency used
+    {
+      uint8_t *pEnd, c, ucTransparent = pDraw->ucTransparent;
+      int x, iCount;
+      pEnd = s + pDraw->iWidth;
+      x = 0;
+      iCount = 0; // count non-transparent pixels
+      while(x < pDraw->iWidth)
+      {
+        c = ucTransparent-1;
+        d = usTemp;
+        while (c != ucTransparent && s < pEnd)
+        {
+          c = *s++;
+          if (c == ucTransparent) // done, stop
+          {
+            s--; // back up to treat it like transparent
+          }
+          else // opaque
+          {
+             *d++ = usPalette[c];
+             iCount++;
+          }
+        } // while looking for opaque pixels
+        if (iCount) // any opaque pixels?
+        {
+          for(int xOffset = 0; xOffset < iCount; xOffset++ ){
+            mdisplay->drawPixel(x + xOffset, y, usTemp[xOffset]); // 565 Color Format
+          }
+          x += iCount;
+          iCount = 0;
+        }
+        // no, look for a run of transparent pixels
+        c = ucTransparent;
+        while (c == ucTransparent && s < pEnd)
+        {
+          c = *s++;
+          if (c == ucTransparent)
+             iCount++;
+          else
+             s--; 
+        }
+        if (iCount)
+        {
+          x += iCount; // skip these
+          iCount = 0;
+        }
+      }
+    }
+    else // does not have transparency
+    {
+      s = pDraw->pPixels;
+      // Translate the 8-bit pixels through the RGB565 palette (already byte reversed)
+      for (x=0; x<pDraw->iWidth; x++)
+      {
+          mdisplay->drawPixel(x, y, usPalette[*s++]); // color 565
+      }
+    }
+     // 绘制文字
+     // 绘制文字背景
+    String tt = "$" + String(brt)+"000";
+    //mdisplay->fillRect(5, 20, 60, 8, mdisplay->color565(0, 0, 0)); 
+    mdisplay->setFont(&FreeSansBold8pt7b);
+    mdisplay->setFont(&agencyb8pt7b);
+    //mdisplay->setFont(&FreeSansBold20pt7b);
+   
+    mdisplay->setCursor(5, 11);
+    mdisplay->printf("BTC");
+    mdisplay->setCursor(5, 30);
+    mdisplay->printf("%s",tt.c_str());
+} /* GIFDraw() */
+
+void * GIFOpenFile(const char *fname, int32_t *pSize)
+{
+  Serial.print("Playing gif: ");
+  Serial.println(fname);
+  f = FILESYSTEM.open(fname);
+  if (f)
+  {
+    *pSize = f.size();
+    return (void *)&f;
+  }
+  return NULL;
+} /* GIFOpenFile() */
+
+void GIFCloseFile(void *pHandle)
+{
+  File *f = static_cast<File *>(pHandle);
+  if (f != NULL)
+     f->close();
+} /* GIFCloseFile() */
+
+int32_t GIFReadFile(GIFFILE *pFile, uint8_t *pBuf, int32_t iLen)
+{
+    int32_t iBytesRead;
+    iBytesRead = iLen;
+    File *f = static_cast<File *>(pFile->fHandle);
+    // Note: If you read a file all the way to the last byte, seek() stops working
+    if ((pFile->iSize - pFile->iPos) < iLen)
+       iBytesRead = pFile->iSize - pFile->iPos - 1; // <-- ugly work-around
+    if (iBytesRead <= 0)
+       return 0;
+    iBytesRead = (int32_t)f->read(pBuf, iBytesRead);
+    pFile->iPos = f->position();
+    return iBytesRead;
+} /* GIFReadFile() */
+
+int32_t GIFSeekFile(GIFFILE *pFile, int32_t iPosition)
+{ 
+  int i = micros();
+  File *f = static_cast<File *>(pFile->fHandle);
+  f->seek(iPosition);
+  pFile->iPos = (int32_t)f->position();
+  i = micros() - i;
+//  Serial.printf("Seek time = %d us\n", i);
+  return pFile->iPos;
+} /* GIFSeekFile() */
+
+unsigned long start_tick = 0;
+
+#include "lib/web_server.h"
+void ShowGIF(const char *name)
+{
+  start_tick = millis();
+   
+  if (gif.open(name, GIFOpenFile, GIFCloseFile, GIFReadFile, GIFSeekFile, GIFDraw))
+  {
+    x_offset = (MATRIX_WIDTH - gif.getCanvasWidth())/2;
+    if (x_offset < 0) x_offset = 0;
+    y_offset = (MATRIX_HEIGHT - gif.getCanvasHeight())/2;
+    if (y_offset < 0) y_offset = 0;
+    Serial.printf("Successfully opened GIF; Canvas size = %d x %d\n", gif.getCanvasWidth(), gif.getCanvasHeight());
+    Serial.flush();
+    while (gif.playFrame(true, NULL))
+    {      
+      
+      update_http_server();
+      if ( (millis() - start_tick) > 8000) { // we'll get bored after about 8 seconds of the same looping gif
+        break;
+      }
+    }
+    gif.close();
+  }
+
+} /* ShowGIF() */
+
+
+#include <WiFi.h>
+char ssid[] = "1024";     // your network SSID (name)
+char password[] = "2048@@@@"; // your network key
+
+#include "TJpg_Decoder.h"
+
+bool tft_output(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t* bitmap)
+{
+   // Stop further decoding as image is running off bottom of screen
+  if ( y >= mdisplay->height() ) return 0;
+
+  // This function will clip the image block rendering automatically at the TFT boundaries
+  mdisplay->drawRGBBitmap(x,y,bitmap,w,h);
+  return 1;
+}
+
+void set_screen_brt(int brt){
+  mdisplay->setBrightness8(brt); //0-255
+}
+#include "Fonts/FreeMono9pt7b.h"
+/************************* Arduino Sketch Setup and Loop() *******************************/
+void setup() {
+
+  TJpgDec.setJpgScale(1);
+  // The decoder must be given the exact name of the rendering function above
+  TJpgDec.setCallback(tft_output);
+
+  Serial.begin(115200);
+  delay(1000);
+  // Set WiFi to station mode and disconnect from an AP if it was Previously
+  // connected
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    delay(500);
+  }
+
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+ 
+  HUB75_I2S_CFG mxconfig(
+    PANEL_RES_X,   // module width
+    PANEL_RES_Y,   // module height
+    PANEL_CHAIN    // Chain length
+  );
+
+ // mxconfig.gpio.e = 18;
+ // mxconfig.clkphase = false;
+  //mxconfig.driver = HUB75_I2S_CFG::FM6126A;
+
+  // Display Setup
+  //mxconfig.double_buff = true;
+  mdisplay = new MatrixPanel_I2S_DMA(mxconfig);
+  mdisplay->begin();
+  mdisplay->setBrightness8(20); //0-255
+  mdisplay->clearScreen();
+//  mdisplay->fillScreen(myBLACK);
+  Serial.println("Starting AnimatedGIFs Sketch");
+
+  //mdisplay->setFont(&agencyb8pt7b);
+  mdisplay->setCursor(5, 0);
+  mdisplay->printf("BTC");
+  mdisplay->setCursor(5, 10);
+  mdisplay->printf("$699973");
+  delay(3000);
+ 
+  // Start filesystem
+  Serial.println(" * Loading SPIFFS");
+  if(!LittleFS.begin()){
+        Serial.println("SPIFFS Mount Failed");
+  }
+  
+ /* all other pixel drawing functions can only be called after .begin() */
+  mdisplay->fillScreen(mdisplay->color565(0, 0, 0));
+  gif.begin(LITTLE_ENDIAN_PIXELS);
+  init_http_server();
+  mdisplay->setCursor(0,0);
+  //mdisplay->setFont(&FreeMono9pt7b);
+  mdisplay->print("BTC $70000");
+  mdisplay->setCursor(0,8);
+  mdisplay->setTextColor(mdisplay->color565(0, 255, 0));
+  mdisplay->print("+7.0%");
+}
+
+String gifDir = "/image"; // play all GIFs in this directory on the SD card
+//char filePath[256] = { 0 };
+String filePath = "";
+File root, gifFile;
+void linearInterpolation(float input[], int inputLength, float output[], int outputLength, int screenHeight) {
+    // 归一化处理
+    float minValue = input[0];
+    float maxValue = input[0];
+    for (int i = 1; i < inputLength; i++) {
+        if (input[i] < minValue) minValue = input[i];
+        if (input[i] > maxValue) maxValue = input[i];
+    }
+
+    for (int i = 0; i < inputLength; i++) {
+        input[i] = map(input[i], minValue, maxValue, 0, Screen); // 归一化到 [0, 1] 范围
+    }
+
+    for (int i = 0; i < outputLength; i++) {
+        if (i % 2 == 0) { // 每隔一个数据点插入一个新数据点
+            int dataIndex = i / 2; // 原始数据点的索引
+            output[i] = input[dataIndex]; // 直接复制原始数据点
+        } else {
+            int prevIndex = i / 2;
+            int nextIndex = min(i / 2 + 1, inputLength - 1);
+            output[i] = (i - 2 * prevIndex) * (input[nextIndex] - input[prevIndex]) / 2 + input[prevIndex];
+        }
+    }
+}
+
+void drawLineChart(float data[], int dataLength, uint16_t lineColor, uint16_t fillColor) {
+    int screenWidth = 64;
+    int screenHeight = 16;
+
+    // 计算填充后的数据长度
+    int filledLength = max(dataLength, screenWidth);
+
+    // 计算数据归一化所需的最小值和最大值
+    float minValue = data[0];
+    float maxValue = data[0];
+    for (int i = 1; i < dataLength; i++) {
+        if (data[i] < minValue) minValue = data[i];
+        if (data[i] > maxValue) maxValue = data[i];
+    }
+
+    // 补充数据到64个数组长度，并且归一化到0和1
+    float filledData[screenWidth];
+    linearInterpolation(data, dataLength, filledData, screenWidth, screenHeight);
+
+    #define HEIGHT_OFFSET 16 
+    // 绘制折线，以及填充折线以下部分
+    for (int x = 0; x < screenWidth; x++) {
+        int y = int(filledData[x]  * (screenHeight - 1));//反归一化
+        Serial.print(y);
+        Serial.print(" ");
+        mdisplay->drawPixel(x, screenHeight-1 -y + HEIGHT_OFFSET, lineColor);//画点
+        mdisplay->drawFastVLine(x, screenHeight-y + HEIGHT_OFFSET, y, fillColor);//画线，需要注意绘制起点，绘制方向，绘制长度，是从Y点继续增加的，以及绘制长度
+    }
+}
+
+void loop() {
+    float testData[] = {40.5, 38.3, 25.7, 30.1, 25.8, 18.6, 22.9, 30,28,48,44,23,45,55,34,38,30,29,34,37,33,45,36,34,45,43,44,35,33,36,22,34,40,33,36,32,24,25,33,36,22,44};
+    int testDataLength = sizeof(testData) / sizeof(testData[0]);
+    uint16_t lineColor = mdisplay->color565(0, 255, 0); // 红色折线
+    uint16_t fillColor = mdisplay->color565(150, 255, 150); // 浅红色填充
+
+    drawLineChart(testData, testDataLength, lineColor, fillColor);
+
+    delay(5000); // 5秒钟更新一次数据
+}
+#if 0
+void loop() 
+{
+   while (1) // run forever
+   {
+      
+    update_http_server();
+      root = FILESYSTEM.open(gifDir);
+      if (root)
+      {
+           gifFile = root.openNextFile();
+            while (gifFile)
+            {
+            update_http_server();
+              if (!gifFile.isDirectory()) // play it
+              {
+                
+                // C-strings... urghh...                
+                filePath = String(gifFile.path()); 
+                if(filePath.endsWith(".gif")){
+                  ShowGIF(filePath.c_str());
+                } else if(filePath.endsWith(".jpg")){
+                  TJpgDec.drawFsJpg(0,0,filePath, LittleFS);
+                  delay(500);
+                }
+               
+              }
+              gifFile.close();
+              gifFile = root.openNextFile();
+            }
+         root.close();
+      } // root
+      
+      delay(1000); // pause before restarting
+      
+   } // while
+}
+#endif

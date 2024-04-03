@@ -1,0 +1,162 @@
+<!Doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=0.8, minimal-ui">
+		<meta name="author" content="GEEKMAGIC">
+		<meta name="theme-color" content="#36393E" />
+		<link rel="stylesheet" href="css/style.css">
+	</head>
+	<body onload = "getData('/config.json');getData('/city.json');getNav();">
+		<nav id="nav" style="width: 80%;margin: 0 auto;font-size: 25px;text-align: center;">
+		</nav>		
+		<div class="container">
+			<div id = "city">
+			<div class="row">
+				<div class="col-12">
+					<div id="error" class="hide"></div>
+					<h1>1.Set your city first</h1>
+				</div>
+			</div>
+			<div class="row">				
+				<div class="col-12">
+				<h3>Method 1:Set City Name,Country/Region Name</h3><p>
+					Input your city location: <input type="text" name="city1" id="city1" placeholder="Seoul,KR">
+					<p>Location example, Seoul, the capital city of Korea, please input: Seoul,KR</br>
+				</div><p>				
+			</div>
+			
+			<div class="row">
+				<div class="col-6">
+					<button class="button-primary left" onclick="set_weather()">SAVE</button>
+				</div>
+			</div>
+			</div>
+			<div id ="wifi" style="visibility:hidden">			
+			<div class="row">
+				<div class="col-12">					
+					<div id="error" class="hide"></div>					
+					<h1 class="header">2. Set internet connect</h1>	
+					<button onclick="scan()" id="apScanStart" class="right button-primary">SCAN</button>					
+					<p class="clear">
+						<span class="red">Tips: </span><span class="bold">Please select strong signal 2.4G WiFi, 5G is not supported.</span>
+						<br />
+						<a id="scanInfo" style="visibility:hidden" class="left labelFix">Scanning...</a>
+						<br />
+						<span id="selectAllBtns" style="visibility:hidden">
+							<br />
+						</span>						
+					</p>				
+					<table></table>
+				</div>
+			</div>
+			<div class="row">		
+				<div class="col-12">
+				SSID     :<input type="text" name="scan_ssid" id="scan_ssid" placeholder="1024"><p>
+				PASSWORD :<input type="text" name="scan_pwd" id="scan_pwd" placeholder="password">
+				</div>					
+				<div class="col-12">
+				<button class="button-primary left" onclick="set_wifi('scan')">SAVE</button>				
+				</div>
+				<p><br><span style="color: orange;">Warm reminder: After successfully connecting to the Internet, the "GIFTV" hotspot will be turned off, and the new IP address will be displayed on the screen when it is turned on. Please connect your phone to the same WIFI, then open a web browser and enter the new IP address to change settings.</span>
+			</div>
+
+			<div class="row">
+				<div class="col-12">
+					<h1 class="header">2. Manual Input</h1>
+					<label for="delay">Useful for hidden WiFi, 2.4G only.</label><p>
+					SSID     :<input type="text" name="ssid" id="ssid" placeholder="1024"><p>
+					PASSWORD :<input type="text" name="pwd" id="pwd" placeholder="password">
+				</div>
+				<div class="col-12">
+					<button class="button-primary left" onclick="set_wifi('manual')">SAVE</button>
+				</div>
+			</div>		
+			<div class="row">
+				<div class="col-12">
+					<br />
+					<div id="copyright">
+					</div>
+					<script src="js/settings.js"></script>
+				</div>
+			</div>
+			</div>
+		</div>
+		<script>
+			function set_weather(){
+				var x=getE("city1");
+				if(x.value == ""){
+					alert("city location can't be both empty.");
+				}else{
+					if(x.value)
+						url = "/set?cd1="+x.value.replace(/ /g,"")+"&cd2=1000";
+					getResponse(url, function(responseText) {
+						var err = getE("error");
+						if (responseText == "OK") {
+							err.style.background="#5ecb4a";
+							showMessage("Saved Successfully!", 1000);
+							var ele = getE('wifi');
+							ele.style.visibility = 'visible';
+						}else{
+							err.style.background="#af3535";
+							showMessage("Save faild!",1000);
+						} 
+					});
+				}	
+			}
+			function scan() {
+				var table = document.getElementsByTagName('table')[0];
+				//var networkInfo = getE('networksFound');
+				var scanInfo = getE('scanInfo');
+				scanInfo.style.visibility = 'visible';
+				getResponse("wifi.json", function(responseText) {
+					scanInfo.style.visibility = 'hidden';
+					var res = JSON.parse(responseText);
+					//networkInfo.innerHTML = res.aps.length;
+					var tr = '';
+					if (res.aps.length > 0) {
+						tr += '<tr><th>Channel</th><th>WiFi</th><th>Safe</th><th>Signal</th><th>SELECT</th></tr>';
+					}	
+					
+					for (var i = 0; i < res.aps.length; i++) {
+					  if (res.aps[i].se == 1) tr += '<tr class="selected">';
+					  else tr += '<tr>';
+					  tr += '<td>' + res.aps[i].c + '</td>';
+					  tr += '<td>' + escapeHTML(res.aps[i].ss) + '</td>';
+					  if(res.aps[i].e){
+						tr += '<td>' + "&#128274;" + '</td>';
+					  }else{
+						tr += '<td>' + " " + '</td>';
+					  }
+					  var _width = res.aps[i].r + 130;
+					  var _color;
+					  if(res.aps[i].r < -80) _color = "meter_red";
+					  else if(res.aps[i].r < -60) _color = "meter_orange";
+					  else _color = "meter_green";
+					  tr += '<td><div class="meter_background"> <div class="meter_forground '+_color+'" style="width: '+_width+'%;"><div class="meter_value">' + res.aps[i].r + '</div></div> </div></td>';
+					  tr += '<td><button class="select" onclick="var ssid= \''+escapeHTML(res.aps[i].ss)+'\';select(ssid);">SELECT</button></td>';
+					  tr += '</tr>';
+					}
+					table.innerHTML = tr;
+			  });
+			}
+			function set_wifi(data){
+				var ssid;
+				var pwd;
+				if(data == "scan"){
+					ssid = getE('scan_ssid').value;
+					pwd = getE('scan_pwd').value;
+				}else{
+					ssid = getE('ssid').value;
+					pwd = getE('pwd').value;
+				}
+				var url = "/wifisave?s="+encodeURIComponent(ssid)+"&p="+encodeURIComponent(pwd);
+				send_http(url);				
+			}
+			function select(ssid) {
+				scan_ssid.value = ''+(ssid)+'';
+				scan_pwd.value = '';
+			}
+		</script>
+	</body>
+</html>

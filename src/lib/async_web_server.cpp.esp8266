@@ -1,0 +1,1098 @@
+#include <DNSServer.h>
+//#include <LITTLEFS.h>
+#include <LittleFS.h>
+#include <WString.h>
+#include <ESPAsyncWebServer.h>
+#include <mDNS.h>
+//#include <Update.h>
+//#include <ESP8266HTTPUpdateServer.h>
+
+#include "../app/weather/weather_en.h"
+#include "settings.h"
+//#include "init.h"
+//#include "async_web_server.h"
+#include "web_server.h"
+
+//#define LittleFS LITTLEFS
+#define  LITTLEFS LittleFS
+
+char ssid[32];
+char password[32];
+// DNS server
+const byte DNS_PORT = 53;
+DNSServer dnsServer;
+
+// Web server
+AsyncWebServer server(80);// 建立esp8266网站服务器对象
+//ESP8266HTTPUpdateServer httpUpdater;
+#if 0
+const char FS_HTML[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+input{background:#f1f1f1;border:0;padding:0 15px}
+body{background:#00acc1;font-family:sans-serif;font-size:14px;color:#777}
+#file-input,input{height:44px;border-radius:4px;margin:10px auto;font-size:15px}
+#file-input{padding:0 10px;box-sizing:border-box;border:1px solid #ddd;line-height:44px;text-align:left;display:block;cursor:pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
+#bar,#prgbar{background-color:#f1f1f1;border-radius:10px}#bar{background-color:#00acc1;width:0;height:10px;}
+form{background:#fff;max-width:350px;margin:75px auto;padding:35px; padding-bottom: 30px;border: 1px solid #00acc1;border-radius:5px;text-align:center; align-content: center;}
+.btn {background-color: #00acc1;box-shadow: 0 0 8px 0 rgba(0, 0, 0, 0.08), 0 0 15px 0 rgba(0, 0, 0, 0.02), 0 0 20px 4px rgba(0, 0, 0, 0.06);color: white;border-radius: 4px;padding: 9px 16px;background-image: none;
+text-decoration: none;border: none;letter-spacing:1.25px;cursor: pointer;text-transform:uppercase;font-size:14px;line-height: 18px;display: inline-block;vertical-align: middle;transition-duration: 0.1s;}
+.btn:hover {background-color: #0097a7;box-shadow: 0px 2px 4px -1px rgba(0, 0, 0, 0.2), 0px 4px 5px 0px rgba(0, 0, 0, 0.14), 0px 1px 10px 0px rgba(0,0,0,.12);}
+.btn:visited {color: white;}
+.btn:focus {outline: none;}
+.btn:active {color: white;background-color: #007c91;}
+.btn2 {background-color: #e29425;box-shadow: 0 0 8px 0 rgba(0, 0, 0, 0.08), 0 0 15px 0 rgba(0, 0, 0, 0.02), 0 0 20px 4px rgba(0, 0, 0, 0.06);color: white;border-radius: 4px;padding: 9px 16px;background-image: none;
+text-decoration: none;border: none;letter-spacing:1.25px;cursor: pointer;text-transform:uppercase;font-size:14px;line-height: 18px;display: inline-block;vertical-align: middle;transition-duration: 0.1s;}
+.btn2:hover:enabled {background-color: #d68a1d;box-shadow: 0px 2px 4px -1px rgba(0, 0, 0, 0.2), 0px 4px 5px 0px rgba(0, 0, 0, 0.14), 0px 1px 10px 0px rgba(0,0,0,.12);}
+.btn2:visited {color: white;}
+.btn2:focus {outline: none;}
+.btn2:active {color: white;background-color: #ca7125;}
+.btn2:disabled {
+  cursor: default;
+    background: #DDD;
+}
+.btndel {
+  border: none;
+  color: white;
+  padding: 0px 6px;
+  height: 25px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 14px;
+  margin: 2px 2px;
+  cursor: pointer;
+   border-radius: 4px;
+   background-color: #e03423db;
+   transition-duration: 0.1s;
+  }
+.btndel:hover {background-color: #b02f19;box-shadow: 0px 1px 3px -1px rgba(0, 0, 0, 0.2), 0px 4px 5px 0px rgba(0, 0, 0, 0.14), 0px 1px 10px 0px rgba(0,0,0,.12);}
+.btndel:visited {color: white;}
+.btndel:active {color: white;background-color: #db331d;}
+   html {
+     font-family: Roboto, Arial, sans-serif;
+     display: inline-block;
+     margin: 0px auto;
+     text-align: center;
+    }
+    h2 { font-size: 3.0rem; 
+       font-family: Arial;
+      text-align: center;
+      font-weight: normal;
+      color: #fafcfc;
+    }
+    p { font-size: 3.0rem; margin-top: 0;}
+    .units { font-size: 1.2rem; }
+    .dht-labels{
+      font-size: 1.5rem;
+      vertical-align:middle;
+      padding-bottom: 15px;
+      font-weight: normal;
+      color: #333333;
+    }
+table,th, td{
+ font-family: arial;
+  border-collapse: collapse;
+  border: 1px solid #dddddd;
+}
+th, td {
+  padding: 10px; 
+}
+tr:nth-child(odd) {
+  background-color: #edebeb;
+  
+}
+tr:nth-child(1) {
+  background-color: #edebeb;
+}
+th:nth-child(2) {
+  text-align: left;
+}
+/* nth-child(1) = the first td in each tr */
+td:nth-child(1) {
+ column-width: 30px;
+ text-align: center;
+  }
+/* the second */
+td:nth-child(2) {
+  column-width: 175px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+}
+/* the third */
+td:nth-child(3) {
+ column-width: 100px;
+ text-align: center;
+ }
+ td:nth-child(4) {
+   column-width: 30px;
+text-align: center;
+ }
+  
+</style>
+<title>File manager</title><script src='https://ajax.aspnetcdn.com/ajax/jQuery/jquery-3.5.1.min.js'></script></head>
+<body>
+<form method="POST" action="http://192.168.0.160/filesystem#" enctype="multipart/form-data" id="upload_form">
+<input type="file" name="update" id="file" onchange="sub(this)" style="display:none">
+<label id="file-input" for="file">   Choose file...</label>
+<input type="submit" id="updateBtn" class="btn2" disabled="true" value="Upload file">
+<input type="button" id="btnback" class="btn" onclick="listDir(this)" path="/image" value="Back">
+<br>
+<div id="prg" style="display:none">Ready to upload</div>
+<br><div id="prgbar" style="display:none"><div id="bar"></div></div>
+<h4 style="text-align: left;">Current Dir:<span id="pwd">/image</span></h4>
+    <span id="filelist">%list%</span>
+<br>
+</form>
+<script>
+
+function listDir(obj){
+    var path = $(obj).attr("path");
+    console.log(path); 
+    var xhr = new XMLHttpRequest();
+    var fnstring = String("/filelist?dir=")+path;
+    xhr.open("GET", fnstring, true);
+    console.log(fnstring);
+    xhr.send();
+    //setTimeout("location.href = '../filesystem';", 3000);
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState == XMLHttpRequest.DONE) {
+            console.log(xhr.responseText);
+            $("#list").replaceWith(xhr.responseText);
+            $("#pwd").html(path);
+            //确定父路径，点返回的时候请求上级目录
+            if(path != "/image") {
+              var lastpos = path.lastIndexOf("/");
+              $("#btnback").attr("path", path.substring(0, lastpos-1));
+            }
+        }
+    }
+}
+
+function refreshPwd(){
+    var path = $('#pwd').html();
+    if(path == "" || path == "/") path = "/image";
+    var xhr = new XMLHttpRequest();
+    var fnstring = String("/filelist?dir=")+path;
+    xhr.open("GET", fnstring, true);
+    console.log(fnstring);
+    xhr.send();
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState == XMLHttpRequest.DONE) {
+            console.log(xhr.responseText);
+            $("#list").replaceWith(xhr.responseText);
+        }
+    }
+}
+
+function deletef(h) {
+   var xhr = new XMLHttpRequest();
+   var fnstring=String("/delete?file=")+h;
+   xhr.open("GET", fnstring, true);
+   console.log(fnstring);
+    xhr.send();
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState == XMLHttpRequest.DONE) {
+            alert("delete ok");
+            console.log(xhr.responseText);
+            refreshPwd();
+        }
+    }
+}
+
+function sub(obj){
+  var a = obj.value;
+  console.log(a);
+  var fileName = a.replace(/^.*[\\\/]/, '');
+  console.log(fileName);
+  document.getElementById('file-input').innerHTML = fileName;
+  document.getElementById('updateBtn').disabled = false;
+  document.getElementById('prgbar').style.display = 'block';
+  document.getElementById('prg').style.display = 'block';
+};
+$('form').submit(function(e){
+    document.getElementById('updateBtn').disabled = "disabled";  
+    e.preventDefault();
+    var form = $('#upload_form')[0];
+    var data = new FormData(form);
+    var dir = $("#pwd").html();
+    console.log("upload "+dir);
+    $.ajax({
+        url: '/doUpload?dir='+dir,
+        type: 'POST',
+        data: data,
+        contentType: false,
+        processData:false,
+        xhr: function() {
+        var xhr = new window.XMLHttpRequest();
+        xhr.upload.addEventListener('progress', function(evt) {
+            if (evt.lengthComputable) {
+                var per = evt.loaded / evt.total;
+                $('#prg').html('Progress: ' + Math.round(per*100));
+                $('#bar').css('width', Math.round(per*350)+"px");
+                }
+        }, false);
+        return xhr;
+    },
+    success:function(d, s) {
+        console.log('success!'); 
+        //setTimeout("location.href = '../filesystem';", 3000);
+        document.getElementById('prgbar').style.display = 'none';
+        document.getElementById('prg').style.display = 'none';
+        $('#prg').html('Ready to upload');
+        $('#bar').css('width:0px');
+        document.getElementById('file-input').innerHTML = 'Choose file...';
+        document.getElementById('updateBtn').disabled = true;
+
+        refreshPwd();
+    },
+    error: function (a, b, c) {
+        alert("Upload error");
+        setTimeout("location.href = '../filesystem';", 1000);
+    }
+});
+});
+</script></body></html>)rawliteral";
+#endif
+String filelist = "";
+size_t content_len;
+File file;
+bool opened = false;
+const char* PARAM = "file";
+
+/** Is this an IP? */
+boolean isIp(String str) {
+  for (size_t i = 0; i < str.length(); i++) {
+    int c = str.charAt(i);
+    if (c != '.' && (c < '0' || c > '9')) {
+      return false;
+    }
+  }
+  return true;
+}
+
+#if 0
+/** IP to String? */
+String toStringIp(IPAddress ip) {
+  String res = "";
+  for (int i = 0; i < 3; i++) {
+    res += String((ip >> (8 * i)) & 0xFF) + ".";
+  }
+  res += String(((ip >> 8 * 3)) & 0xFF);
+  return res;
+}
+#endif
+
+/** Redirect to captive portal if we got a request for another domain. Return true in that case so the page handler do not try to handle the request again. */
+boolean captivePortal() {
+  return false;
+}
+
+/** Handle root or redirect to captive portal */
+void handleRoot(AsyncWebServerRequest * request) {
+    if (captivePortal()) { // If caprive portal redirect instead of displaying the page.
+        return;
+    }
+
+    if (LittleFS.exists("/portal.html")) { // If the file exists
+        //File file = SPIFFS.open("/index.html.gz", "r"); // Open it
+        //File file = LittleFS.open("/portal.html", "r"); // Open it
+        //size_t sent = server.streamFile(file, "text/html"); // And send it to the client
+        request->send(LittleFS, "/portal.html", "text/html", false);
+        //file.close(); // Then close the file again
+    }
+    return;
+}
+
+static int getRSSIasQuality(int RSSI) {
+  int quality = 0;
+
+  if (RSSI <= -100) {
+    quality = 0;
+  } else if (RSSI >= -50) {
+    quality = 100;
+  } else {
+    quality = 2 * (RSSI + 100);
+  }
+  return quality;
+}
+
+/** Wifi config page handler */
+void handleWifi(AsyncWebServerRequest * request) {
+    String page = FPSTR(HTTP_HEADER);
+    page.replace("{v}", "Config");
+    page += FPSTR(HTTP_SCRIPT);
+    page += FPSTR(HTTP_STYLE);
+    page += FPSTR(HTTP_HEADER_END);
+    page += FPSTR(HTTP_HOME);
+
+        //扫描配网
+    if (request->url() == "/wifi") {
+
+        //int n = WiFi.scanNetworks();
+        int n = WiFi.scanComplete();
+        if(n == -2){
+          //WiFi.scanNetworks(true);
+          Serial.println(F("Scan start"));
+        } else if (n == 0) {
+            //WiFi.scanNetworks(true);
+            Serial.println(F("No networks found"));
+            page += F("No networks found.");
+        } else {
+          //sort networks
+          int indices[n];
+          for (int i = 0; i < n; i++) {
+              indices[i] = i;
+          }
+
+          // RSSI SORT
+
+          // old sort
+          for (int i = 0; i < n; i++) {
+              for (int j = i + 1; j < n; j++) {
+                if (WiFi.RSSI(indices[j]) > WiFi.RSSI(indices[i])) {
+                    std::swap(indices[i], indices[j]);
+                }
+              }
+          }
+
+          /*std::sort(indices, indices + n, [](const int & a, const int & b) -> bool
+              {
+              return WiFi.RSSI(a) > WiFi.RSSI(b);
+              });*/
+
+          // remove duplicates ( must be RSSI sorted )
+          if (1) {
+          //if (_removeDuplicateAPs) {
+              String cssid;
+              for (int i = 0; i < n; i++) {
+              if (indices[i] == -1) continue;
+              cssid = WiFi.SSID(indices[i]);
+              for (int j = i + 1; j < n; j++) {
+                  if (cssid == WiFi.SSID(indices[j])) {
+                  Serial.println("DUP AP: " + WiFi.SSID(indices[j]));
+                  indices[j] = -1; // set dup aps to index -1
+                  }
+              }
+              }
+          }
+
+          //display networks in page
+          for (int i = 0; i < n; i++) {
+              if (indices[i] == -1) continue; // skip dups
+              Serial.println(WiFi.SSID(indices[i]));
+              Serial.println(WiFi.RSSI(indices[i]));
+              int quality = getRSSIasQuality(WiFi.RSSI(indices[i]));
+              //20 经验值,取自开源版
+              if (20 < quality) {
+              //if(1){
+                  String item = FPSTR(HTTP_ITEM);
+                  String rssiQ;
+                  rssiQ += quality;
+                  item.replace("{v}", WiFi.SSID(indices[i]));
+                  item.replace("{r}", rssiQ);
+                  //if (WiFi.encryptionType(indices[i]) != WIFI_AUTH_OPEN) {  //esp32
+                  if (WiFi.encryptionType(indices[i]) != AUTH_OPEN) {
+                      item.replace("{i}", "l");
+                  } else {
+                      item.replace("{i}", "");
+                  }
+                  //Serial.println(item);
+                  page += item;
+                  delay(0);
+              } else {
+                  Serial.println(F("Skipping due to quality"));
+              }
+
+          }
+          page += "<br/>";
+          }
+    }
+
+    page += FPSTR(HTTP_FORM_START);
+    page += FPSTR(HTTP_FORM_END);
+    page += FPSTR(HTTP_SCAN_LINK);
+
+    page += FPSTR(HTTP_END);
+
+    //server.sendHeader("Content-Length", String(page.length()));
+    //server.send(200, "text/html", page);
+    request->send_P(200, "text/html", page.c_str());
+    Serial.println(page);
+    // async 异步方式，不能阻塞，需要提前准备好扫描
+    WiFi.scanDelete();
+    WiFi.scanNetworks(true);
+}
+
+boolean connect = false;
+/** Handle the WLAN save form and redirect to WLAN config page again */
+void handleWifiSave(AsyncWebServerRequest * request) {
+    String ss = request->getParam("s")->value();
+    String pp = request->getParam("p")->value();
+    ss.toCharArray(ssid,sizeof(ssid)-1);
+    pp.toCharArray(password,sizeof(password)-1);
+
+    //request->getParam("s").toCharArray(ssid, sizeof(ssid) - 1);
+    //request->getParam("p").toCharArray(password, sizeof(password) - 1);
+
+    set_wifi_config(ssid, password);
+
+    String page = FPSTR(HTTP_HEADER);
+    page.replace("{v}", "WiFi");
+    page += FPSTR(HTTP_SCRIPT);
+    page += FPSTR(HTTP_STYLE);
+    page += FPSTR(HTTP_HEADER_END);
+    //page += "连接中,请等待30s,如失败,请重试.";
+    page += "设置已保存,自动重启联网.";
+    page += FPSTR(HTTP_END);
+    //request->addHeader("Content-Length", String(page.length()));
+    request->send_P(200, "text/html", page.c_str());
+    delay(500);
+    //重启联网
+    ESP.restart();
+}
+
+String getContentType(String filename){
+  if(filename.endsWith(".htm")) return "text/html";
+  else if(filename.endsWith(".html")) return "text/html";
+  else if(filename.endsWith(".html.gz")) return "text/html";
+  else if(filename.endsWith(".css")) return "text/css";
+  else if(filename.endsWith(".jpg")) return "image/jpeg";
+  return "text/plain";
+}
+#if 0
+bool handleFileRead(String path) { // send the right file to the client (if it exists)
+  Serial.println("handleFileRead: " + path);
+  if (path.endsWith("/")) path += "/index.html.gz"; // If a folder is requested, send the index file
+  String contentType = getContentType(path); // Get the MIME type
+  //if (SPIFFS.exists(path)) { // If the file exists
+  if (LittleFS.exists(path)) { // If the file exists
+    //File file = SPIFFS.open(path, "r"); // Open it
+    File file = LittleFS.open(path, "r"); // Open it
+    size_t sent = server.streamFile(file, contentType); // And send it to the client
+    file.close(); // Then close the file again
+    return true;
+  }
+  Serial.println("\tFile Not Found");
+  return false;
+}
+#endif
+
+#if 0
+void handleNotFound2() {
+  if (captivePortal()) { // If caprive portal redirect instead of displaying the error page.
+    //return;
+  }
+  if(server.uri() == "/index.html"){
+      if (LittleFS.exists("/index.html.gz")) { // If the file exists
+      File file = LittleFS.open("/index.html.gz", "r"); // Open it
+      size_t sent = server.streamFile(file, "text/html"); // And send it to the client
+      file.close(); // Then close the file again
+      return;
+    }
+  }
+
+  String message = "File Not Found";
+  server.send(404, "text/plain", message);
+}
+#endif
+
+extern String cityName, cityFont, cityCode;
+extern int gif_index;
+extern int theme_index;
+extern uint16_t h1_color;
+extern uint16_t m1_color;
+extern uint16_t s1_color;
+extern int force_time_display; //是否强制更新时间显示
+extern String bili_id;
+extern int album_time;
+extern int app_exit;//是否退出当前运行的APP
+extern String stock_code, stock_exchange;
+extern int t1,t2,b1,b2,timer_brt_en;
+extern int hour12;
+extern int brt;
+extern Weather wea;
+extern String weather_key;
+extern String temp_unit;
+extern String windspeed_unit;
+extern String pressure_unit;
+extern uint16_t h1_color;
+extern uint16_t m1_color;
+extern uint16_t s1_color;
+
+
+extern void set_screen_brt(int brt);
+void handleSet(AsyncWebServerRequest * request){
+  String message = "OK";
+  if (request->hasArg("ct") && request->hasArg("cf") && request->hasArg("cd")){
+    String city  = request->arg("ct");
+    if(city != cityName){
+      cityName = city;
+      //update_weather(true);
+      set_city_config("", 0, 0, city.c_str(), "");
+      wea.cityCode = cityCode;
+    }
+    //cityName  = server.arg("ct");
+    cityFont  = request->arg("cf");
+    cityCode  = request->arg("cd");
+    Serial.printf("cityname:%s\r\n",cityName);
+    Serial.printf("cityFont:[%s]\r\n",cityFont);
+    Serial.printf("cityCode:[%s]\r\n",cityCode);
+    //set_city_config(cityName.c_str(), cityFont.c_str(), cityCode.c_str());
+   }else if (request->hasArg("key")) {
+    weather_key = request->arg("key");
+    //Serial.printf("key:[%s]\r\n",weather_key);
+    if(weather_key == ""){
+      //Serial.printf("error key");
+    }else {
+      set_key_config(weather_key);
+      //update_weather(true);
+      wea.usr_weather_key = weather_key;
+      //wea.update(false);
+      //立刻使用用户的key更新天气
+      wea.update(true);
+      //weather_changed = true;
+    }
+
+  }else if (request->hasArg("brt")) {
+    brt  = request->arg("brt").toInt();
+    Serial.printf("brt:[%d]\r\n",brt);
+    //todoifeng analogWrite(5, 250-brt);//200 是比较合适的亮度
+    set_screen_brt(brt);
+    set_brt_config(brt);
+  }else if(request->hasArg("b1") && request->hasArg("b2") && request->hasArg("t1")){
+    t1 = request->arg("t1").toInt();
+    t2 = request->arg("t2").toInt();
+    b2 = request->arg("b2").toInt();
+    timer_brt_en = request->arg("en").toInt();
+    /* 小时发生变化，立刻更新小时 */
+    set_timer_brt_config(timer_brt_en, t1, t2, b2);
+    Serial.printf("en:[%d]%d,%d,%d,%d\r\n",timer_brt_en, t1, t2, b2);
+ }else if (request->hasArg("hour")) {
+    hour12  = request->arg("hour").toInt();
+    Serial.printf("hour12:[%d]\r\n",hour12);
+    set_hour12_config(hour12);
+  }else if (request->hasArg("theme")) {
+    theme_index = request->arg("theme").toInt();
+    Serial.printf("theme:[%d]\r\n", theme_index);
+    set_theme_config(theme_index);
+    //退出相册轮播
+    if(theme_index != 3) app_exit = 1;
+ }else if (request->hasArg("hc")) {
+    char hex[8] = {0};
+    snprintf(hex, sizeof(hex),"%s",request->arg("hc").c_str());
+    h1_color = (int)strtol(hex, NULL, 16);
+    Serial.printf("hc:[%X]\r\n",h1_color);
+    set_time_color_config(h1_color, m1_color, s1_color);
+    force_time_display = 1;
+  }else if (request->hasArg("mc")) {
+    char hex[8] = {0};
+    snprintf(hex, sizeof(hex),"%s",request->arg("mc").c_str());
+    m1_color = (int)strtol(hex, NULL, 16);
+    Serial.printf("m1 color:[%d]\r\n",m1_color);
+    set_time_color_config(h1_color, m1_color, s1_color);
+    force_time_display = 1;
+  }else if (request->hasArg("sc")) {
+    char hex[8] = {0};
+    snprintf(hex, sizeof(hex),"%s",request->arg("sc").c_str());
+    s1_color = (int)strtol(hex, NULL, 16);
+    Serial.printf("s1 color:[%d]\r\n",s1_color);
+    set_time_color_config(h1_color, m1_color, s1_color);
+    force_time_display = 1;
+  }else if (request->hasArg("bili")) {
+    bili_id = request->arg("bili");
+    Serial.printf("bili:[%s]\r\n",bili_id);
+    set_bili_config(bili_id.c_str());
+  }else if (request->hasArg("album")) {
+    album_time = request->arg("album").toInt();
+    Serial.printf("album:[%d]\r\n",album_time);
+    set_album_config(album_time);
+  }else if (request->hasArg("stock") && request->hasArg("exchange")) {
+    stock_code = request->arg("stock");
+    stock_exchange = request->arg("exchange");
+    Serial.printf("stock:[%s][%s]\r\n",stock_code, stock_exchange);
+    set_stock_config(stock_code.c_str(), stock_exchange.c_str());
+ }else{
+    message = "FAIL";
+  }
+
+ request->send_P(200, "text/plain", message.c_str());
+ return;
+}
+
+const char * listDir(fs::FS &fs, const char * dirname, uint8_t levels) {
+    // filelist = "";
+    String partlist;
+    int i = 0;
+    // Serial.printf("Listing directory: %s\r\n", dirname);
+    File root;
+    if(dirname == NULL || dirname[0] == '\0')
+        root = fs.open("/image","r");
+    else
+        root = fs.open(dirname, "r");
+
+    Serial.println(dirname);
+    if (!root) {
+        Serial.println("- failed to open directory");
+        return "failed to open dir";
+    }
+    if (!root.isDirectory()) {
+        Serial.println(" - not a directory");
+        return "not dir";
+    }
+
+    File file = root.openNextFile();
+    if (!file) {
+        Serial.println("- failed to open next file");
+        return "failed to open next";
+    }
+    while (file) {
+    #if 0
+        if (file.isDirectory()) {
+        //  Serial.print("  DIR : ");
+        // Serial.println(file.name());
+        if (levels) {
+            listDir(fs, file.name(), levels - 1);
+        }
+        } else 
+    #endif    
+        {
+            i++;
+            String st_after_symb = String(file.name()).substring(String(file.name()).lastIndexOf("/") + 1);
+
+            Serial.print(file.name());
+            
+            if (file.isDirectory()) 
+                partlist +=  String("<tr><td>") + String(i) + String("</td><td>") + String("<a href='javascript:void(0);' path='") + String(file.name()) + String("' onclick='listDir(this);return false;'>") + st_after_symb + String("</a></td><td> - </td><td>") + String(" ") + String("</td></tr>");
+            else
+                partlist +=  String("<tr><td>") + String(i) + String("</td><td>") + String("<a href='") + String(dirname) + String("/") + String(file.name()) + String("'>") + st_after_symb + String("</a></td><td>") + String(file.size() / 1024) + String("</td><td>") + String("<input type='button' class='btndel' onclick=\"deletef('") +String(dirname)+String("/")+ String(file.name()) + String("')\" value='X'>") + String("</td></tr>");
+            //filelist = String("<table id='list'><tbody><tr><th>#</th><th>File name</th><th>Size(KB)</th><th></th></tr>") + partlist + String(" </tbody></table>");
+        }
+        file = root.openNextFile();
+    }
+    //Serial.println(partlist);
+    filelist = String("<table id='list'><tbody><tr><th>#</th><th>文件名</th><th>大小(KB)</th><th></th></tr>") + partlist + String(" </tbody></table>");
+    return filelist.c_str();
+}
+
+String processor_update(const String& var) {
+    Serial.println("received "+var);
+    listDir(LittleFS,"/image",0);
+    if (var == "list") {
+        return filelist;
+    }
+    return String();
+}
+
+void notFound(AsyncWebServerRequest *request) {
+  if (request->url().startsWith("/")) {
+    //request->send(SD, request->url(), String(), true);
+    request->send(LittleFS, request->url(), String(), false);
+  } else {
+    request->send(404);
+  }
+}
+#if 0
+#define U_PART U_FS
+void handleDoUpdate(AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final) {
+  if (!index) {
+    Serial.println("Update");
+    content_len = request->contentLength();
+    // if filename includes spiffs, update the spiffs partition
+    int cmd = (filename.indexOf("spiffs") > -1) ? U_PART : U_FLASH;
+    if (!Update.begin(content_len, cmd)) {
+      Update.printError(Serial);
+    }
+  }
+
+  if (Update.write(data, len) != len) {
+    Update.printError(Serial);
+    Serial.printf("Progress: %d%%\n", (Update.progress() * 100) / Update.size());
+
+  }
+
+  if (final) {
+    AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", "Ok");
+    response->addHeader("Refresh", "30");
+    response->addHeader("Location", "/");
+    request->send(response);
+    if (!Update.end(true)) {
+      Update.printError(Serial);
+    } else {
+      Serial.println("Update complete");
+      Serial.flush();
+      ESP.restart();
+    }
+  }
+}
+#endif
+#define U_PART U_FS
+void handleDoUpdate(AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final) {
+  if (!index){
+    Serial.println("Update");
+    content_len = request->contentLength();
+    // if filename includes spiffs, update the spiffs partition
+    int cmd = (filename.indexOf("spiffs") > -1) ? U_PART : U_FLASH;
+#ifdef ESP8266
+    Update.runAsync(true);
+    if (!Update.begin(content_len, cmd)) {
+#else
+    if (!Update.begin(UPDATE_SIZE_UNKNOWN, cmd)) {
+#endif
+      Update.printError(Serial);
+    }
+  }
+
+  if (Update.write(data, len) != len) {
+    Update.printError(Serial);
+#ifdef ESP8266
+  } else {
+    Serial.printf("Progress: %d%%\n", (Update.progress()*100)/Update.size());
+#endif
+  }
+
+  if (final) {
+    AsyncWebServerResponse *response = request->beginResponse(302, "text/plain", "Please wait while the device reboots");
+    response->addHeader("Refresh", "20");  
+    response->addHeader("Location", "/");
+    request->send(response);
+    if (!Update.end(true)){
+      Update.printError(Serial);
+    } else {
+      Serial.println("Update complete");
+      Serial.flush();
+      ESP.restart();
+    }
+  }
+}
+
+void handleDoUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+    if (!index) {
+        content_len = request->contentLength();
+        Serial.printf("UploadStart: %s\n", filename.c_str());
+    }
+    String dir = request->getParam("dir")->value();
+
+    if (opened == false) {
+        opened = true;
+        if(dir == "") dir = "/image";
+        Serial.printf("upload dir: %s, file %s\n", dir.c_str(), filename.c_str());
+        file = LittleFS.open(dir + "/" + filename, "w");
+        if (!file) {
+            Serial.println("- failed to open file for writing");
+            return;
+        }
+    }
+
+    if (file.write(data, len) != len) {
+        Serial.println("- failed to write");
+        return;
+    }
+
+    if (final) {
+        AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", "Ok");
+        response->addHeader("Refresh", "20");
+        response->addHeader("Location", "/filesystem");
+        request->send(response);
+        file.close();
+        opened = false;
+        Serial.println("---------------");
+        Serial.println("Upload complete");
+    }
+}
+
+void deleteFile(fs::FS &fs, const String& path) {
+  Serial.printf("Deleting file: %s\r\n", path);
+  //不允许删除根目录下的文件
+  if(path.lastIndexOf("/") == 0) return;
+
+  if (fs.remove(path)) {
+    Serial.println("- file deleted");
+  } else {
+    Serial.println("- delete failed");
+  }
+}
+
+void handleUpdate(AsyncWebServerRequest *request) {
+  char* html = "<form method='POST' action='/doUpdate' enctype='multipart/form-data'><input type='file' name='update'><input type='submit' value='Update'></form>";
+  request->send(200, "text/html", html);
+}
+
+void initPortal(){
+  /* Setup the DNS server redirecting all the domains to the apIP */
+  dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
+  dnsServer.start(DNS_PORT, "*", WiFi.softAPIP());
+   /* Setup web pages: root, wifi config pages, SO captive portal detectors and not found. */
+  server.on("/generate_204",  HTTP_GET, [] (AsyncWebServerRequest * request) {
+        handleRoot(request);
+  });
+  server.on("/fwlink",  HTTP_GET, [] (AsyncWebServerRequest * request) {
+        handleRoot(request);
+  });
+  Serial.println("portal started");
+
+  server.on("/",  HTTP_GET, [] (AsyncWebServerRequest * request) {
+        handleRoot(request);
+  });
+
+  server.on("/doUpload", HTTP_POST, [](AsyncWebServerRequest * request) {
+    opened = false;
+  },
+  [](AsyncWebServerRequest * request, const String & filename, size_t index, uint8_t *data, size_t len, bool final) {
+    handleDoUpload(request, filename, index, data, len, final);
+  });
+#if 0
+  server.on("/filesystem", HTTP_GET, [](AsyncWebServerRequest * request) {
+        request->send_P(200, "text/html", FS_HTML, processor_update);
+  });
+#endif
+  server.on("/filelist", HTTP_GET, [](AsyncWebServerRequest * request) {
+      String dir = request->getParam("dir")->value();
+      if(dir == "/" || dir == "")
+        dir = "/image";
+      request->send_P(200, "text/plain", listDir(LittleFS, dir.c_str(), 0));
+  });
+  server.on("/delete", HTTP_GET, [] (AsyncWebServerRequest * request) {
+        String inputMessage;
+        String inputParam;
+        // GET input1 value on <ESP_IP>/update?state=<inputMessage>
+        if (request->hasParam(PARAM)) {
+        inputMessage = request->getParam(PARAM)->value();
+        inputParam = PARAM;
+
+        deleteFile(LittleFS, inputMessage);
+
+        Serial.println("-inputMessage-");
+        Serial.print("File=");
+        Serial.println(inputMessage);
+        Serial.println(" has been deleted");
+
+        }
+        else {
+        inputMessage = "No message sent";
+        inputParam = "none";
+        }
+        request->send(200, "text/plain", "OK");
+  });
+ 
+  server.on("/wifi",  HTTP_GET, [] (AsyncWebServerRequest * request) {
+        handleWifi(request);
+  });
+  server.on("/0wifi",  HTTP_GET, [] (AsyncWebServerRequest * request) {
+        handleWifi(request);
+  });
+  server.on("/wifisave",  HTTP_GET, [] (AsyncWebServerRequest * request) {
+        handleWifiSave(request);
+  });
+  server.on("/set",  HTTP_GET, [] (AsyncWebServerRequest * request) {
+        handleSet(request);
+  });
+  server.onNotFound(notFound);
+
+  server.on("/update", HTTP_GET, [](AsyncWebServerRequest *request){handleUpdate(request);});
+
+  /* OTA 升级 */
+  server.on("/doUpdate", HTTP_POST,
+  [](AsyncWebServerRequest * request) {},
+  [](AsyncWebServerRequest * request, const String & filename, size_t index, uint8_t *data, size_t len, bool final) {
+    handleDoUpdate(request, filename, index, data, len, final);
+  });
+
+  server.begin(); // Web server start
+  Serial.println("HTTP server started");
+}
+#if 0
+void initPortal(){
+  /* Setup the DNS server redirecting all the domains to the apIP */
+  dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
+  dnsServer.start(DNS_PORT, "*", WiFi.softAPIP());
+
+  /* Setup web pages: root, wifi config pages, SO captive portal detectors and not found. */
+  server.on("/", handleRoot);
+  server.on("/wifi", handleWifi);
+  server.on("/0wifi", handleWifi);
+  server.on("/wifisave", handleWifiSave);
+  server.on("/generate_204", handleRoot);  //Android captive portal. Maybe not needed. Might be handled by notFound handler.
+  server.on("/fwlink", handleRoot);  //Microsoft captive portal. Maybe not needed. Might be handled by notFound handler.
+  server.on("/set", handleSet);
+  //server.onNotFound(handleNotFound);
+  server.onNotFound(notFound);
+  /* OTA 升级 */
+  httpUpdater.setup(&server); 
+  server.begin(); // Web server start
+  Serial.println("HTTP server started");
+}
+#endif
+int connectWifi() {
+  if(ssid[0] == 0) return 0;
+
+  WiFi.disconnect();
+  WiFi.begin(ssid, password);
+  int connRes = WiFi.waitForConnectResult();
+  Serial.print("connRes: ");
+  Serial.println(connRes);
+  return connRes;
+}
+
+//boolean _shouldBreakAfterConfig = false;
+
+boolean startPortal(char const *apName, char const *apPassword) {
+ #if 0 
+  if(!WiFi.isConnected()){
+    WiFi.persistent(false);
+    // disconnect sta, start ap
+    WiFi.disconnect(); //  this alone is not enough to stop the autoconnecter
+    WiFi.mode(WIFI_AP);
+    WiFi.persistent(true);
+  }
+  else {
+    //setup AP
+    WiFi.mode(WIFI_AP_STA);
+  }
+#endif
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP(apName, apPassword);//password option
+
+  initPortal();
+
+  while(1){
+
+    //DNS
+    dnsServer.processNextRequest();
+    //HTTP
+    //server.handleClient();
+    
+    if (connect) {
+      delay(1000);
+      connect = false;
+
+        // if saving with no ssid filled in, reconnect to ssid
+        // will not exit cp 
+        Serial.println(F("Connecting to new AP"));
+        if (connectWifi() != WL_CONNECTED) {
+            delay(2000);
+            // using user-provided  _ssid, _pass in place of system-stored ssid and pass
+            Serial.println(F("Failed to connect."));
+        }
+        else {
+            //connected
+            WiFi.mode(WIFI_STA);
+            //notify that configuration has changed and any optional parameters should be saved
+            break;
+        }
+#if 0
+        if (_shouldBreakAfterConfig) {
+            WiFi.mode(WIFI_STA); // turn off ap
+            // reconnect to ssid
+            // int res = WiFi.begin();
+            // attempt connect for 10 seconds
+            Serial.println(("Waiting for sta (10 secs) ......."));
+            for(size_t i = 0 ; i<100;i++){
+            if(WiFi.status() == WL_CONNECTED) break;
+            // Serial.println(WiFi.status());
+            delay(100);
+            }        
+            delay(1000);
+            break;
+        }
+#endif
+    }
+    yield();
+  }
+
+  return  WiFi.status() == WL_CONNECTED;
+}
+
+//Web服务初始化
+void init_http_server()
+{
+  uint32_t counttime = 0;//记录创建mDNS的时间
+  Serial.println("mDNS responder building...");
+  counttime = millis();
+  while (!MDNS.begin("tv"))
+  {
+    if(millis() - counttime > 30000) ESP.restart();//判断超过30秒钟就重启设备
+  }
+
+  Serial.println("mDNS responder started");
+
+  server.on("/",  HTTP_GET, [] (AsyncWebServerRequest * request) {
+        handleRoot(request);
+  });
+ server.on("/wifi",  HTTP_GET, [] (AsyncWebServerRequest * request) {
+        handleWifi(request);
+  });
+  server.on("/0wifi",  HTTP_GET, [] (AsyncWebServerRequest * request) {
+        handleWifi(request);
+  });
+  server.on("/wifisave",  HTTP_GET, [] (AsyncWebServerRequest * request) {
+        handleWifiSave(request);
+  });
+  server.on("/set",  HTTP_GET, [] (AsyncWebServerRequest * request) {
+        handleSet(request);
+  });
+  server.onNotFound(notFound);
+
+  /* OTA 升级 */
+  server.on("/update", HTTP_GET, [](AsyncWebServerRequest *request){handleUpdate(request);});
+  server.on("/doUpdate", HTTP_POST,
+  [](AsyncWebServerRequest * request) {},
+  [](AsyncWebServerRequest * request, const String & filename, size_t index, uint8_t *data, size_t len, bool final) {
+    handleDoUpdate(request, filename, index, data, len, final);
+  });
+#if 0
+  server.on("/filesystem", HTTP_GET, [](AsyncWebServerRequest * request) {
+        request->send_P(200, "text/html", FS_HTML, processor_update);
+    });
+#endif
+  server.on("/filelist", HTTP_GET, [](AsyncWebServerRequest * request) {
+      String dir = request->getParam("dir")->value();
+      request->send_P(200, "text/plain", listDir(LittleFS, dir.c_str(), 0));
+  });
+  server.on("/doUpload", HTTP_POST, [](AsyncWebServerRequest * request) {
+    opened = false;
+  },
+  [](AsyncWebServerRequest * request, const String & filename, size_t index, uint8_t *data, size_t len, bool final) {
+    handleDoUpload(request, filename, index, data, len, final);
+  });
+  server.on("/delete", HTTP_GET, [] (AsyncWebServerRequest * request) {
+        String inputMessage;
+        String inputParam;
+        // GET input1 value on <ESP_IP>/update?state=<inputMessage>
+        if (request->hasParam(PARAM)) {
+        inputMessage = request->getParam(PARAM)->value();
+        inputParam = PARAM;
+
+        deleteFile(LittleFS, inputMessage);
+
+        Serial.println("-inputMessage-");
+        Serial.print("File=");
+        Serial.println(inputMessage);
+        Serial.println(" has been deleted");
+
+        }
+        else {
+        inputMessage = "No message sent";
+        inputParam = "none";
+        }
+        request->send(200, "text/plain", "OK");
+  });
+ 
+  server.begin(); // Web server start
+  Serial.println("HTTP服务器已开启");
+
+  Serial.println("连接: http://tv.local");
+  Serial.print("本地IP： ");
+  Serial.println(WiFi.localIP());
+  //将服务器添加到mDNS
+  MDNS.addService("http", "tcp", 80);
+}
+
+//Web网页设置函数
+void update_http_server()
+{
+  //server.handleClient();
+}

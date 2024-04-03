@@ -1,0 +1,160 @@
+<!Doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=0.8, minimal-ui">
+		<meta name="author" content="GEEKMAGIC">
+		<meta name="theme-color" content="#36393E" />
+		<link rel="stylesheet" href="css/style.css">
+		<script src="js/jquery.min.js"></script>
+		<style>	
+		</style>	
+	</head>
+	<body onload = "getData('/city.json');getData('/w_i.json');getData('/unit.json');getData('/key.json');getData('/dst.json');getNav();">
+		<nav id="nav" style="width: 80%;margin: 0 auto;font-size: 25px;text-align: center;">
+		</nav>		
+		<div class="container">
+			<div class="row">
+				<div class="col-12">
+					<div id="error" class="hide"></div>
+					<h1>1. Set City Code</h1>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-12">
+				<h3>Method 1:Set City Name,Country/Region Name, or City code</h3><p>
+					Input your city location: <input type="text" name="city1" id="city1" placeholder="Seoul,KR">
+					<p>Location example, Seoul, the capital city of Korea, please input: Seoul,KR</br>
+					<a>[If there are several cities with the SAME name, you need to find the correct city code.]</a><p>
+					<b>Tips：Where to find Your Own city code >>></b><p><a href="https://openweathermap.org/find" target="_blank">1.Click me to search your city code after internet is connected</a><p>
+					<div id="ret" style="color:#FF0000"></div>2.Input your city name, click search and then choose the result, open it, the number at the link address tail is your city code! eg: Seoul,KR <b>https://openweathermap.org/city/<a>1835848</a></b>, <b><a>1835848</a></b> is city code of Seoul,KR.
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-6">
+					<button class="button-primary left" onclick="set_weather()">SAVE</button>
+				</div>
+			</div>	
+			<div class="row">
+				<div class="col-12">
+					<h1>2. Unit format</h1>
+				</div>
+			</div>			
+			<div class="row">				
+				<div class="col-4">Wind Speed:<p>
+					<select id="windspeed" style="width:200px">
+					  <option value="m/s" style="display:none">m/s</option>
+					  <option value="m/s">m/s</option>
+					  <option value="km/h">km/h</option>
+					  <option value="mile/h">mile/h</option>				  
+					</select>	
+				</div>
+				<div class="col-4">
+				Temperature:<p>
+					<select id="temp" style="width:200px">
+					  <option value="°C" style="display:none">°C</option>
+					  <option value="°C">°C</option>
+					  <option value="°F">°F</option>
+					</select>
+				</div>
+				<div class="col-4">
+				Atmospheric pressure:<p>
+					<select id="pressure" style="width:200px">
+					  <option value="hPa" style="display:none">hPa</option>
+					  <option value="hPa">hPa</option>
+					  <option value="kPa">kPa</option>
+					  <option value="mmHg">mmHg</option>				  
+					</select>
+				</div>				
+			</div>	
+			<div class="row">
+				<div class="col-6">
+					<button class="button-primary left" onclick="set_unit()">SAVE</button>
+				</div>
+			</div>			
+			<div class="row">
+				<div class="col-12">
+					<h1>3. Weather Update Interval</h1>
+				</div>
+			</div>			
+			<div class="row">
+				<div class="col-6">
+					By default, weather update interval is 20 minutes fixed, if you use your own api key, higher interval is allowed.<p>
+					<input type="text" name="weather_interval" id="weather_interval" value="20">m(minutes)
+				</div>
+			</div>	
+			<div class="row">
+				<div class="col-6">
+					<button class="button-primary left" onclick="set_weather_itv()">SAVE</button>
+				</div>
+			</div>	
+			<div class="row">
+				<div class="col-12">
+					<h1>4. Weather API key</h1>
+				</div>
+			</div>			
+			<div class="row">
+				<div class="col-12">
+					Professional option, if you are not clear, please do not modify this.<p>
+					<input type="text" name="api" id="api" placeholder="xxxxxxxxxx">
+				</div>
+			</div>	
+			<div class="row">
+				<div class="col-6">
+					<button class="button-primary left" onclick="set_key()">SAVE</button>
+				</div>
+			</div>		
+		<div class="row">
+				<div class="col-12">
+					<br />
+					<div id="copyright">
+					</div>						
+					<script src="js/settings.js"></script>
+				</div>
+			</div>
+		</div>
+		<script>
+			function set_key(){
+				var x=getE("api");
+				var url = "/set?key="+x.value.replace(/ /g,"");
+				send_http(url);
+			}			
+			function set_unit(){
+				var x=getE("windspeed");
+				var y=getE("temp");
+				var z=getE("pressure");
+				var url = "/set?w_u="+x.value.replace(/ /g,"")+"&t_u="+y.value.replace(/ /g,"")+"&p_u="+z.value.replace(/ /g,"");
+				send_http(url);
+			}			
+			function set_weather(){
+				var x=getE("city1");
+				var y=getE("city2");
+				if(x.value == "" && y.value =="" ){
+					alert("city location or city code can't be both empty.");
+					var ret = getE("ret");
+					ret.innerHTML="Please input city location or city code."
+				}else{
+					if(x.value)
+						url = "/set?cd1="+x.value.replace(/ /g,"")+"&cd2=1000";
+					else
+						url = "/set?cd1="+y.value.replace(/ /g,"")+"&cd2=1000";
+					getResponse(url, function(responseText) {
+						var err = getE("error");
+						if (responseText == "OK") {
+							err.style.background="#5ecb4a";
+							showMessage("Saved Successfully!", 1000);
+						}else{
+							//ele.style.visibility = 'visible';
+							showMessage("Save faild!",1000);
+						} 
+					});
+				}	
+			}
+			function set_weather_itv(){
+				var interval = getE('weather_interval').value;
+				url = "/set?w_i="+interval.replace(/ /g,"");
+				send_http(url);
+			}
+	</script>		
+	</body>
+</html>

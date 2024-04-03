@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.8, minimal-ui">
+    <meta name="author" content="GEEKMAGIC">
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        body {
+            background-color: #333; /* 背景颜色为灰黑色 */
+            #display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .upload-container {
+            text-align: center;
+            background-color: #4a4a4a;
+            border-radius: 10px;
+            #padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            margin: 10px;
+            width: 135px;
+            display: flex;
+            flex-direction: column; /* 垂直排列内部元素 */
+        }
+
+        .container-title {
+            text-align: center; /* 居中对齐文本 */
+            margin: 10px 0; /* 添加一些上下间距，以便与其他元素分隔开 */
+        }
+		.cropper-container {
+			width: 135px !important; /* 使用 !important 来确保覆盖默认样式 */
+		}
+
+        input[type="file"] {
+            display: none;
+        }
+
+        label {
+            background-color: #2675eb;
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px auto;
+        }
+
+        label:hover {
+            background-color: #2980b9;
+        }
+
+        .image-container {
+            width: 100%;
+            height: 240px;
+            position: relative;
+            display: none;
+        }
+
+        .uploaded-image {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        /* 按钮的样式 */
+        button {
+            background-color: #2675eb;
+            color: #fff;
+            border-radius: 5px;
+            cursor: pointer;
+            display: none; /* 初始时隐藏按钮 */
+            margin: 10px auto;
+        }
+		.message-box {
+			display: none;
+			background-color: #f44336;
+			color: white;
+			padding: 20px;
+			text-align: center;
+			position: fixed;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			z-index: 999;
+			border-radius: 10px; /* 添加圆角矩形效果 */
+		}
+    </style>
+    <link rel="stylesheet" href="css/cropper.min.css">
+ 	<script src="js/cropper.min.js"></script>
+    <script src="js/jquery.min.js"></script>
+	<script src="js/settings.js"></script> 
+</head>
+<body onload = "getNav();">
+		<nav id="nav" style="width: 80%;margin: 0 auto;font-size: 25px;text-align: center;">
+		</nav>
+		<div id="messageBox" class="message-box"></div>
+		<div class="container">
+			<div class="row">
+				<div class="col-12">
+					<div id="error" class="hide"></div>
+					<h1>1. Photo display</h1>
+					Click or Drag images to "+"<p>
+					(jpg/jpeg/png/bmp format are supported)<p>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-12">
+					<div class="upload-container  left" id="drag-container6">
+						<h2 class="container-title">6</h2>
+						<input type="file" id="file6" accept="image/jpeg, image/jpg, image/png, image/bmp">
+						<label for="file6" class="file-label" style="cursor: pointer;">+</label>
+						<div id ="image_div6" class="image-container" style="display:none">
+							<img class="uploaded-image" id="image6" src="/photo/tube6.jpg" alt="">
+							<img class="cropped-image" id="crop_image6" src="" alt="">
+						</div>
+						<button id="cropButton6" class="crop-button">Upload</button>
+						<button id="rotateButton6" class="rotate-button">rotate</button>
+					</div>
+					<div class="upload-container  left" id="drag-container5">
+						<h2 class="container-title">5</h2>
+						<input type="file" id="file5" accept="image/jpeg, image/jpg, image/png, image/bmp">
+						<label for="file5" class="file-label" style="cursor: pointer;">+</label>
+						<div id ="image_div5" class="image-container" style="display:none">
+							<img class="uploaded-image" id="image5" src="/photo/tube5.jpg" alt="">
+							<img class="cropped-image" id="crop_image5" src="" alt="">
+						</div>
+						<button id="cropButton5" class="crop-button">Crop&Upload</button>
+						<button id="rotateButton5" class="rotate-button">rotate</button>
+					</div>
+					<div class="upload-container  left" id="drag-container4">
+						<h2 class="container-title">4</h2>
+						<input type="file" id="file4" accept="image/jpeg, image/jpg, image/png, image/bmp">
+						<label for="file4" class="file-label" style="cursor: pointer;">+</label>
+						<div id ="image_div4" class="image-container">
+							<img class="uploaded-image" id="image4" src="/photo/tube4.jpg" alt="">
+							<img class="cropped-image" id="crop_image4" src="" alt="">
+						</div>
+						<button id="cropButton4" class="crop-button">Crop&Upload</button>
+						<button id="rotateButton4" class="rotate-button">rotate</button>
+					</div>
+					<div class="upload-container  left" id="drag-container3">
+					<h2 class="container-title">3</h2>
+						<input type="file" id="file3" accept="image/jpeg, image/jpg, image/png, image/bmp">
+						<label for="file3" class="file-label" style="cursor: pointer;">+</label>
+						<div id ="image_div3" class="image-container">
+							<img class="uploaded-image" id="image3" src="/photo/tube3.jpg" alt="">
+							<img class="cropped-image" id="crop_image3" src="" alt="">
+						</div>
+						<button id="cropButton3" class="crop-button">Crop&Upload</button>
+						<button id="rotateButton3" class="rotate-button">rotate</button>
+					</div>					
+					<div class="upload-container left" id="drag-container2">
+						<h2 class="container-title">2</h2>
+						<input type="file" id="file2" accept="image/jpeg, image/jpg, image/png, image/bmp">
+						<label for="file2" class="file-label" style="cursor: pointer;">+</label>
+						<div id="image_div2" class="image-container">
+							<img class="uploaded-image" id="image2" src="/photo/tube2.jpg" alt="">
+							<img class="cropped-image" id="crop_image2" src="" alt="">
+						</div>
+						<button id="cropButton2" class="crop-button">Crop&Upload</button>
+						<button id="rotateButton2" class="rotate-button">rotate</button>
+					</div>
+					<div class="upload-container left" id="drag-container1">
+						<h2 class="container-title">1</h2>
+						<input type="file" id="file1" accept="image/jpeg, image/jpg, image/png, image/bmp">
+						<label for="file1" class="file-label" style="cursor: pointer;">+</label>
+						<div id="image_div1" class="image-container">
+							<img class="uploaded-image" id="image1" src="/photo/tube1.jpg" alt="">
+							<img class="cropped-image" id="crop_image1" src="" alt="">
+						</div>
+						<button id="cropButton1" class="crop-button">Crop&Upload</button>
+						<button id="rotateButton1" class="rotate-button">rotate</button>
+					</div>
+				</div>
+			</div>
+		</div>
+
+<!-- 添加拖拽支持的 JavaScript 代码 -->
+ <script>
+	$(document).ready(function() {
+		for (var i = 1; i <= 6; i++) {
+			(function(idx) {
+				$('#image' + idx).on('load', function() {
+					$("#image_div" + idx).show();
+				});
+			})(i);
+		}
+	});
+	var croppers = [];
+	// 修改文件选择的change事件
+	$("input[type='file']").on("change", function() {
+		var fileInput = this;
+		var index = $(this).attr("id").replace("file", "");
+		var image = $("#image" + index);
+		var cropButton = $("#cropButton" + index);
+		var rotateButton = $("#rotateButton" + index);
+		var fileLabel = $(".file-label[for='file" + index + "']");
+		var cropImage = $("#crop_image" + index);
+		cropImage.hide();
+		$("#image_div" + index).show();
+		cropButton.text("upload");
+		cropButton.prop("disabled", false);
+		if (fileInput.files.length > 0) {
+			var file = fileInput.files[0];
+			if (file.type === "image/jpeg" || file.type === "image/jpg" || file.type === "image/png" || file.type === "image/bmp") {
+				var reader = new FileReader();
+				reader.onload = function (e) {
+					image.attr("src", e.target.result);
+					croppers[index - 1] = new Cropper(image[0], {
+						aspectRatio: 9 / 16,
+						viewMode: 1,
+					});
+					cropButton.show();
+					rotateButton.show();
+					//fileLabel.hide();
+				};
+				reader.readAsDataURL(file);
+			} else {
+				showMessage("Please choose jpg/png/jpeg/bmp images", true);
+				fileInput.value = "";
+			}
+		}
+	});
+
+    $(".crop-button").on("click", function() {
+        var index = $(this).attr("id").replace("cropButton", "");
+        if (croppers[index - 1]) {
+            var croppedImageData = croppers[index - 1].getCroppedCanvas({ width: 135, height: 240 }).toDataURL("image/jpeg", 1);
+            croppers[index - 1].destroy();
+            $("#rotateButton" + index).hide();
+            var cropImage = $("#crop_image" + index);
+            var srcImage = $("#image" + index);
+			var cropButton = $("#cropButton" + index);
+            srcImage.hide();
+            cropImage.attr("src", croppedImageData);
+            cropImage.show();
+			cropButton.text("uploading...");
+			cropButton.prop("disabled", true);
+
+			var fileName = "tube" + index + ".jpg";
+			var croppedImageData = $("#crop_image" + index)[0].src;
+
+			var byteCharacters = atob(croppedImageData.split(',')[1]);
+			var byteNumbers = new Array(byteCharacters.length);
+			for (var i = 0; i < byteCharacters.length; i++) {
+				byteNumbers[i] = byteCharacters.charCodeAt(i);
+			}
+			var byteArray = new Uint8Array(byteNumbers);
+			var blob = dataURItoBlob(croppedImageData, { quality: 1 });
+
+			var formData = new FormData();
+			formData.append('file', blob, fileName);
+
+			$.ajax({
+				url: "/doUpload?dir=/photo",
+				type: "POST",
+				data: formData,
+				processData: false,
+				contentType: false,
+				success: function(response) {
+					showMessage("Upload success!", false);
+					cropButton.hide();
+				},
+				error: function() {
+					showMessage("Upload failed. Please try again.", true);
+					cropButton.hide();
+				}
+			});
+		} else {
+			showMessage("invalid image or cropper fail",true);
+		}
+    });
+	// Function to convert data URI to Blob
+	function dataURItoBlob(dataURI, options) {
+		options = options || {};
+
+		var byteString = atob(dataURI.split(',')[1]);
+		var mimeString = options.type || 'image/jpeg';
+		var quality = options.quality || 1;
+
+		var ab = new ArrayBuffer(byteString.length);
+		var ia = new Uint8Array(ab);
+
+		for (var i = 0; i < byteString.length; i++) {
+			ia[i] = byteString.charCodeAt(i);
+		}
+
+		return new Blob([ab], { type: mimeString, quality: quality });
+	}
+
+    $(".rotate-button").on("click", function() {
+        var index = $(this).attr("id").replace("rotateButton", "");
+        if (croppers[index - 1]) {
+            croppers[index - 1].rotate(90);
+        }
+    });
+
+	// 添加拖拽支持
+	$("#drag-container1, #drag-container2, #drag-container3, #drag-container4, #drag-container5, #drag-container6").on("dragover", function(e) {
+		e.preventDefault();
+		e.stopPropagation();
+	});
+
+	$("#drag-container1, #drag-container2, #drag-container3, #drag-container4, #drag-container5, #drag-container6").on("dragenter", function(e) {
+		e.preventDefault();
+		e.stopPropagation();
+	});
+
+	$("#drag-container1, #drag-container2, #drag-container3, #drag-container4, #drag-container5, #drag-container6").on("drop", function(e) {
+		e.preventDefault();
+		e.stopPropagation();
+		var index = $(this).attr("id").replace("drag-container", "");
+		var fileInput = $("#file" + index)[0];
+		
+		// 设置文件输入的值，触发change事件
+		fileInput.files = e.originalEvent.dataTransfer.files;
+		$(fileInput).trigger("change");
+	});
+	
+	function showMessage(message, isError = false) {
+	  const messageBox = $("#messageBox");
+	  messageBox.text(message);
+
+	  if (isError) {
+		messageBox.css("background-color", "#f44336"); // 红色背景，表示错误消息
+	  } else {
+		messageBox.css("background-color", "#4CAF50"); // 绿色背景，表示成功消息
+	  }
+
+	  messageBox.show();
+
+	  // 自动隐藏消息框
+	  setTimeout(function() {
+		messageBox.hide();
+	  }, 2000); // 3秒后自动隐藏
+	}
+</script>
+		<div class="row">
+			<div class="col-12">
+				<br />
+				<div id="copyright">
+				</div>						
+				<script src="js/settings.js"></script>
+			</div>
+		</div>
+</body>
+</html>
