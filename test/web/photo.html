@@ -22,7 +22,8 @@
             #padding: 20px;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
             margin: 10px;
-            width: 135px;
+            width: 100%;
+            height: 320px;
             display: flex;
             flex-direction: column; /* 垂直排列内部元素 */
         }
@@ -32,7 +33,8 @@
             margin: 10px 0; /* 添加一些上下间距，以便与其他元素分隔开 */
         }
 		.cropper-container {
-			width: 135px !important; /* 使用 !important 来确保覆盖默认样式 */
+			width: 100% !important; /* 使用 !important 来确保覆盖默认样式 */
+			height: 200% !important; /* 使用 !important 来确保覆盖默认样式 */
 		}
 
         input[type="file"] {
@@ -42,10 +44,12 @@
         label {
             background-color: #2675eb;
             color: #fff;
-            padding: 10px 20px;
-            border-radius: 5px;
+            padding: 20px 40px;
+            border-radius: 10px;
             cursor: pointer;
-            margin: 10px auto;
+            margin: 40px auto;
+			margin-top: 100px;
+			font-size: 50px;
         }
 
         label:hover {
@@ -54,19 +58,19 @@
 
         .image-container {
             width: 100%;
-            height: 240px;
+            height: 120px;
             position: relative;
             display: none;
+			margin-top: -200px;
         }
 
         .uploaded-image {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            position: absolute;
-            top: 0;
-            left: 0;
-        }
+			max-width: 100%;
+			max-width: 100%; /* 设置图片的最大宽度为父容器的100% */
+			max-height: 100%; /* 设置图片的最大高度为父容器的100% */
+			display: block; /* 设置为块级元素，以填充父容器 */
+			margin: 0 auto; /* 居中显示图片 */
+	     }
 
         /* 按钮的样式 */
         button {
@@ -111,73 +115,17 @@
 			</div>
 			<div class="row">
 				<div class="col-12">
-					<div class="upload-container  left" id="drag-container6">
-						<h2 class="container-title">6</h2>
-						<input type="file" id="file6" accept="image/jpeg, image/jpg, image/png, image/bmp">
-						<label for="file6" class="file-label" style="cursor: pointer;">+</label>
-						<div id ="image_div6" class="image-container" style="display:none">
-							<img class="uploaded-image" id="image6" src="/photo/tube6.jpg" alt="">
-							<img class="cropped-image" id="crop_image6" src="" alt="">
-						</div>
-						<button id="cropButton6" class="crop-button">Upload</button>
-						<button id="rotateButton6" class="rotate-button">rotate</button>
-					</div>
-					<div class="upload-container  left" id="drag-container5">
-						<h2 class="container-title">5</h2>
-						<input type="file" id="file5" accept="image/jpeg, image/jpg, image/png, image/bmp">
-						<label for="file5" class="file-label" style="cursor: pointer;">+</label>
-						<div id ="image_div5" class="image-container" style="display:none">
-							<img class="uploaded-image" id="image5" src="/photo/tube5.jpg" alt="">
-							<img class="cropped-image" id="crop_image5" src="" alt="">
-						</div>
-						<button id="cropButton5" class="crop-button">Crop&Upload</button>
-						<button id="rotateButton5" class="rotate-button">rotate</button>
-					</div>
-					<div class="upload-container  left" id="drag-container4">
-						<h2 class="container-title">4</h2>
-						<input type="file" id="file4" accept="image/jpeg, image/jpg, image/png, image/bmp">
-						<label for="file4" class="file-label" style="cursor: pointer;">+</label>
-						<div id ="image_div4" class="image-container">
-							<img class="uploaded-image" id="image4" src="/photo/tube4.jpg" alt="">
-							<img class="cropped-image" id="crop_image4" src="" alt="">
-						</div>
-						<button id="cropButton4" class="crop-button">Crop&Upload</button>
-						<button id="rotateButton4" class="rotate-button">rotate</button>
-					</div>
-					<div class="upload-container  left" id="drag-container3">
-					<h2 class="container-title">3</h2>
-						<input type="file" id="file3" accept="image/jpeg, image/jpg, image/png, image/bmp">
-						<label for="file3" class="file-label" style="cursor: pointer;">+</label>
-						<div id ="image_div3" class="image-container">
-							<img class="uploaded-image" id="image3" src="/photo/tube3.jpg" alt="">
-							<img class="cropped-image" id="crop_image3" src="" alt="">
-						</div>
-						<button id="cropButton3" class="crop-button">Crop&Upload</button>
-						<button id="rotateButton3" class="rotate-button">rotate</button>
-					</div>					
-					<div class="upload-container left" id="drag-container2">
-						<h2 class="container-title">2</h2>
-						<input type="file" id="file2" accept="image/jpeg, image/jpg, image/png, image/bmp">
-						<label for="file2" class="file-label" style="cursor: pointer;">+</label>
-						<div id="image_div2" class="image-container">
-							<img class="uploaded-image" id="image2" src="/photo/tube2.jpg" alt="">
-							<img class="cropped-image" id="crop_image2" src="" alt="">
-						</div>
-						<button id="cropButton2" class="crop-button">Crop&Upload</button>
-						<button id="rotateButton2" class="rotate-button">rotate</button>
-					</div>
 					<div class="upload-container left" id="drag-container1">
-						<h2 class="container-title">1</h2>
 						<input type="file" id="file1" accept="image/jpeg, image/jpg, image/png, image/bmp">
 						<label for="file1" class="file-label" style="cursor: pointer;">+</label>
 						<div id="image_div1" class="image-container">
 							<img class="uploaded-image" id="image1" src="/photo/tube1.jpg" alt="">
 							<img class="cropped-image" id="crop_image1" src="" alt="">
 						</div>
-						<button id="cropButton1" class="crop-button">Crop&Upload</button>
-						<button id="rotateButton1" class="rotate-button">rotate</button>
 					</div>
 				</div>
+						<button id="cropButton1" class="crop-button">Crop&Upload</button>
+						<button id="rotateButton1" class="rotate-button">rotate</button>
 			</div>
 		</div>
 
@@ -213,7 +161,8 @@
 				reader.onload = function (e) {
 					image.attr("src", e.target.result);
 					croppers[index - 1] = new Cropper(image[0], {
-						aspectRatio: 9 / 16,
+						autoCropArea: 1, // 设置裁剪前显示的大小为图片大小的80%
+						aspectRatio: 2 / 1,
 						viewMode: 1,
 					});
 					cropButton.show();
@@ -222,7 +171,7 @@
 				};
 				reader.readAsDataURL(file);
 			} else {
-				showMessage("Please choose jpg/png/jpeg/bmp images", true);
+				showMessage("Please choose jpg/png/jpeg/bmp/gif images", true);
 				fileInput.value = "";
 			}
 		}
@@ -231,7 +180,7 @@
     $(".crop-button").on("click", function() {
         var index = $(this).attr("id").replace("cropButton", "");
         if (croppers[index - 1]) {
-            var croppedImageData = croppers[index - 1].getCroppedCanvas({ width: 135, height: 240 }).toDataURL("image/jpeg", 1);
+            var croppedImageData = croppers[index - 1].getCroppedCanvas({ width: 64, height: 32 }).toDataURL("image/jpeg", 1);
             croppers[index - 1].destroy();
             $("#rotateButton" + index).hide();
             var cropImage = $("#crop_image" + index);
@@ -258,7 +207,7 @@
 			formData.append('file', blob, fileName);
 
 			$.ajax({
-				url: "/doUpload?dir=/photo",
+				url: "/doUpload?dir=/image",
 				type: "POST",
 				data: formData,
 				processData: false,

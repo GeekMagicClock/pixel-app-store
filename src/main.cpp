@@ -19,6 +19,12 @@ uint16_t myWHITE = mdisplay.color565(255, 255, 255);
 #include "lib/web_server.h"
 #include "lib/btn.h"
 #include "lib/times.h"
+
+#define NUM_ROWS 1
+#define NUM_COLS 1
+#include <ESP32-VirtualMatrixPanel-I2S-DMA.h>
+//VirtualMatrixPanel *virtualDisp = nullptr;
+VirtualMatrixPanel vdisplay(mdisplay, NUM_ROWS, NUM_COLS, PANEL_RES_X, PANEL_RES_Y);
 void setup() {
   Serial.begin(115200);
 
@@ -52,6 +58,8 @@ void setup() {
   mdisplay.setCursor(0, 10);
   mdisplay.print("Hello");
   delay(1000);
+
+  //virtualDisp = new VirtualMatrixPanel(mdisplay, NUM_ROWS, NUM_COLS, PANEL_RES_X, PANEL_RES_Y);
  
   //t_clock.setup();
   init_http_server();
@@ -68,7 +76,32 @@ void set_screen_brt(int brt){
   mdisplay.setBrightness8(brt); //0-255
 }
 
+//
+void scroll_text(int16_t y, int16_t speed, String flight)
+{
+    int w_text = 64; // screen width
+    int len = 0, len1 = flight.length() * 6; // 18 is width of character when font size is 3
+   len = len1; 
+    while (1) {
+        // display flight
+        vdisplay.flipDMABuffer();
+        vdisplay.fillScreen(0);
+        vdisplay.setCursor(w_text, y);
+        vdisplay.setTextWrap(false);
+        vdisplay.setTextColor(vdisplay.color444(0, 0, 15));
+        vdisplay.print(flight);
+        w_text--;
+        if (w_text + len == 0) {
+            w_text = 64;
+        }
+        delay(speed);
+    }
+}
+
 void loop() {
+    //scroll_text(0, 20, "This is a long text stringgggggggggggggggggggggg.");
+    //return;
+    //virtualDisp->flipDMABuffer();
     sync_http_time();
     update_btn();
     update_http_server();

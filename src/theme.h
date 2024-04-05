@@ -1,7 +1,7 @@
 #ifndef _THEME_H
 #define _THEME_H
 
-#define THEME_TOTAL 5
+#define THEME_TOTAL 6
 #define THEME_ALBUM 2
 
 struct theme_loop{

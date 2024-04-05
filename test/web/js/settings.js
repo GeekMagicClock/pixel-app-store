@@ -184,13 +184,10 @@ function getE(name){
 function getNav(){
 	var navLinks = [
 		{ href: "network.html", text: "Network" },
+		{ href: "tracker.html", text: "Tracker" },
 		{ href: "weather.html", text: "Weather" },
 		{ href: "time.html", text: "Time" },
-		{ href: "photo.html", text: "Photo" },
 		{ href: "image.html", text: "Image" },
-		{ href: "font.html", text: "Font" },
-		{ href: "gif.html", text: "GIF" },
-		//{ href: "stock.html", text: "Stocks" },
 		//{ href: "daytimer.html", text: "Countdown" },
 		//{ href: "bili.html", text: "B站粉" },
 		//{ href: "monitor.html", text: "电脑性能监视器" },

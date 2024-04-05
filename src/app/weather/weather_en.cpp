@@ -168,7 +168,7 @@ void Weather::parse_rsp_data(const String* payload) {
     weather_icon = doc["weather"][0]["icon"].as<String>();
     wind_speed = doc["wind"]["speed"].as<int>();
     feels_like = doc["main"]["feels_like"].as<int>();
-    temp_unit = "°C"; // Assuming temperature unit is Celsius, you can adjust this based on API response
+    temp_unit = "C"; // Assuming temperature unit is Celsius, you can adjust this based on API response
     wind_unit = "m/s"; // Assuming wind unit is meters per second, you can adjust this based on API response
     pressure_unit = "hPa"; // Assuming pressure unit is hectopascals, you can adjust this based on API response
 

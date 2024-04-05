@@ -39,11 +39,10 @@
 						  </div>
 						</div>
 					  </div>
-					  <span>1. Please check free space.</span><p>
-					  <span>2. Support JPG/JPEG/PNG/BMP format file only.</span><p>
-					  <span>3. Please name the file according to 0.jpg, 1.jpg, ... 9.jpg before uploading.</span><p>
-					  <span>4. Example number images could be downloaded <a href="todo">HERE</a>.</span>
-					<input type="file" name="update" id="selectImg" onchange="sub(this)" accept="image/jpeg, image/png, image/bmp" style="display:none">
+					  <span>1. Please check free space before uploading</span><p>
+					  <span>2. Support JPG/JPEG/PNG/BMP and GIF format file only.</span><p>
+					  <span>3. Example images could be downloaded <a href="todo">HERE</a>.</span>
+					<input type="file" name="update" id="selectImg" onchange="sub(this)" accept="image/gif, image/jpeg, image/png, image/bmp" style="display:none">
 					<label id="file-input" for="selectImg">   Choose...</label>
 
 					<input type="submit" id="updateBtn" class="btn2" disabled="true" value="UPLOAD">
@@ -101,7 +100,6 @@
 				})	
 				function listDir(obj){
 					var path = $(obj).attr("path");
-					//console.log(path); 
 					var xhr = new XMLHttpRequest();
 					var fnstring = String("/filelist?dir=")+path;
 					xhr.open("GET", fnstring, true);

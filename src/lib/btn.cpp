@@ -16,8 +16,8 @@ byte capStateHandler() {
 
 void btn_tap(Button2 &btn){
 
-    theme_index ++;
-    if(theme_index >= THEME_TOTAL) theme_index = 0;
+    //theme_index ++;
+    //if(theme_index >= THEME_TOTAL) theme_index = 0;
 
     DBG_PTN("tap");
     unsigned int time = btn.wasPressedFor();

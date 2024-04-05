@@ -9,9 +9,7 @@
 AsyncWebServer server(80);
 #include "web/html_system.h"
 #include "web/html_image.h"
-#include "web/html_photo.h"
-#include "web/html_font.h"
-#include "web/html_gif.h"
+#include "web/html_tracker.h"
 #include "web/html_time.h"
 #include "web/html_network.h"
 #include "web/html_weather.h"
@@ -20,8 +18,6 @@ AsyncWebServer server(80);
 #include "web/js_time.h"
 #include "web/js_network.h"
 #include "web/js_weather.h"
-#include "web/js_photo.h"
-#include "web/js_diy.h"
 #include "web/js_system.h"
 #include "web/css_style.h"
 
@@ -322,9 +318,9 @@ int colon;// 是否显示冒号
 int myfont;
 #include "theme.h"
 extern struct theme_loop theme_loop_list[THEME_TOTAL];
-String h_color = "#ffffff";
-String m_color = "#FEBA00";
-String s_color = "#ffffff";
+String h_color = "ffffff";
+String m_color = "FEBA00";
+String s_color = "ffffff";
 String gif_path;
 String temp_unit;
 String windspeed_unit;
@@ -489,9 +485,9 @@ void handleSet(AsyncWebServerRequest * request){
     force_time_display = 1;
     set_day_config(day_format); 
   }else if (request->hasArg("hc") && request->hasArg("mc") & request->hasArg("sc")) {
-    h_color = request->urlDecode(request->arg("hc"));
-    m_color = request->urlDecode(request->arg("mc"));
-    s_color = request->urlDecode(request->arg("sc"));
+    h_color = request->urlDecode(request->arg("hc")).substring(1);
+    m_color = request->urlDecode(request->arg("mc")).substring(1);
+    s_color = request->urlDecode(request->arg("sc")).substring(1);
  
     //Serial.printf("hc:[%X]\r\n",h1_color);
     set_time_color_config(h_color, m_color, s_color);
@@ -684,18 +680,13 @@ void init_http_server() {
   server.on("/system.html",HTTP_GET, [](AsyncWebServerRequest *request){
     AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)system_html, sizeof(system_html)); response->addHeader("Content-Encoding", "gzip"); request->send(response); });
 
-  server.on("/photo.html",HTTP_GET, [](AsyncWebServerRequest *request){
-    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)photo_html, sizeof(photo_html)); response->addHeader("Content-Encoding", "gzip"); request->send(response); });
-
   server.on("/time.html",HTTP_GET, [](AsyncWebServerRequest *request){
     AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)time_html, sizeof(time_html)); response->addHeader("Content-Encoding", "gzip"); request->send(response); });
 
   server.on("/weather.html",HTTP_GET, [](AsyncWebServerRequest *request){
     AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)weather_html, sizeof(weather_html)); response->addHeader("Content-Encoding", "gzip"); request->send(response); });
-  server.on("/gif.html",HTTP_GET, [](AsyncWebServerRequest *request){
-    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)gif_html, sizeof(gif_html)); response->addHeader("Content-Encoding", "gzip"); request->send(response); });
-  server.on("/font.html",HTTP_GET, [](AsyncWebServerRequest *request){
-    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)font_html, sizeof(font_html)); response->addHeader("Content-Encoding", "gzip"); request->send(response); });
+  server.on("/tracker.html",HTTP_GET, [](AsyncWebServerRequest *request){
+    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)tracker_html, sizeof(tracker_html)); response->addHeader("Content-Encoding", "gzip"); request->send(response); });
 
   server.on("/js/settings.js",HTTP_GET, [](AsyncWebServerRequest *request){
     AsyncWebServerResponse *response = request->beginResponse_P(200, "application/javascript", (uint8_t*)settings_js, sizeof(settings_js)); response->addHeader("Content-Encoding", "gzip"); request->send(response); });
