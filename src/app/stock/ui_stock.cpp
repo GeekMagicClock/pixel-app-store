@@ -120,3 +120,13 @@ void display_stock(){
 
     drawLineChart(chart_data, CANDLE_NUMS, lineColor, fillColor);
 }
+
+extern void init_stock_config();
+
+void init_stock(){
+    init_stock_config();
+    mdisplay.clearScreen();
+    mdisplay.setCursor(0,12);
+    mdisplay.print("Tracker");
+    delay(1000);
+}

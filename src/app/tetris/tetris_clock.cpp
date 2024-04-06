@@ -128,7 +128,7 @@ void setMatrixTime() {
     if(hour() == 0 && hour12 != 0){
       first = 1; second = 2;
     }
-    if(hour()!=12)
+    if(first == 0 && hour12 == 1)
       timeString = String(second)+ ":" +String(minute()/10)+String(minute()%10);//myTZ.dateTime("g:i");
     else
       timeString = String(first) +String(second)+ ":" +String(minute()/10)+String(minute()%10);//myTZ.dateTime("g:i");
@@ -217,11 +217,6 @@ void tetris_clock::loop() {
     }
     oneSecondLoopDue = now + 1000;
   }
-}
-
-tetris_clock t_clock;
-void init_tetris() {
-    t_clock.setup();  
 }
 
 void exit_tetris() {

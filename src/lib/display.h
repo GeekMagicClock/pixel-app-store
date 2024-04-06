@@ -1,6 +1,66 @@
 #include <Arduino.h>
 #ifndef DISPLAY_H
 #define DISPLAY_H
+
+#include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
+extern MatrixPanel_I2S_DMA mdisplay;
+
+uint16_t parseRGBColor(String hexColor);
+
+struct ScrollText {
+  String message;
+  int16_t x;
+  const GFXfont *font;
+  String color;
+  uint32_t prevMillis;
+  bool scrolling;
+
+  ScrollText() : x(0), prevMillis(0), scrolling(true) {}
+
+  void start(const String& msg, const GFXfont *ft, String c, int y) {
+    message = msg;
+    color = c;
+    font = ft;
+    x = mdisplay.width();
+    prevMillis = 0;
+    scrolling = true;
+  }
+
+  void update(int y) {
+    if (!scrolling) return;
+
+    uint32_t currentMillis = millis();
+    int textWidth = message.length() * 6; // 每个字符宽度为 6 个像素
+    int textHeight = 9; // 字高为 9 个像素
+    float speed = 1; // 每毫秒移动像素数
+
+    if (currentMillis - prevMillis >= 25) { // 控制移动速度
+      prevMillis = currentMillis;
+
+      // 在 x 位置绘制字符串之前清空文本区域
+      mdisplay.fillRect(x, y, textWidth * 2, textHeight, mdisplay.color565(0, 0, 0));
+
+      // 在 x 位置绘制字符串
+      if(font == nullptr)
+        mdisplay.setFont();
+      else
+        mdisplay.setFont();
+      mdisplay.setTextWrap(false);
+      mdisplay.setTextColor(parseRGBColor(color));
+      //mdisplay.setTextColor(mdisplay.color565(0, 0, 200));
+      mdisplay.setCursor(x, y);
+      mdisplay.print(message);
+
+      // 更新 x 位置
+      x -= speed;
+      if (x + textWidth < 0) { // 如果字符串移出屏幕左侧
+        x = mdisplay.width(); // 重新从屏幕右侧开始移动
+        //scrolling = false; // 停止滚动
+      }
+    }
+  }
+};
+
 // 基本颜色
 #define C_RED "FF0000"
 #define C_GREEN "00FF00"
@@ -46,7 +106,6 @@
 #define C_BROWN "A52A2A"
 #define C_INDIGO "4B0082"
 
-uint16_t parseRGBColor(String hexColor);
 void animateText(const String& message, int y);
 
 #endif

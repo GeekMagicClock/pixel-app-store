@@ -83,6 +83,7 @@
 			<div class="row">
 				<div class="col-12">
 				<label>The device has multiple sets of time servers built in to ensure correct time synchronization. If you set your own NTP time server, it will be used first to synchronize.</label><p>
+				<label>In most cases, you do not need this.</label>
 				</div>
 				<div class="col-12">
 					NTP Server Domain: <input type="text" name="ntp" id="ntp" placeholder="pool.ntp.org">
@@ -96,18 +97,19 @@
 					<div id="error" class="hide"></div>
 					<h1>5. DST(Daylight Saving Time) enable</h1>
 				</div>
+				<div class="col-12">
+					<label>Do not enable it unless your time is incorrect!</label><p>
+				</div>
 			</div>
 			<div class="row">
-				<div class="col-1">
-					<label>Enable</label>
+				<div class="col-4">
+					<span>Enable:</span>
+					<label class="switch">
+						<input type="checkbox" class="switch-input" id="dst">
+						<span class="slider round"></span>
+					</label>
 				</div>
-				<div class="col-1">
-					<input type="checkbox" id="dst" name="dst" /><p>
-				</div>
-				<div class="col-12">
-				<button class="button-primary left" onclick="set_dst()">SAVE</button>
-				</div>	
-			</div>			
+			</div>
 			<div class="row">
 				<div class="col-12">
 					<br />

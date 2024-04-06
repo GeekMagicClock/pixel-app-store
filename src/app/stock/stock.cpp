@@ -74,7 +74,7 @@ StockmarketAppRunData *run_data = NULL;
 //const int num_candles = 30;
 //CandleData candles[num_candles];
 //const char* kline_api_url = "http://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData?symbol=sh000001&scale=240&ma=1&datalen=30";
-void init_stock()
+void init_stock_config()
 {
     //stockmarket_gui_init();
     // 获取配置信息

@@ -130,8 +130,17 @@ void display_album(){
   return;
 }
 
+#include "../../lib/display.h"
+#include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
+extern MatrixPanel_I2S_DMA mdisplay;
 void init_album(){
   jpegInit();
+
+  mdisplay.clearScreen();
+  mdisplay.setCursor(0,12);
+  mdisplay.setTextColor(parseRGBColor(C_LIGHT_BLUE));
+  mdisplay.print("Images");
+  delay(1000);
 }
 
 void exit_album(){

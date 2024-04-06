@@ -449,7 +449,7 @@ void handleSet(AsyncWebServerRequest * request){
     force_time_display = 1;
   }else if (request->hasArg("theme")) {
     int tmp_theme_index = request->arg("theme").toInt();
-    if(tmp_theme_index > 0 && tmp_theme_index <10){
+    if(tmp_theme_index >= 0 && tmp_theme_index <THEME_TOTAL){
       theme_index = tmp_theme_index;
       set_theme_config(theme_index);
     }

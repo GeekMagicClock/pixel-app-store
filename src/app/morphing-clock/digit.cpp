@@ -281,7 +281,8 @@ void Digit::Morph1() {
   }
 }
 
-void Digit::Morph(byte newValue) {
+void Digit::Morph(byte newValue, uint16_t color) {
+  _color = color;
   switch (newValue) {
     case 2: Morph2(); break;
     case 3: Morph3(); break;

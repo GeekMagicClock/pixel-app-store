@@ -460,21 +460,5 @@ void Weather::forecast_temp_request_cb(void* optParm, AsyncHTTPRequest* request,
 
 Weather wea;
 
-String weather_key = "";
-String pub_weather_key = "";//默认为空
-float lon = 0, lat = 0;
 
-void init_weather(){
-    wea.cityCode = "Zhongshan";
-    wea.init(weather_key, pub_weather_key, wea.cityCode, lon, lat);
-}
 
-void update_weather(bool force){
-    wea.update(force);
-}
-
-void exit_weather(){
-    wea.init_done = false;
-    wea.weather_changed = false;
-    wea.forecast_changed = false;
-}

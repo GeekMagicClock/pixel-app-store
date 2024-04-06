@@ -12,12 +12,16 @@ Digit digit5(0, 80 - 7 - 11*6, CLOCK_Y, CLOCK_DIGIT_COLOR);
 */
 
 // The Y axis starts at the bottom for the MorphingClock library... :(
-Digit digit5(0, CLOCK_X,                                                 PANEL_HEIGHT-CLOCK_Y-2*(CLOCK_SEGMENT_HEIGHT)-3, CLOCK_DIGIT_COLOR);
-Digit digit4(0, CLOCK_X + (CLOCK_SEGMENT_WIDTH+CLOCK_SEGMENT_SPACING),   PANEL_HEIGHT-CLOCK_Y-2*(CLOCK_SEGMENT_HEIGHT)-3, CLOCK_DIGIT_COLOR);
-Digit digit3(0, CLOCK_X+2*(CLOCK_SEGMENT_WIDTH+CLOCK_SEGMENT_SPACING)+3, PANEL_HEIGHT-CLOCK_Y-2*(CLOCK_SEGMENT_HEIGHT)-3, CLOCK_DIGIT_COLOR);
-Digit digit2(0, CLOCK_X+3*(CLOCK_SEGMENT_WIDTH+CLOCK_SEGMENT_SPACING)+3, PANEL_HEIGHT-CLOCK_Y-2*(CLOCK_SEGMENT_HEIGHT)-3, CLOCK_DIGIT_COLOR);
-Digit digit1(0, CLOCK_X+4*(CLOCK_SEGMENT_WIDTH+CLOCK_SEGMENT_SPACING)+6, PANEL_HEIGHT-CLOCK_Y-2*(CLOCK_SEGMENT_HEIGHT)-3, CLOCK_DIGIT_COLOR);
-Digit digit0(0, CLOCK_X+5*(CLOCK_SEGMENT_WIDTH+CLOCK_SEGMENT_SPACING)+6, PANEL_HEIGHT-CLOCK_Y-2*(CLOCK_SEGMENT_HEIGHT)-3, CLOCK_DIGIT_COLOR);
+#include "../../lib/display.h"
+extern String h_color;
+extern String m_color;
+extern String s_color;
+Digit digit5(0, CLOCK_X,                                                 PANEL_HEIGHT-CLOCK_Y-2*(CLOCK_SEGMENT_HEIGHT)-3, parseRGBColor(h_color));
+Digit digit4(0, CLOCK_X + (CLOCK_SEGMENT_WIDTH+CLOCK_SEGMENT_SPACING),   PANEL_HEIGHT-CLOCK_Y-2*(CLOCK_SEGMENT_HEIGHT)-3, parseRGBColor(h_color));
+Digit digit3(0, CLOCK_X+2*(CLOCK_SEGMENT_WIDTH+CLOCK_SEGMENT_SPACING)+3, PANEL_HEIGHT-CLOCK_Y-2*(CLOCK_SEGMENT_HEIGHT)-3, parseRGBColor(m_color));
+Digit digit2(0, CLOCK_X+3*(CLOCK_SEGMENT_WIDTH+CLOCK_SEGMENT_SPACING)+3, PANEL_HEIGHT-CLOCK_Y-2*(CLOCK_SEGMENT_HEIGHT)-3, parseRGBColor(m_color));
+Digit digit1(0, CLOCK_X+4*(CLOCK_SEGMENT_WIDTH+CLOCK_SEGMENT_SPACING)+6, PANEL_HEIGHT-CLOCK_Y-2*(CLOCK_SEGMENT_HEIGHT)-3, parseRGBColor(s_color));
+Digit digit0(0, CLOCK_X+5*(CLOCK_SEGMENT_WIDTH+CLOCK_SEGMENT_SPACING)+6, PANEL_HEIGHT-CLOCK_Y-2*(CLOCK_SEGMENT_HEIGHT)-3, parseRGBColor(s_color));
 
 int prevss = 0;
 int prevmm = 0;
@@ -48,16 +52,16 @@ void displayClock() {
       if (ss!=prevss) { 
         int s0 = ss % 10;
         int s1 = ss / 10;
-        if (s0!=digit0.Value()) digit0.Morph(s0);
-        if (s1!=digit1.Value()) digit1.Morph(s1);
+        if (s0!=digit0.Value()) digit0.Morph(s0, parseRGBColor(s_color));
+        if (s1!=digit1.Value()) digit1.Morph(s1, parseRGBColor(s_color));
         prevss = ss;
       }
 
       if (mm!=prevmm) {
         int m0 = mm % 10;
         int m1 = mm / 10;
-        if (m0!=digit2.Value()) digit2.Morph(m0);
-        if (m1!=digit3.Value()) digit3.Morph(m1);
+        if (m0!=digit2.Value()) digit2.Morph(m0, parseRGBColor(m_color));
+        if (m1!=digit3.Value()) digit3.Morph(m1, parseRGBColor(m_color));
         displayDate();
         prevmm = mm;
       }
@@ -65,8 +69,8 @@ void displayClock() {
       if (hh!=prevhh) {
         int h0 = hh % 10;
         int h1 = hh / 10;
-        if (h0!=digit4.Value()) digit4.Morph(h0);
-        if (h1!=digit5.Value()) digit5.Morph(h1);
+        if (h0!=digit4.Value()) digit4.Morph(h0, parseRGBColor(h_color));
+        if (h1!=digit5.Value()) digit5.Morph(h1, parseRGBColor(h_color));
         prevhh = hh;
       }
     }
@@ -88,6 +92,13 @@ void displayDate() {
 
 void init_morphing(){
   clockStartingUp = true;
+
+  mdisplay.clearScreen();
+  mdisplay.setCursor(0,12);
+  mdisplay.setTextColor(parseRGBColor(C_CYAN));
+  mdisplay.println("Morphing");
+  mdisplay.print("Clock");
+  delay(1000);
 }
 
 void exit_morphing(){
