@@ -6,11 +6,12 @@ extern MatrixPanel_I2S_DMA mdisplay;
 tetris_clock t_clock;
 void init_tetris() {
     mdisplay.clearScreen();
-    mdisplay.setCursor(0,12);
+    mdisplay.setCursor(0,4);
     mdisplay.setTextColor(parseRGBColor(C_DARK_ORANGE));
+    mdisplay.println("3.");
     mdisplay.println("Tetris");
     mdisplay.print("Clock");
-    delay(1000);
+    delay(2000);
     t_clock.setup();  
 }
 

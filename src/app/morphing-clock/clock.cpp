@@ -94,11 +94,12 @@ void init_morphing(){
   clockStartingUp = true;
 
   mdisplay.clearScreen();
-  mdisplay.setCursor(0,12);
+  mdisplay.setCursor(0,4);
   mdisplay.setTextColor(parseRGBColor(C_CYAN));
+  mdisplay.println("4.");
   mdisplay.println("Morphing");
   mdisplay.print("Clock");
-  delay(1000);
+  delay(2000);
 }
 
 void exit_morphing(){

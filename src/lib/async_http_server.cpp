@@ -317,10 +317,11 @@ int user_day;
 int colon;// 是否显示冒号
 int myfont;
 #include "theme.h"
+#include "display.h"
 extern struct theme_loop theme_loop_list[THEME_TOTAL];
-String h_color = "ffffff";
-String m_color = "FEBA00";
-String s_color = "ffffff";
+String h_color = C_CYAN;
+String m_color = C_CYAN;
+String s_color =  C_CYAN;
 String gif_path;
 String temp_unit;
 String windspeed_unit;

@@ -83,7 +83,7 @@ function getData(data) {
 	if(res.en) time_brt_en.checked = true;
 	if(res.b2) time_brt.value = res.b2;
 	
-	if(res.theme) theme.value = res.theme;
+	//if(res.theme) theme.value = res.theme;
 
 	//联网
 	if(res.a) {

@@ -137,10 +137,12 @@ void init_album(){
   jpegInit();
 
   mdisplay.clearScreen();
-  mdisplay.setCursor(0,12);
-  mdisplay.setTextColor(parseRGBColor(C_LIGHT_BLUE));
-  mdisplay.print("Images");
-  delay(1000);
+  mdisplay.setCursor(0,4);
+  mdisplay.setTextColor(parseRGBColor(C_LIGHT_ORANGE));
+  mdisplay.println("2.");
+  mdisplay.println("Images");
+  mdisplay.print("Display");
+  delay(2000);
 }
 
 void exit_album(){

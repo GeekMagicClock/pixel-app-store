@@ -122,11 +122,14 @@ void display_stock(){
 }
 
 extern void init_stock_config();
-
+#include "../../lib/display.h"
 void init_stock(){
     init_stock_config();
     mdisplay.clearScreen();
-    mdisplay.setCursor(0,12);
+    mdisplay.setCursor(0,4);
+    mdisplay.setTextColor(parseRGBColor(C_FOREST_GREEN));
+    mdisplay.println("1.");
+    mdisplay.println("Market");
     mdisplay.print("Tracker");
-    delay(1000);
+    delay(2000);
 }

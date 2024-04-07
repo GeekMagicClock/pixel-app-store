@@ -24,9 +24,12 @@ void init_weather(){
     wea.cityCode = "Zhongshan";
     wea.init(weather_key, pub_weather_key, wea.cityCode, lon, lat);
     mdisplay.clearScreen();
-    mdisplay.setCursor(0,12);
-    mdisplay.print("Weather");
-    delay(1000);
+    mdisplay.setCursor(0,4);
+    mdisplay.setTextColor(parseRGBColor(C_LIGHT_BLUE));
+    mdisplay.println("5.");
+    mdisplay.println("Weather");
+    mdisplay.print("Clock");
+    delay(2000);
 }
 
 void update_weather(bool force){
