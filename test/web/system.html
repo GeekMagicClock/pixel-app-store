@@ -21,13 +21,13 @@
 				<div class="col-12">
 				(Please disable Auto switch if you want to switch manually.)<p>
 					<input class="button-primary left btn-theme" type="button"  onclick="setTheme(0)" value="Market Tracker"/>
-					<input class="button-primary left btn-theme" type="button"  onclick="setTheme(1)" value="Photo Display"/>
+					<input class="button-primary left btn-theme" type="button"  onclick="setTheme(1)" value="Image Display"/>
 					<input class="button-primary left btn-theme" type="button"  onclick="setTheme(2)" value="Tetris Clock"/>
 					<input class="button-primary left btn-theme" type="button"  onclick="setTheme(3)" value="Morphing Clock"/>
 					<input class="button-primary left btn-theme" type="button"  onclick="setTheme(4)" value="Weather Clock"/>
 				</div>
 			</div>	
-			<div class="row">
+			<!--div class="row">
 				<div class="col-12">
 					<div id="error" class="hide"></div>
 					<h1>2. Auto Switch Themes</h1>
@@ -36,60 +36,47 @@
 			<div class="row">
 				<div class="col-12">
 					<label class="switch">
-						<input type="checkbox" class="switch-input" id="flipclock">
+						<input type="checkbox" class="switch-input" id="tracker">
 						<span class="slider round"></span>
 					</label>
-					<span>1.Flip Clock</span>
+					<span>1.Market Tracker</span>
 					<p></p>
 
 					<label class="switch">
-						<input type="checkbox" class="switch-input" id="imageclock">
+						<input type="checkbox" class="switch-input" id="images">
 						<span class="slider round"></span>
 					</label>
-					<span>2.Image Clock</span>
+					<span>2.Image Display</span>
 					<p></p>
 
 					<label class="switch">
-						<input type="checkbox" class="switch-input" id="imageclock">
+						<input type="checkbox" class="switch-input" id="tetris">
 						<span class="slider round"></span>
 					</label>
-					<span>3.Font Clock</span>
+					<span>3.Tetris Clock</span>
 					<p></p>
 
 					<label class="switch">
-						<input type="checkbox" class="switch-input" id="weather">
+						<input type="checkbox" class="switch-input" id="morphing">
 						<span class="slider round"></span>
 					</label>
-					<span>4.GIF Play</span>
+					<span>4.Morphing Clock</span>
 
 					<p></p>
-					<label class="switch">
-						<input type="checkbox" class="switch-input" id="photo">
-						<span class="slider round"></span>
-					</label>
-					<span>5.Photo DIY</span>
-					<p></p>
-
 					<label class="switch">
 						<input type="checkbox" class="switch-input" id="weather">
 						<span class="slider round"></span>
 					</label>
-					<span>6.Weather Clock</span>
+					<span>5.Weather Clock</span>
 					<p></p>
 
-					<label class="switch">
-						<input type="checkbox" class="switch-input" id="weather">
-						<span class="slider round"></span>
-					</label>
-					<span>7.Digital Rain</span>
-					<p></p>
 					<label>Interval(seconds):</label><input id= "theme_interval" type="text" style="width:60px" placeholder="10s"><p>					
 					<button class="button-primary left" onclick="set_theme_list()">SAVE</button><p>
 				</div>
-			</div>	
+			</div-->	
 			<div class="row">
 				<div class="col-12">					
-					<h1>3. Brightness</h1>
+					<h1>2. Brightness</h1>
 				</div>
 			</div>
 			<div class="row">
@@ -100,7 +87,7 @@
 			<div class="row">
 				<div class="col-12">
 					<div id="error" class="hide"></div>
-					<h1>2. Night Mode</h1>
+					<h1>3. Night Mode</h1>
 				</div>
 			</div>
 			<div class="row">
@@ -114,6 +101,19 @@
 
 				<div class="col-4">Start Time: <p>
 					<select id="time1" onchange="" style="width:100px">
+					  <option value="0">0:00</option>
+					  <option value="1">1:00</option>
+					  <option value="2">2:00</option>
+					  <option value="3">3:00</option>
+					  <option value="4">4:00</option>
+					  <option value="5">5:00</option>
+					  <option value="6">6:00</option>
+					  <option value="7">7:00</option>
+					  <option value="8">8:00</option>
+					  <option value="9">9:00</option>
+					  <option value="10">10:00</option>
+					  <option value="11">11:00</option>
+					  <option value="12">12:00</option>
 					  <option value="13">13:00</option>
 					  <option value="14">14:00</option>
 					  <option value="15">15:00</option>
@@ -142,6 +142,18 @@
 					  <option value="10">10:00</option>
 					  <option value="11">11:00</option>
 					  <option value="12">12:00</option>
+					  <option value="13">13:00</option>
+					  <option value="14">14:00</option>
+					  <option value="15">15:00</option>
+					  <option value="16">16:00</option>
+					  <option value="17">17:00</option>
+					  <option value="18">18:00</option>
+					  <option value="19">19:00</option>
+					  <option value="20">20:00</option>
+					  <option value="21">21:00</option>
+					  <option value="22">22:00</option>
+					  <option value="23">23:00</option>	  	
+					</select>
 					</select>
 				</div>
 			</div>
@@ -153,20 +165,20 @@
 					
 			<div class="row">
 				<div class="col-12">
-					<h1>5. Factory Reset</h1>
+					<h1>4. Factory Reset</h1>
 					<label>The settings will be cleared, but the files you uploaded will not be affected.</label><p>
 					<button class="red" onclick="set_reset()">RESET</button> 
 				</div>
 			</div>			
 			<div class="row">
 				<div class="col-12">
-					<h1>6. Reboot</h1>
+					<h1>5. Reboot</h1>
 					<button class="red" onclick="set_reboot()">REBOOT</button> 
 				</div>
 			</div>
 			<div class="row">
 				<div class="col-12">
-					<h1>7. Firmware update</h1>
+					<h1>6. Firmware update</h1>
 					<button class="red"><a href="/update"  target="_blank">UPLOAD</a></button> 
 				</div>
 			</div>
@@ -224,11 +236,15 @@
 				send_http(url);
 			}
 			function set_reset(){
+				var ret = confirm("Do you confirm to clear all settings and reboot the device?");
+				if(!ret) return;
 				var url = "/set?reset=1";
 				console.log(url);
 				send_http(url);
 			}
 			function set_reboot(){
+				var ret = confirm("Do you confirm to reboot the device?");
+				if(!ret) return;
 				var url = "/set?reboot=1";
 				console.log(url);
 				send_http(url);

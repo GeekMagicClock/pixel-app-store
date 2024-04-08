@@ -123,6 +123,7 @@ void display_stock(){
 
 extern void init_stock_config();
 #include "../../lib/display.h"
+#include "../../lib/btn.h"
 void init_stock(){
     init_stock_config();
     mdisplay.clearScreen();
@@ -131,5 +132,11 @@ void init_stock(){
     mdisplay.println("1.");
     mdisplay.println("Market");
     mdisplay.print("Tracker");
-    delay(2000);
+    //delay(2000);
+
+    int i = 0;
+    while(!btn_status() && i<200) {
+      i++;
+      delay(10);
+    }
 }

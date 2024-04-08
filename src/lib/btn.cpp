@@ -115,7 +115,9 @@ void init_btn(){
   btn.setLongClickDetectedHandler(longClickDetected);
   btn.begin(BTN_PIN);
 }
-
+bool btn_status(){
+  return btn.isPressed();
+}
 void update_btn(){
   //DBG_PTN(digitalRead(BTN_PIN));
   btn.loop();

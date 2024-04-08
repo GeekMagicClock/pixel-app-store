@@ -14,6 +14,7 @@ extern MatrixPanel_I2S_DMA mdisplay;
 extern String h_color;
 
 #include "WiFi.h"
+#include "../../lib/btn.h"
 bool wea_init_status = false;
 
 String weather_key = "";
@@ -29,7 +30,11 @@ void init_weather(){
     mdisplay.println("5.");
     mdisplay.println("Weather");
     mdisplay.print("Clock");
-    delay(2000);
+    int i = 0;
+    while(!btn_status() && i<200) {
+      i++;
+      delay(10);
+    }
 }
 
 void update_weather(bool force){

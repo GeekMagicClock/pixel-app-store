@@ -89,7 +89,7 @@ void displayDate() {
 
     mdisplay.setCursor(DATE_X, DATE_Y);
 }
-
+#include "../../lib/btn.h"
 void init_morphing(){
   clockStartingUp = true;
 
@@ -99,7 +99,13 @@ void init_morphing(){
   mdisplay.println("4.");
   mdisplay.println("Morphing");
   mdisplay.print("Clock");
-  delay(2000);
+  //delay(2000);
+
+  int i = 0;
+  while(!btn_status() && i<200) {
+    i++;
+    delay(10);
+  }
 }
 
 void exit_morphing(){
