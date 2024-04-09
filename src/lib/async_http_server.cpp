@@ -501,11 +501,13 @@ void handleSet(AsyncWebServerRequest * request){
     //bili_id = request->arg("uid");
     //Serial.printf("bili:[%s]\r\n",bili_id);
     //set_bili_config(bili_id.c_str(), request->arg("b_i").toInt());
- }else if (request->hasArg("stock") && request->hasArg("exchange") && request->hasArg("s_i")) {
-    stock_code = request->arg("stock");
-    stock_exchange = request->arg("exchange");
-    //Serial.printf("stock:[%s][%s]\r\n",stock_code, stock_exchange);
-    //set_stock_config(stock_code.c_str(), stock_exchange.c_str(), request->arg("s_i").toInt());
+  }else if(server.hasArg("st_kline")){
+    set_stock_kline_config(server.arg("st_kline"));
+    if(app_controller->is_app_running("Stock")){
+      app_controller->send_to("Stock", "Stock", APP_MESSAGE_SET_PARAM, (void *)"st_kline", (void *)server.arg("st_kline").c_str());
+    }
+  }else if (server.hasArg("c0") &&server.hasArg("c1") && server.hasArg("c2")&& server.hasArg("c3")&& server.hasArg("c4")&& server.hasArg("c5")&& server.hasArg("c6")&& server.hasArg("c7")&& server.hasArg("c8")&& server.hasArg("c9") && server.hasArg("s_i")&& server.hasArg("s_l")&& server.hasArg("s_ani")) {
+    set_stock_config(server.arg("s_ani").toInt(), server.arg("s_l").toInt(),server.arg("s_i").toInt(),server.arg("c0").c_str(),server.arg("c1").c_str(),server.arg("c2").c_str(),server.arg("c3").c_str(),server.arg("c4").c_str(),server.arg("c5").c_str(),server.arg("c6").c_str(),server.arg("c7").c_str(),server.arg("c8").c_str(),server.arg("c9").c_str());
   }else if(request->hasArg("en") && request->hasArg("t2") && request->hasArg("b2") && request->hasArg("t1")){
 
     t1 = request->arg("t1").toInt();
