@@ -8,6 +8,7 @@
 		<style>		
 		</style>
 		<link rel="stylesheet" href="css/style.css">
+		<script src="js/functions.js"></script>
 		<link rel="stylesheet" href="css/cropper.min.css">
 		<script src="js/cropper.min.js"></script>
 		<script src="js/jquery.min.js"></script>  				
@@ -19,7 +20,33 @@
 			<div class="row">
 				<div class="col-12">
 					<div id="error" class="hide"></div>
-					<h1>Number Images for Clock</h1>
+					<h1>1. Auto display</h1>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-6">
+					<label for="autoplay">Enable image auto display:</label>
+				</div>
+				<div class="col-6">
+					<input type="checkbox" id="autoplay" name="autoplay" />
+				</div>
+				<div class="col-6">
+					<label for="hour12">JPG image display interval:</label>
+				</div>
+				<div class="col-6">
+					<input type="text" name="image_interval" id="image_interval" value="30">s(seconds)
+				</div>
+			</div>				
+			<div class="row">
+
+				<div class="col-12">
+					<button class="button-primary left" onclick="set_image()">SAVE</button>
+				</div>
+			</div>		
+			<div class="row">
+				<div class="col-12">
+					<div id="error" class="hide"></div>
+					<h1>2. Picture management</h1>
 				</div>
 			</div>
 			<div class="row">
@@ -31,7 +58,7 @@
 						  <div class="cut-img-box">
 							<img id="image" height="auto" width="100%">
 						  </div>
-						  <p class="instructions">Please crop and resize to 135x240px</p>
+						  <p class="instructions">Please crop and resize to 64x32px</p>
 						  <div class=" btn-container" style="width: 240px;margin: 0px auto;">
 							<div id="cancel" style="width: 40px;float:left;" class = "btn">CANCEL</div>
 							<div id="rotate" style="width: 40px;float:left;margin-left:10px;" class = "btn">ROTATE</div>
@@ -60,7 +87,7 @@
 			<script>
 				var image1 = $('#image');
 				var cropper = new Cropper(image, {
-					aspectRatio:9/16,
+					aspectRatio:2/1,
 					viewMode: 1,
 					ContainerWidth: 350,
 					ContainerHeight: 350,
@@ -92,7 +119,7 @@
 				})	
 				$('#crop').on('click', function() {
 				  $(".cut-img-model").toggle(); 
-				  var src = cropper.getCroppedCanvas({width:135,height:240}).toDataURL('image/jpeg', 0.99);
+				  var src = cropper.getCroppedCanvas({width:64,height:32}).toDataURL('image/jpeg', 1);
 				  //console.log(src); // base64格式
 				})
 				$('#cancel').on('click', function() {
@@ -142,8 +169,25 @@
 							var rsp = JSON.parse(xh.responseText)
 							console.log(rsp.free);
 							if(rsp.free != ""){							
-								getE("free").innerText = "Free Space:"+ Math.floor(rsp.free/1024) +"KB";
+								getE("free").innerText = "Total:"+Math.floor(rsp.total/1024)+"KB, Free Space:"+ Math.floor(rsp.free/1024) +"KB";
 							}						
+						}
+					}	
+				}
+				function clearDir() {
+				   var ret = confirm("Confirm? Do you want to delete all the images?");
+				   if(!ret) return;
+
+				   var xhr = new XMLHttpRequest();
+				   var fnstring=String("/set?clear=image");
+					console.log(fnstring);
+				    xhr.open("GET", fnstring, true);
+					xhr.send();
+					xhr.onreadystatechange = function() {
+						if (xhr.readyState == XMLHttpRequest.DONE) {
+							alert("clear ok");
+							console.log(xhr.responseText);
+							refreshPwd();
 						}
 					}	
 				}
@@ -225,8 +269,8 @@
 							}
 						});
 					}else{
-						var canvas = cropper.getCroppedCanvas({width:135,height:240});
-						var src = cropper.getCroppedCanvas({width:135,height:240}).toDataURL('image/jpeg', 0.99);
+						var canvas = cropper.getCroppedCanvas({width:64,height:32});
+						var src = cropper.getCroppedCanvas({width:64,height:32}).toDataURL('image/jpeg', 0.99);
 						//data.append("file", encodeURIComponent(src)); 
 						canvas.toBlob(function (blob){
 							var formData = new FormData();
