@@ -8,32 +8,32 @@
 //#define LittleFS LITTLEFS
 #define  LITTLEFS LittleFS
 
-#define CONFIG_PATH     F("/config.json") /* wifi 信息 */
-#define UNIT_PATH       F("/unit.json") /* 单位是公制还是英制 */
-#define NTP_PATH       F("/ntp.json") /* NTP 服务器设置 */
-#define CITY_PATH       F("/city.json")
-#define BRT_PATH       F("/brt.json")
-#define DELAY_PATH       F("/delay.json") /* 延迟联网 */
+#define CONFIG_PATH     F("/.sys/config.json") /* wifi 信息 */
+#define UNIT_PATH       F("/.sys/unit.json") /* 单位是公制还是英制 */
+#define NTP_PATH       F("/.sys/ntp.json") /* NTP 服务器设置 */
+#define CITY_PATH       F("/.sys/city.json")
+#define BRT_PATH       F("/.sys/brt.json")
+#define DELAY_PATH       F("/.sys/delay.json") /* 延迟联网 */
 //#define BILI_PATH       F("/bili.json")
-#define GIF_PATH       F("/gif.json") /* gif文件顺序 */
-#define IMG_PATH       F("/img.json") /* gif文件顺序 */
-#define THEME_PATH       F("/app.json") /* 主题*/
-#define TIME_COLOR_PATH       F("/timecolor2.json") /* 时间数字的颜色 */
-#define ALBUM_PATH        F("/album.json") /* 相册设置 */
-#define STOCK_PATH        F("/stock.json") /* 股票设置 */
-#define T_BRT_PATH       F("/timebrt.json") /* 定时亮度 */
-#define HOUR12_PATH       F("/hour12.json") /* 定时亮度 */
-#define COLON_PATH       F("/colon.json") /* 是否开启冒号闪烁 */
-#define THEME_LIST_PATH       F("/theme_list.json") /* 循环主题列表, 存放是否开启该主题循环的开关 */
-#define DAYTIMER_PATH       F("/daytimer.json") /* 天数倒计时 */
-#define DAY_PATH       F("/day.json") /* 日期显示格式 */
-#define COIN_PATH       F("/coin.json") /* 日期显示格式 */
-#define KLINE_PATH       F("/kline.json") /* 日期显示格式 */
-#define STOCK_KLINE_PATH       F("/stkline.json") /* 日期显示格式 */
-#define FONT_PATH       F("/font.json") /* 字体编号 */
-#define KEY_PATH       F("/key.json") /* 天气KEY */
-#define WEATHER_INTERVAL_PATH       F("/w_i.json") /* 天气更新间隔 */
-#define DST_PATH       F("/dst.json") /* 夏令时 */
+#define GIF_PATH       F("/.sys/gif.json") /* gif文件顺序 */
+#define IMG_PATH       F("/.sys/img.json") /* gif文件顺序 */
+#define THEME_PATH       F("/.sys/app.json") /* 主题*/
+#define TIME_COLOR_PATH       F("/.sys/timecolor2.json") /* 时间数字的颜色 */
+#define ALBUM_PATH        F("/.sys/album.json") /* 相册设置 */
+#define STOCK_PATH        F("/.sys/stock.json") /* 股票设置 */
+#define T_BRT_PATH       F("/.sys/timebrt.json") /* 定时亮度 */
+#define HOUR12_PATH       F("/.sys/hour12.json") /* 定时亮度 */
+#define COLON_PATH       F("/.sys/colon.json") /* 是否开启冒号闪烁 */
+#define THEME_LIST_PATH       F("/.sys/theme_list.json") /* 循环主题列表, 存放是否开启该主题循环的开关 */
+#define DAYTIMER_PATH       F("/.sys/daytimer.json") /* 天数倒计时 */
+#define DAY_PATH       F("/.sys/day.json") /* 日期显示格式 */
+#define COIN_PATH       F("/.sys/coin.json") /* 日期显示格式 */
+#define KLINE_PATH       F("/.sys/kline.json") 
+#define STOCK_KLINE_PATH       F("/.sys/stk.json") 
+#define FONT_PATH       F("/.sys/font.json") /* 字体编号 */
+#define KEY_PATH       F("/.sys/key.json") /* 天气KEY */
+#define WEATHER_INTERVAL_PATH       F("/.sys/w_i.json") /* 天气更新间隔 */
+#define DST_PATH       F("/.sys/dst.json") /* 夏令时 */
 
 void reset_config(){
   LittleFS.remove(CONFIG_PATH);

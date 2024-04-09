@@ -1,6 +1,8 @@
 #include <Arduino.h>
 #include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
 #include "stock.h"
+#include "../../lib/display.h"
+#include "my_debug.h"
 
 extern MatrixPanel_I2S_DMA mdisplay;
 // 自定义的线性比例缩放函数
@@ -19,10 +21,10 @@ void linearInterpolation(float input[], int inputLength, float output[], int out
     }
 
     for (int i = 0; i < inputLength; i++) {
-        //input[i] = map(input[i], minValue, maxValue, 0, screenHeight); // 归一化到 [0, 1] 范围
-        input[i] = scale(input[i], minValue, maxValue, 0, screenHeight); // 归一化到 [0, screenHeight] 范围
+        //output[i] = map(input[i], minValue, maxValue, 0, screenHeight); // 归一化到 [0, 1] 范围
+        output[i] = scale(input[i], minValue, maxValue, 0, screenHeight); // 归一化到 [0, screenHeight] 范围
     }
-
+    return;
     for (int i = 0; i < outputLength; i++) {
         if (i % 2 == 0) { // 每隔一个数据点插入一个新数据点
             int dataIndex = i / 2; // 原始数据点的索引
@@ -73,7 +75,8 @@ float processPrice(float price) {
     } else if (price < 100) {
         return roundf(price * 100) / 100; // 保留2位小数
     } else {
-        return roundf(price); // 保留2位小数
+        return roundf(price * 10) / 10; // 保留1位小数
+        //return roundf(price); // 保留2位小数
     }
 }
 
@@ -89,7 +92,8 @@ void display_stock(){
     uint16_t fillColor = mdisplay.color565(150, 255, 150); // 浅红色填充
     float chart_data[CANDLE_NUMS];
     for (size_t i = 0; i < CANDLE_NUMS; i++) {
-        chart_data[i] = data->candles[CANDLE_NUMS-1 - i].open;//注意，蜡烛顺序要反一下
+        //chart_data[i] = data->candles[CANDLE_NUMS-1 - i].open;//注意，蜡烛顺序要反一下, 旧的数据先绘制
+        chart_data[i] = data->candles[i].open;//注意，蜡烛顺序要反一下, 旧的数据先绘制
         Serial.print(chart_data[i]);
         Serial.print(" ");
     }
@@ -100,23 +104,53 @@ void display_stock(){
     mdisplay.setTextSize(1);
     mdisplay.setTextColor(mdisplay.color565(255, 255, 255));
     //mdisplay.setFont(&FreeMono9pt7b);
-    if(data->price >= 100)
-        mdisplay.print(data->stock_name +" "+ String(int(data->price)));
-    else
-        mdisplay.print(data->stock_name +" "+ String(processPrice(data->price)));
+    //CNYUSD=X
+    String tmp_name = "";
+    tmp_name = data->stock_name.indexOf('=') != -1 ? data->stock_name.substring(0, data->stock_name.indexOf('=')) : data->stock_name;
 
-    mdisplay.setCursor(30,8);
+    #if 0
+    if(data->stock_name.indexOf('-') != -1){
+        tmp_name = data->stock_name.substring(0, data->stock_name.indexOf('-'));
+    }else if(data->stock_name.indexOf('=') != -1){
+        tmp_name = data->stock_name.substring(0, data->stock_name.indexOf('='));
+    }else
+        tmp_name = data->stock_name;
+    #endif
+
+    //mdisplay.print(data->stock_name);
+    mdisplay.print(tmp_name);
+    
+    mdisplay.setCursor(53,0);
+    mdisplay.setTextColor(parseRGBColor(C_GOLD));
+    mdisplay.print(data->kline_interval);
+
+    mdisplay.setCursor(0,8);
+    if(data->price >= 1000)
+        mdisplay.print(String(int(data->price)));
+    else if(data->price >= 100)
+        mdisplay.print(String(processPrice(data->price),1));
+    else
+        mdisplay.print(String(processPrice(data->price)));
+
+    mdisplay.setCursor(35,8);
+    String percent = "";
     if(data->percent >= 0){
         mdisplay.setTextColor(mdisplay.color565(0, 255, 0));
-        mdisplay.print("+"+String(data->percent, 1)+"%");
+        if(data->percent>=10)
+            percent = ("+"+String(roundf(data->percent), 0)+"%");
+        else
+            percent = ("+"+String(data->percent, 1)+"%");
         lineColor = mdisplay.color565(0, 255, 0); // 绿色填充
         fillColor = mdisplay.color565(150, 255, 150); // 绿色填充
     } else{
         lineColor = mdisplay.color565(255, 0, 0); // 红色填充
         fillColor = mdisplay.color565(255, 150, 150); //浅红色填充
         mdisplay.setTextColor(mdisplay.color565(255, 0, 0));
-        mdisplay.print(String(data->percent, 1)+"%");
+        percent = (String(data->percent, 1)+"%");
     }
+    //动态确定 percent的位置
+    mdisplay.setCursor(mdisplay.width()- (percent.length()+1)*5,8);
+    mdisplay.print(percent);
 
     drawLineChart(chart_data, CANDLE_NUMS, lineColor, fillColor);
 }

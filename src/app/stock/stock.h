@@ -34,6 +34,7 @@ struct StockmarketAppRunData {
     unsigned long refresh_time_millis;
     uint32_t stock_scale;
     String stock_id;//当前的stock id
+    int stock_index;
     //String stock_kline_interval;//kline interval
     my_stock_t stockdata;
 };

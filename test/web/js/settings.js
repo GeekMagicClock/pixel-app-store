@@ -149,10 +149,6 @@ function getData(data) {
 	if(res.c_l == "1") c_l.checked = true;
 	if(res.c_ani == "1") coin_ani.checked = true;
 	
-	//监视器
-	if(res.m_i) m_i.value = res.m_i;
-	if(res.ip) ip.value = res.ip;	
-	
 	//主题
 	//if(res.theme) theme.value = res.theme;
 	if(res.list){

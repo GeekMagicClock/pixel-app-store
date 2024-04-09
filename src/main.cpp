@@ -1,8 +1,8 @@
 #include <WiFi.h>
 
 // Initialize Wifi connection to the router
-char ssid[] = "1024";     // your network SSID (name)
-char password[] = "2048@@@@"; // your network key
+char ssid[33] = "1024";     // your network SSID (name)
+char password[65] = "2048@@@@"; // your network key
 #include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
 #define PANEL_RES_X 64      // Number of pixels wide of each INDIVIDUAL panel module. 
 #define PANEL_RES_Y 32     // Number of pixels tall of each INDIVIDUAL panel module.
@@ -25,6 +25,7 @@ uint16_t myWHITE = mdisplay.color565(255, 255, 255);
 #include <ESP32-VirtualMatrixPanel-I2S-DMA.h>
 //VirtualMatrixPanel *virtualDisp = nullptr;
 VirtualMatrixPanel vdisplay(mdisplay, NUM_ROWS, NUM_COLS, PANEL_RES_X, PANEL_RES_Y);
+#include "lib/settings.h"
 void setup() {
   Serial.begin(115200);
 
@@ -36,6 +37,10 @@ void setup() {
   if(!LittleFS.begin()){
         Serial.println("SPIFFS Mount Failed");
   }
+  if(!LittleFS.exists("/.sys")) {
+    LittleFS.mkdir("/.sys");
+  }
+  read_wifi_config(ssid, sizeof(ssid), password, sizeof(password)); 
   // Set WiFi to station mode and disconnect from an AP if it was Previously
   // connected
   WiFi.mode(WIFI_STA);

@@ -38,13 +38,13 @@ static void read_config(B_Config *cfg) {
         cfg->stock_id[2] = "AAPL";  // 股票代码
         cfg->stock_id[1] = "TSLA";  // 股票代码
         cfg->stock_id[0] = "AMZN";  // 股票代码
-        cfg->stock_id[3] = "TTOO";  // 股票代码
-        cfg->stock_id[4] = "EBET";  // 股票代码
-        cfg->stock_id[5] = "NVOS";  // 股票代码
-        cfg->stock_id[6] = "OPGN";  // 股票代码
-        cfg->stock_id[7] = "NKLA";  // 股票代码
-        cfg->stock_id[8] = "AVTX";  // 股票代码
-        cfg->stock_id[9] = "MCOM";  // 股票代码
+        cfg->stock_id[3] = "BTC-USD";  // 股票代码
+        cfg->stock_id[4] = "BTC-EUR";  // 股票代码
+        cfg->stock_id[5] = "BTC-CAD";  // 股票代码
+        cfg->stock_id[6] = "EURUSD=X";  // 股票代码
+        cfg->stock_id[7] = "USDEUR=X";  // 股票代码
+        cfg->stock_id[8] = "AUDUSD=X";  // 股票代码
+        cfg->stock_id[9] = "GC=F";  // 股票代码
         //cfg->stock_scale = 5;//5min
         cfg->updateInterval = 30;
         cfg->loop = 1;
@@ -105,12 +105,23 @@ static unsigned long last_loop_time;
 
 void fill_candle_data(JsonArray& open_prices, JsonArray& close_prices, JsonArray& high_prices, JsonArray& low_prices, CandleData* candles, int num_candles) {
   int num_data_points = min(open_prices.size(), min(close_prices.size(), min(high_prices.size(), low_prices.size())));
+  int j = 0;
+  //假设我们请求的数据一定是大于蜡烛数的, [0] 存放的是最新的数据
+  for (int i = num_data_points-1; i >= 0 && j < num_candles; i--,j++) {
+    candles[j].open = open_prices[i].as<float>();
+    candles[j].close = close_prices[i].as<float>();
+    candles[j].high = high_prices[i].as<float>();
+    candles[j].low = low_prices[i].as<float>();
+    DBG_PTN(candles[j].open);
+  }
+  return;
   for (int i = 0; i < num_data_points && i < num_candles; i++) {
     candles[i].open = open_prices[i].as<float>();
     candles[i].close = close_prices[i].as<float>();
     candles[i].high = high_prices[i].as<float>();
     candles[i].low = low_prices[i].as<float>();
   }
+
 }
 #include "HttpClient.h"
 void get_realtime_price_yahoo(){
@@ -163,7 +174,7 @@ void get_realtime_price_yahoo(){
   return;
 }
 
-#define DEBUG_STOCK 1
+//#define DEBUG_STOCK
 
 void get_kline_data_yahoo(){
   HTTPClient http;
@@ -188,7 +199,7 @@ void get_kline_data_yahoo(){
   }
   DBG_PTN("value = "+String(value));
   String unit = a.substring(i);
-  String range = String(value*30)+unit;
+  String range = String(value*CANDLE_NUMS+20)+unit;
   DBG_PTN(range);
   String url = "https://query1.finance.yahoo.com/v8/finance/chart/"+run_data->stock_id+"?interval="+a+"&range="+range;
 
@@ -260,11 +271,22 @@ void get_kline_data_yahoo(){
     http.end();
   }
 }
+//todo 股票更新逻辑：
+//1. 一支股票固定间隔更新。
+//2. 多只股票间隔更新
+//3. 设置突然改变，立刻更新。
 
 void update_stock(bool force){
-    if(!force) return;
+    if(!force && millis() - run_data->refresh_time_millis < cfg_data.updateInterval*1000 ) return;
     //display_stock(&run_data->stockdata, 30, LV_SCR_LOAD_ANIM_FADE_IN);
+    if(cfg_data.loop){
+      if(run_data->stock_index >= STOCK_TOTAL) run_data->stock_index = 0;
+      run_data->stock_id = cfg_data.stock_id[run_data->stock_index++];
+      run_data->stockdata.stock_name = run_data->stock_id;
+      DBG_PTN(run_data->stock_id);
+    }
     get_kline_data_yahoo();
+    run_data->refresh_time_millis = millis();
     //get_realtime_stock_data();    
     //get_30_days_kline_data();
 }

@@ -15,7 +15,6 @@ void exit_info(){
 ScrollText scrollText1;
 ScrollText scrollText2;
 ScrollText scrollText3;
-ScrollText scrollText;
 
 void init_info(){
     //scrollText.start("中文测试阿里巴巴普惠体",&alibabaM64pt7b,C_GOLD,0);
