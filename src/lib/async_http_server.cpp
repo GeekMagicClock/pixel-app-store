@@ -180,12 +180,12 @@ boolean startPortal(char const *apName, char const *apPassword) {
   }
 }
 
-static String get_wifi_scan(){
+String get_wifi_scan(){
 //异步扫描配合异步webserver, 开机后第一次扫描是空的，需要一些技巧避免
-    String data;
+    String data = "";
     int n = WiFi.scanComplete();
     if(n == -2){
-      int n = WiFi.scanNetworks(true);
+      n = WiFi.scanNetworks(true);
     } else {
       Serial.print(n);
       DBG_PTN("networks found");
@@ -193,7 +193,9 @@ static String get_wifi_scan(){
       if(n>15) n = 15; 
 
       JsonDocument root;
-      JsonArray array = root.createNestedArray("aps");
+      //JsonArray array = root.createNestedArray("aps");
+      JsonArray array = root["aps"].to<JsonArray>();
+ 
       //String data = "{\"aps\":[";
       for (int i = 0; i < n; i++) {
           //DBG_PTN(WiFi.SSID(i));
@@ -235,7 +237,8 @@ static String get_wifi_scan(){
       }
       WiFi.scanDelete();
       if(WiFi.scanComplete() == -2){
-        WiFi.scanNetworks(true);
+        DBG_PTN("scan again...");
+        //WiFi.scanNetworks(true);
       }
       serializeJson(root,  data);
     }
@@ -656,8 +659,13 @@ void init_http_server() {
   });
 
   server.on("/wifi.json", HTTP_GET, [](AsyncWebServerRequest *request){
-    const String &wifi_list = get_wifi_scan(); 
-    request->send(200, "text/json", wifi_list);
+    const String wifi_list = get_wifi_scan(); 
+    DBG_PTN(wifi_list);
+    //request->send(200, "text/json", wifi_list);
+    request->send(200, "application/json", wifi_list);
+    delay(100);
+    //再响应网页以后，再触发一次扫描。修复触发扫描时候响应 web 会导致接收不到的问题。20240409 fix
+    WiFi.scanNetworks(true);
   });
 
   server.on("/space.json", HTTP_GET, [](AsyncWebServerRequest *request){

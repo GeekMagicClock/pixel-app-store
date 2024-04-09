@@ -235,7 +235,7 @@ function getResponse(adr, callback, timeoutCallback, timeout, method){
 			showMessage("Device connection lost, check connection and reload please... ");
 		};
 	}
-	if(timeout === undefined) timeout = 8000; 
+	if(timeout === undefined) timeout = 10000; 
 	if(method === undefined) method = "GET";
 	var xmlhttp = new XMLHttpRequest();
 	xmlhttp.onreadystatechange = function() {

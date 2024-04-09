@@ -68,10 +68,6 @@ void display_weather(){
         String weather_gif = "/wea/" + wea.weather_code + ".gif";
         drawGif(weather_gif.c_str(), 0, 0);
 
-        //String feels_like = ". Feels like "+ String(wea.feels_like)+ wea.temp_unit;
-        //String wind; 
-        //String atm = ". Outdoor barometric pressure "+ String(wea.pressure) + wea.pressure_unit;
-
         String min_temp_str;  
         String max_temp_str;  
         String feels_like;
@@ -122,12 +118,13 @@ void display_weather(){
         mdisplay.fillRect(0, 24, 64, 8, 0);
         mdisplay.print(String(hour())+":"+String(minute()/10)+String(minute()%10)+":"+String(second()/10)+String(second()%10));
 
+        mdisplay.fillRect(16,0,48,16, parseRGBColor(C_BLACK));
         mdisplay.setFont();
         mdisplay.setCursor(20,0);
-        mdisplay.setTextColor(mdisplay.color565(173, 216, 230));
+        mdisplay.setTextColor(parseRGBColor(C_LIGHT_BLUE));
         mdisplay.print(wea.weather_str);
 
-        mdisplay.setTextColor(mdisplay.color565(0, 216, 0));
+        mdisplay.setTextColor(parseRGBColor(C_FOREST_GREEN));
         mdisplay.setCursor(18,8);
         mdisplay.print(cur_temp);
 
@@ -135,28 +132,6 @@ void display_weather(){
         mdisplay.setCursor(42,8);
         mdisplay.print(String(wea.humidity) + "%");
         wea.weather_changed = false;
- 
 #endif
     }
-
-    if(wea.weather_changed){
-        //wea.init_done = true;
-        //mdisplay.clearScreen();
-#if 0
-    if(wea.init_done){
-        String weather_gif = "/wea/" + wea.weather_code + ".gif";
-        drawGif(weather_gif.c_str(), 0, 0);
-    }
-
-    if(!wea.init_done){
-        drawGif("/image/w.gif", 16, 0);//loading.gif
-    }
-
-    if(!wea.weather_changed) return;
-    if(wea.weather_changed){ wea.init_done = true; } 
-    mdisplay.fillRect(16, 0, 32, 32, mdisplay.color565(0, 0, 0));
-#endif
-
-        //mdisplay.setFont(&FreeSans6pt7b);
-   }
 }
