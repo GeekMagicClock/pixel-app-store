@@ -5,197 +5,130 @@
 		<meta name="viewport" content="width=device-width, initial-scale=0.8, minimal-ui">
 		<meta name="author" content="GEEKMAGIC">
 		<meta name="theme-color" content="#36393E" />
-		<link rel="stylesheet" href="css/style.css">
-		<script src="js/jquery.min.js"></script>
+		<link rel="stylesheet" href="style.css">
+		<script src="js/functions.js"></script>
 	</head>
-	<body onload = "getData('/hour12.json');getData('/ntp.json');getData('/day.json');getData('/timecolor.json');getData('/timebrt.json');getData('/colon.json');getData('/dst.json');getNav();">
+	<body onload = "getData('/.sys/stock2.json');getData('/.sys/stk.json');getNav();">
 		<nav id="nav" style="width: 80%;margin: 0 auto;font-size: 25px;text-align: center;">
-		</nav>		
+		</nav>
+		
 		<div class="container">
 			<div class="row">
 				<div class="col-12">
 					<div id="error" class="hide"></div>
-					<h1>1. Time Number Color</h1>
+					<h1>1. Set Stock Code</h1>
 				</div>
-			</div>
-			<div class="row">
-				<div class="col-3">
-					<label for="enc">Hour：</label>
-				</div>
-				<div class="col-9">
-					<input type="color" id="hc" name="hc" value="#FFFFFF"/>
-				</div>
-				<div class="col-3">
-					<label for="enc">Minutes：</label>
-				</div>
-				<div class="col-9">
-					<input type="color" id="mc" name="mc" value="#FEBA01" />
-				</div>
-				<div class="col-3">
-					<label for="enc">Seconds：</label>
-				</div>
-				<div class="col-9">
-					<input type="color" id="sc" name="sc" value="#FF5900" />
-				</div>				
-				<div class="col-12">
-				<button class="button-primary left" onclick="set_timecolor()">SAVE</button>
-				</div>	
 			</div>
 			<div class="row">
 				<div class="col-12">
-					<div id="error" class="hide"></div>
-					<h1>2. 12/24 Hour Format</h1>
-				</div>
-			</div>
-			<div class="row">
-				<div class="col-4">
-					<span>Enable:</span>
-					<label class="switch">
-						<input type="checkbox" class="switch-input" id="hour12">
-						<span class="slider round"></span>
-					</label>
+					CODE1 <input type="text" id="c0" value="" style="width:100px" /><p>
+					CODE2 <input type="text" id="c1" value="" style="width:100px" /><p>
+					CODE3 <input type="text" id="c2" value="" style="width:100px" /><p>
+					CODE4 <input type="text" id="c3" value="" style="width:100px" /><p>
+					CODE5 <input type="text" id="c4" value="" style="width:100px" /><p>
+					CODE6 <input type="text" id="c5" value="" style="width:100px" /><p>
+					CODE7 <input type="text" id="c6" value="" style="width:100px" /><p>
+					CODE8 <input type="text" id="c7" value="" style="width:100px" /><p>
+					CODE9 <input type="text" id="c8" value="" style="width:100px" /><p>
+					CODE10 <input type="text" id="c9" value="" style="width:100px" /><p>
+					<p><label>All stocks come from finance.yahoo.com, if you could find your stock there, then it is supported.</label>
 				</div>
 			</div>
 			<div class="row">
 				<div class="col-12">
 					<div id="error" class="hide"></div>
-					<h1>3. Date Format</h1>
+					<h1>2. K-line </h1>
 				</div>
-			</div>
+			</div>			
 			<div class="row">
 				<div class="col-6">
-					<select id="day-format" onchange="setDayFormat(this)" style="width:150px">
-					  <option value="-1" style="display:none">DD/MM/YYYY</option>
-					  <option value="1">DD/MM/YYYY</option>
-					  <option value="2">YYYY/MM/DD</option>
-					  <option value="3">MM/DD/YYYY</option>
-					  <option value="4">MM/DD</option>
-					  <option value="5">DD/MM</option>
-					  <option value="6">day-th/Month</option>
+					K-line interval with 30 candlesticks:
+					<select id="st_kline" onchange="set_stock_kline()" style="width:100px">
+					  <option value="1m" selected="selected">1 minute</option>
+					  <option value="2m">2 minutes</option>
+					  <option value="5m" >5 minutes</option>
+					  <option value="15m">15 minutes</option>
+					  <option value="30m">30 minutes</option>
+					  <option value="1h">1 hour</option>
+					  <option value="1d">1 day</option>
+					  <option value="5d">5 days</option>
+					  <option value="1wk">1 week</option>
+					  <option value="1mo">1 month</option>
 					</select>
-				</div>	
-			</div>						
-			<div class="row">
-				<div class="col-12">
-					<h1>4. Ntp Time server</h1>
+					<p>Default shows 1 minute candlestick chart, within 30 minutes.<P>
 				</div>
-			</div>
-			<div class="row">
-				<div class="col-12">
-				<label>The device has multiple sets of time servers built in to ensure correct time synchronization. If you set your own NTP time server, it will be used first to synchronize.</label><p>
-				</div>
-				<div class="col-12">
-					NTP Server Domain: <input type="text" name="ntp" id="ntp" placeholder="pool.ntp.org">
-				</div>
-				<div class="col-12">
-				<button class="button-primary left" onclick="set_ntp()">SAVE</button>
-				</div>	
-			</div>
-			<div class="row">
-				<div class="col-12">
-					<div id="error" class="hide"></div>
-					<h1>5. DST(Daylight Saving Time) enable</h1>
-				</div>
-			</div>
-			<div class="row">
-				<div class="col-1">
-					<label>Enable</label>
-				</div>
-				<div class="col-1">
-					<input type="checkbox" id="dst" name="dst" /><p>
-				</div>
-				<div class="col-12">
-				<button class="button-primary left" onclick="set_dst()">SAVE</button>
-				</div>	
 			</div>			
 			<div class="row">
 				<div class="col-12">
+					<h1>3. Update Interval</h1>
+				</div>
+			</div>			
+			<div class="row">
+				<div class="col-6">
+					<input type="" name="stock_interval" id="stock_interval" value="30">s(in seconds)
+				</div>
+			</div>						
+			<div class="row">
+				<div class="col-12">
+					<h1>4. Loop Stocks</h1>
+				</div>
+			</div>			
+			<div class="row">
+				<div class="col-6">
+					Enable loop<input type="checkbox" id="s_loop">
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-12">
+					<h1>5. Enable Chart Animation</h1>
+				</div>
+			</div>			
+			<div class="row">
+				<div class="col-6">
+					Enable <input type="checkbox" id="stock_ani">
+				</div>
+			</div>					
+			<div class="row">
+				<div class="col-12">
 					<br />
+					<button class="button-primary left" onclick="set_stock()">SAVE</button>
+					<br class="clear" />
+					<p id="saved"></p>
+					<br class="clear" />
+
 					<div id="copyright">
-					</div>						
+					</div>
+						
 					<script src="js/settings.js"></script>
 				</div>
 			</div>
 		</div>
-		<script>
-			$('#hour12').change(function() {
-				var hour12 = getE('hour12').checked;
-				if ($(this).is(':checked')) {
-					console.log('Switch is ON');
-				} else {
-					console.log('Switch is OFF');
-				}
-				if(hour12 == true) hour=1;
-				else hour=0;
-				var url = "/set?hour="+hour;
+		<script>		
+			function set_stock(){
+				var interval = getE('stock_interval').value;
+				var c0 = getE('c0').value;
+				var c1 = getE('c1').value;
+				var c2 = getE('c2').value;
+				var c3 = getE('c3').value;
+				var c4 = getE('c4').value;
+				var c5 = getE('c5').value;
+				var c6 = getE('c6').value;
+				var c7 = getE('c7').value;
+				var c8 = getE('c8').value;
+				var c9 = getE('c9').value;
+				var loop = 0;
+				var ani = 0;
+				if(getE('s_loop').checked) loop = 1;
+				if(getE('stock_ani').checked) ani = 1;
+				var url = "/set?c0="+c0.replace(/ /g,"")+"&c1="+c1.replace(/ /g,"")+"&c2="+c2.replace(/ /g,"")+"&c3="+c3.replace(/ /g,"")+"&c4="+c4.replace(/ /g,"")+"&c5="+c5.replace(/ /g,"")+"&c6="+c6.replace(/ /g,"")+"&c7="+c7.replace(/ /g,"")+"&c8="+c8.replace(/ /g,"")+"&c9="+c9.replace(/ /g,"")+"&s_i="+interval.replace(/ /g,"")+"&s_l="+loop+"&s_ani="+ani;
 				console.log(url);
+				send_http(url);				
+			}
+			function set_stock_kline(){
+				var kline = getE('st_kline').value;
+				var url = "/set?st_kline="+kline;
 				send_http(url);
-			});
-			function setDayFormat(ele){
-				var url = "/set?day="+ele.value;
-				send_http(url);	
 			}
-			function set_timecolor(){
-				var hc = getE('hc');
-				var mc = getE('mc');
-				var sc = getE('sc');				
-				var url = "/set?hc="+escape(hc.value)+"&mc="+encodeURIComponent(mc.value)+"&sc="+encodeURIComponent(sc.value);
-				console.log(url);
-				send_http(url);				
-			}		
-			function set_hour12(){
-				var hour12 = getE('hour12').checked;
-				if(hour12 == true) hour=1;
-				else hour=0;
-				var url = "/set?hour="+hour;
-				console.log(url);
-				send_http(url);				
-			}
-			function set_font(){
-				var font = getE('font').value;
-				var url = "/set?font="+font;
-				console.log(url);
-				send_http(url);				
-			}			
-			function set_colon(){
-				var colon = getE('colon').checked;
-				if(colon == true) colon=1;
-				else colon=0;
-				var url = "/set?colon="+colon;
-				console.log(url);
-				send_http(url);				
-			}
-			function set_ntp(){
-				var ntp = getE('ntp').value;
-				var url = "/set?ntp="+ntp.replace(/ /g,"");
-				console.log(url);
-				send_http(url);				
-			}
-			function set_interval(){
-				var interval = getE('time_interval').value;
-				var url = "/set?time_interval="+interval.replace(/ /g,"");
-				console.log(url);
-				send_http(url);				
-			}
-			function set_dst(){				
-				var dst = getE('dst').checked;
-				if(dst == true) dst=1;
-				else dst=0;
-				var url = "/set?dst="+dst;
-				console.log(url);
-				send_http(url);				
-			}
-			function set_daytimer(){
-				var yr = getE('yr').value.replace(/ /g,"");
-				var mth = getE('mth').value.replace(/ /g,"");
-				var day = getE('day').value.replace(/ /g,"");
-				if(!Number.isInteger(parseInt(yr)) || !Number.isInteger(parseInt(mth)) || !Number.isInteger(parseInt(day)) || parseInt(day)>31 || parseInt(mth) >12 )
-				{ alert("Please check the date is valid！");return;}
-				
-				var url = "/set?yr="+yr+"&mth="+mth+"&day="+day;
-				console.log(url);
-				send_http(url);				
-			}
-		</script>				
+		</script>
 	</body>
 </html>
