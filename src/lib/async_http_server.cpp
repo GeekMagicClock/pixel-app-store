@@ -678,29 +678,29 @@ void init_http_server() {
   });
 
   server.on("/image.html",HTTP_GET, [](AsyncWebServerRequest *request){
-    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)image_html, sizeof(image_html)); response->addHeader("Content-Encoding", "gzip"); request->send(response); });
+    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)image_html, sizeof(image_html)); response->addHeader("Content-Encoding", "gzip");response->addHeader("Cache-Control", "public, max-age=3600"); request->send(response); });
 
   server.on("/network.html",HTTP_GET, [](AsyncWebServerRequest *request){
-    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)network_html, sizeof(network_html)); response->addHeader("Content-Encoding", "gzip"); request->send(response); });
+    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)network_html, sizeof(network_html)); response->addHeader("Content-Encoding", "gzip");response->addHeader("Cache-Control", "public, max-age=3600"); request->send(response); });
 
   server.on("/",HTTP_GET, [](AsyncWebServerRequest *request){
-    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)system_html, sizeof(system_html)); response->addHeader("Content-Encoding", "gzip"); request->send(response); });
+    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)system_html, sizeof(system_html)); response->addHeader("Content-Encoding", "gzip");response->addHeader("Cache-Control", "public, max-age=3600"); request->send(response); });
 
   server.on("/system.html",HTTP_GET, [](AsyncWebServerRequest *request){
-    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)system_html, sizeof(system_html)); response->addHeader("Content-Encoding", "gzip"); request->send(response); });
+    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)system_html, sizeof(system_html)); response->addHeader("Content-Encoding", "gzip");response->addHeader("Cache-Control", "public, max-age=3600"); request->send(response); });
 
   server.on("/time.html",HTTP_GET, [](AsyncWebServerRequest *request){
-    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)time_html, sizeof(time_html)); response->addHeader("Content-Encoding", "gzip"); request->send(response); });
+    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)time_html, sizeof(time_html)); response->addHeader("Content-Encoding", "gzip");response->addHeader("Cache-Control", "public, max-age=3600"); request->send(response); });
 
   server.on("/weather.html",HTTP_GET, [](AsyncWebServerRequest *request){
-    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)weather_html, sizeof(weather_html)); response->addHeader("Content-Encoding", "gzip"); request->send(response); });
+    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)weather_html, sizeof(weather_html)); response->addHeader("Content-Encoding", "gzip");response->addHeader("Cache-Control", "public, max-age=3600"); request->send(response); });
   server.on("/tracker.html",HTTP_GET, [](AsyncWebServerRequest *request){
-    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)tracker_html, sizeof(tracker_html)); response->addHeader("Content-Encoding", "gzip"); request->send(response); });
+    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)tracker_html, sizeof(tracker_html)); response->addHeader("Content-Encoding", "gzip");response->addHeader("Cache-Control", "public, max-age=3600"); request->send(response); });
 
   server.on("/js/settings.js",HTTP_GET, [](AsyncWebServerRequest *request){
-    AsyncWebServerResponse *response = request->beginResponse_P(200, "application/javascript", (uint8_t*)settings_js, sizeof(settings_js)); response->addHeader("Content-Encoding", "gzip"); request->send(response); });
+    AsyncWebServerResponse *response = request->beginResponse_P(200, "application/javascript", (uint8_t*)settings_js, sizeof(settings_js)); response->addHeader("Content-Encoding", "gzip");response->addHeader("Cache-Control", "public, max-age=3600"); request->send(response); });
   server.on("/css/style.css",HTTP_GET, [](AsyncWebServerRequest *request){
-    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/css", (uint8_t*)style_css, sizeof(style_css)); response->addHeader("Content-Encoding", "gzip"); request->send(response); });
+    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/css", (uint8_t*)style_css, sizeof(style_css)); response->addHeader("Content-Encoding", "gzip");response->addHeader("Cache-Control", "public, max-age=3600"); request->send(response); });
 
   server.onNotFound(notFound);
   server.begin();
