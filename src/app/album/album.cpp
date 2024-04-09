@@ -142,7 +142,12 @@ void init_album(){
   mdisplay.println("2.");
   mdisplay.println("Images");
   mdisplay.print("Display");
-  delay(2000);
+  //delay(2000);
+  int i = 0;
+  while(!btn_status() && i<200) {
+    i++;
+    delay(10);
+  }
 }
 
 void exit_album(){

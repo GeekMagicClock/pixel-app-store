@@ -8,7 +8,6 @@
 		<style>		
 		</style>
 		<link rel="stylesheet" href="css/style.css">
-		<script src="js/functions.js"></script>
 		<link rel="stylesheet" href="css/cropper.min.css">
 		<script src="js/cropper.min.js"></script>
 		<script src="js/jquery.min.js"></script>  				
@@ -66,14 +65,16 @@
 						  </div>
 						</div>
 					  </div>
-					  <span>1. Please check free space before uploading</span><p>
+					  <span>1. Please check free space before uploading.</span><p>
 					  <span>2. Support JPG/JPEG/PNG/BMP and GIF format file only.</span><p>
-					  <span>3. Example images could be downloaded <a href="todo">HERE</a>.</span>
+					  <span>3. GIF files need to be resized to 64x32px before uploading, <a href="ezgif.com">resize online</a>.</span><p>
+					  <span>4. Example images could be downloaded <a href="todo">HERE</a>.</span>
 					<input type="file" name="update" id="selectImg" onchange="sub(this)" accept="image/gif, image/jpeg, image/png, image/bmp" style="display:none">
 					<label id="file-input" for="selectImg">   Choose...</label>
 
 					<input type="submit" id="updateBtn" class="btn2" disabled="true" value="UPLOAD">
 					<input type="button" id="btnback" class="btn" onclick="listDir(this)" path="/image" value="RELOAD">
+					<input type="button" id="btnback" class="btn" onclick="clearDir(this)" value="CLEAR">
 					<br>
 					<div id="prg" style="display:none">Ready to upload</div>
 					<br><div id="prgbar" style="width:60%;margin:0 auto;display:none"><div id="bar"></div></div>
@@ -89,8 +90,8 @@
 				var cropper = new Cropper(image, {
 					aspectRatio:2/1,
 					viewMode: 1,
-					ContainerWidth: 350,
-					ContainerHeight: 350,
+					ContainerWidth: 320,
+					ContainerHeight: 160,
 					dragMode: 'move',
 					autoCropArea: 0.8, 
 					restore: false,
@@ -104,7 +105,7 @@
 				$('#selectImg').on('change',function(e){
 				  var file = e.target.files[0];
 				  var format = file.name.toLowerCase().substring(file.name.lastIndexOf('.') + 1);
-				  if(format != "bmp" || format != "jpg" &&format != "png" && format != "jpeg") return;
+				  if(format != "bmp" && format != "jpg" &&format != "png" && format != "jpeg") return;
 				  $(".cut-img-model").toggle(); 
 				  var reader = new FileReader();  
 				  reader.onload = function(evt) {  
@@ -120,7 +121,7 @@
 				$('#crop').on('click', function() {
 				  $(".cut-img-model").toggle(); 
 				  var src = cropper.getCroppedCanvas({width:64,height:32}).toDataURL('image/jpeg', 1);
-				  //console.log(src); // base64格式
+				  console.log(src); // base64格式
 				})
 				$('#cancel').on('click', function() {
 					$(".cut-img-model").toggle();
@@ -138,7 +139,6 @@
 							//console.log(xhr.responseText);
 							$("#list").replaceWith(xhr.responseText);
 							$("#pwd").html(path);
-							
 							$("#btnback").attr("path", path);
 						}
 					}
@@ -150,11 +150,9 @@
 					var xhr = new XMLHttpRequest();
 					var fnstring = String("/filelist?dir=")+path;
 					xhr.open("GET", fnstring, true);
-					//console.log(fnstring);
 					xhr.send();
 					xhr.onreadystatechange = function() {
 						if (xhr.readyState == XMLHttpRequest.DONE) {
-							//console.log(xhr.responseText);
 							if(xhr.responseText != "")
 							$("#list").replaceWith(xhr.responseText);
 						}
@@ -165,8 +163,7 @@
 					xh.send();
 					xh.onreadystatechange = function() {
 						if (xh.readyState == XMLHttpRequest.DONE) {
-							console.log(xh.responseText);
-							var rsp = JSON.parse(xh.responseText)
+							var rsp = JSON.parse(xh.responseText);
 							console.log(rsp.free);
 							if(rsp.free != ""){							
 								getE("free").innerText = "Total:"+Math.floor(rsp.total/1024)+"KB, Free Space:"+ Math.floor(rsp.free/1024) +"KB";
@@ -261,7 +258,6 @@
 								$('#bar').css('width:0px');
 								getE('file-input').innerHTML = 'Choose ...';
 								getE('updateBtn').disabled = true;
-
 								refreshPwd();
 							},
 							error: function (a, b, c) {
@@ -271,7 +267,6 @@
 					}else{
 						var canvas = cropper.getCroppedCanvas({width:64,height:32});
 						var src = cropper.getCroppedCanvas({width:64,height:32}).toDataURL('image/jpeg', 0.99);
-						//data.append("file", encodeURIComponent(src)); 
 						canvas.toBlob(function (blob){
 							var formData = new FormData();
 							formData.append('file', blob, getE('file-input').innerHTML);
