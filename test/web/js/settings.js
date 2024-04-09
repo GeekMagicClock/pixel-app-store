@@ -1,7 +1,7 @@
 var res;
 //天气
 var city1=getE("city1");
-var city2=getE("city2");
+//var city2=getE("city2");
 var weather_interval=getE("weather_interval");
 var t_u=getE("temp");
 var w_u=getE("windspeed");
@@ -33,9 +33,18 @@ var font = getE("font");
 var autoplay = getE("autoplay");
 var i_i = getE("image_interval");
 //股票
-var stock = getE("stock");
-var exchange = getE("exchange");
+var c0 = getE("c0");
+var c1 = getE("c1");
 var c2 = getE("c2");
+var c3 = getE("c3");
+var c4 = getE("c4");
+var c5 = getE("c5");
+var c6 = getE("c6");
+var c7 = getE("c7");
+var c8 = getE("c8");
+var c9 = getE("c9");
+var st_kline = getE("st_kline");
+var stock_ani = getE("stock_ani");
 var stock_interval = getE("stock_interval");
 var s_l = getE("s_loop");
 //加密货币
@@ -44,13 +53,11 @@ var cin1 = getE("cin1");
 var cin2 = getE("cin2");
 var coin_interval = getE("coin_interval");
 var c_l = getE("c_loop");
-//B站
-var bili_uid = getE("bili_uid");
-var bili_interval = getE("bili_interval");
+
 //监视器
 var ip = getE("ip");
 var m_i = getE("m_i");
-document.title = "GeekMagic Weather Clock";
+document.title = "GeekMagic Pixel Display";
 var theme = getE("theme");
 
 function getData(data) {
@@ -62,8 +69,8 @@ function getData(data) {
     }
 	console.log(res);
 	//天气
-	if(res.loc) city1.value = res.loc;
-	if(res.cd && city2 && !isNaN(res.cd)) city2.value = res.cd;
+	if(res.cd1) city1.value = res.cd1;
+	//if(res.cd2) city2.value = res.cd2;
 	if(res.w_i) weather_interval.value = res.w_i;
 	if(res.t_u) t_u.value = res.t_u;
 	if(res.w_u) w_u.value = res.w_u;
@@ -85,6 +92,9 @@ function getData(data) {
 	
 	//if(res.theme) theme.value = res.theme;
 
+	var model = getE("model");
+	if(model)
+	if(res.m && res.v) model.innerHTML = "Model: "+res.m+",Version: "+res.v;
 	//联网
 	if(res.a) {
 		ssid.value = res.a;//ssid	
@@ -114,12 +124,20 @@ function getData(data) {
 	
 	//相册
 	if(res.autoplay) autoplay.checked = res.autoplay;
-	//if(res.i_i) image_interval.value = res.i_i;
+	if(res.i_i) image_interval.value = res.i_i;
 	
 	//股票
 	if(res.c0) c0.value = res.c0;
 	if(res.c1) c1.value = res.c1;
 	if(res.c2) c2.value = res.c2;
+	if(res.c3) c3.value = res.c3;
+	if(res.c4) c4.value = res.c4;
+	if(res.c5) c5.value = res.c5;
+	if(res.c6) c6.value = res.c6;
+	if(res.c7) c7.value = res.c7;
+	if(res.c8) c8.value = res.c8;
+	if(res.c9) c9.value = res.c9;
+	if(res.st_kline) st_kline.value = res.st_kline;
 	if(res.s_i) stock_interval.value = res.s_i;
 	if(res.s_l == "1") s_l.checked = true;
 	
@@ -129,15 +147,7 @@ function getData(data) {
 	if(res.cin2) cin2.value = res.cin2;
 	if(res.c_i) coin_interval.value = res.c_i;
 	if(res.c_l == "1") c_l.checked = true;
-	
-	//B站
-	if(res.b_i) bili_interval.value = res.b_i;
-	if(res.uid) bili_uid.value = res.uid;
-	
-	//股票
-	if(res.code) stock.value = res.code;
-	if(res.exchange) exchange.value = res.exchange;
-
+	if(res.c_ani == "1") coin_ani.checked = true;
 	
 	//监视器
 	if(res.m_i) m_i.value = res.m_i;
@@ -175,7 +185,7 @@ function send_http(url){
 }
 function set_c(){
 	var copyright = getE("copyright");
-	if(copyright) copyright.innerHTML = '<br />Copyright (c) 2024 GeekMagic® All rights reseved, Support mail:<a href=\"\" target=\"_blank\"> ifengchao1314@gmail.com</a>';
+	if(copyright != null) copyright.innerHTML = '<br />Copyright (c) 2024 GeekMagic® All rights reseved, Support mail:<a href=\"\" target=\"_blank\"> ifengchao1314@gmail.com</a>';
 }
 set_c();
 function getE(name){
