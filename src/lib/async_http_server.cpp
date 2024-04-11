@@ -285,7 +285,7 @@ extern int album_time;
 extern int autoplay;
 extern String autoplay_path;
 String stock_code, stock_exchange;
-int t1,t2,b1,b2,timer_brt_en;
+extern int t1,t2,b1,b2,timer_brt_en;
 extern int hour12;
 extern int brt;
 int delay_wifi_time;
@@ -302,15 +302,15 @@ int myfont;
 #include "theme.h"
 #include "display.h"
 extern struct theme_loop theme_loop_list[THEME_TOTAL];
-String h_color = C_CYAN;
-String m_color = C_CYAN;
-String s_color =  C_CYAN;
+extern String h_color;
+extern String m_color;
+extern String s_color;
 String gif_path;
-String temp_unit;
-String windspeed_unit;
-String pressure_unit;
+extern String temp_unit;
+extern String windspeed_unit;
+extern String pressure_unit;
 extern String weather_key;
-int weather_interval;
+extern int weather_interval;
 int dst_enable;
 int day_format;
 extern Weather wea;
@@ -325,7 +325,7 @@ void handleSet(AsyncWebServerRequest * request){
     if(city != cityCode){
       cityCode = city;
       DBG_PTN(city);
-      set_city_config("", 0, 0, city.c_str(), "");
+      set_city_config("", city.c_str(), "");
       wea.cityCode = cityCode;
       wea.update(true);
     }

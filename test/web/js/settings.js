@@ -69,7 +69,7 @@ function getData(data) {
     }
 	console.log(res);
 	//天气
-	if(res.cd1) city1.value = res.cd1;
+	if(res.cd) city1.value = res.cd;
 	//if(res.cd2) city2.value = res.cd2;
 	if(res.w_i) weather_interval.value = res.w_i;
 	if(res.t_u) t_u.value = res.t_u;
@@ -168,14 +168,13 @@ function getData(data) {
 }
 function send_http(url){
 	getResponse(url, function(responseText) {
-		var err = getE("error");
+		//var err = getE("error");
 		if (responseText == "OK") {
-			err.style.background="#5ecb4a";
-			showMessage("Saved successfully!", 1000);
-		}
-		else{
-			err.style.background="#af3535";
-			showMessage("Save failed!",1000);
+			//err.style.background="#5ecb4a";
+			showPopup("Saved successfully!", 1000, "#02a601");
+		} else{
+			//err.style.background="#af3535";
+			showPopup("Saved successfully!", 1000, "#dc0d04");
 		} 
 	});
 }
@@ -220,25 +219,22 @@ function escapeHTML(str) {
       .replace(/\'/g, '&#39;')
       .replace(/\//g, '&#x2F;')
 }
-function showMessage(msg, closeAfter){
-	var errorE = getE("error");
-	errorE.innerHTML = msg;
-	
-	errorE.classList.remove('hide');
-	errorE.classList.add('show');
+function showPopup(message, closeAfter,bg) {
+	const popup = document.getElementById('popup');
+	popup.textContent = message;
+	popup.style.opacity = '1';
+	popup.style.backgroundColor = bg;
 
-	if(closeAfter !== undefined){
-		setTimeout(function(){
-			errorE.innerHTML = "";
-			errorE.classList.remove('show');
-			errorE.classList.add('hide');
-		},closeAfter);
-	}
+	setTimeout(() => {
+		popup.style.opacity = '0';
+	}, closeAfter); // 2秒后自动消失
 }
+
 function getResponse(adr, callback, timeoutCallback, timeout, method){
 	if(timeoutCallback === undefined) {
 		timeoutCallback = function(){
-			showMessage("Device connection lost, check connection and reload please... ");
+			//showMessage("Device connection lost, check connection and reload please... ");
+			showPopup("Device connection lost, reload please... ", 2000, "#dc0d04");
 		};
 	}
 	if(timeout === undefined) timeout = 10000; 

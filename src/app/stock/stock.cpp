@@ -5,9 +5,10 @@
 // STOCKmarket的持久化配置
 //#define B_CONFIG_PATH "/stockmarket.cfg"
 #define STOCK_NAME_LEN 32
+#define STOCK_TOTAL 10
 struct B_Config {
     uint32_t stock_scale;//哪种K线，默认5日，后续再增加其他种
-    String stock_id[STOCK_NAME_LEN];              // bilibili的uid
+    String stock_id[STOCK_TOTAL];              // bilibili的uid
     String st_kline;//kline interval
     int updateInterval; // 更新的时间间隔(s)
     int loop; // 是否循环切换几只股票
@@ -89,12 +90,8 @@ void init_stock_config()
     run_data->stockdata.stock_name = run_data->stock_id;
     run_data->stockdata.kline_interval = cfg_data.st_kline;
     run_data->stockdata.ani = cfg_data.ani;
-
-    //display_stockmarket(run_data->stockdata, LV_SCR_LOAD_ANIM_NONE);
-    //display_stock(run_data->stockdata, LV_SCR_LOAD_ANIM_NONE);
-    //display_stock(&run_data->stockdata, 30, LV_SCR_LOAD_ANIM_NONE);
+    DBG_PTN("init stock ...");
 }
-#define STOCK_TOTAL 10
 extern int enter_app;
 extern int page_index;
 static int last_page_index;
@@ -267,11 +264,13 @@ void get_kline_data_yahoo(){
 
     stock_data->kline_updated = 1;
     fill_candle_data(open_prices, close_prices, high_prices, low_prices, stock_data->candles, CANDLE_NUMS);
+    run_data->err = 0;
   } else {
     DBG_PTN("Err req: ");
 #ifndef DEBUG_STOCK
     DBG_PTN(httpResponseCode);
 #endif
+    run_data->err = -1;
     http.end();
   }
 }
@@ -281,6 +280,7 @@ void get_kline_data_yahoo(){
 //3. 设置突然改变，立刻更新。
 
 void update_stock(bool force){
+    if(run_data == NULL) return;
     if(!force && millis() - run_data->refresh_time_millis < cfg_data.updateInterval*1000 ) return;
     //display_stock(&run_data->stockdata, 30, LV_SCR_LOAD_ANIM_FADE_IN);
     if(cfg_data.loop){
@@ -298,4 +298,5 @@ void update_stock(bool force){
 void exit_stock(){
 //todo
   free(run_data);
+  run_data = NULL;
 }

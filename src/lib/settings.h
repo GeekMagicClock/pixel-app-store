@@ -14,8 +14,8 @@ int set_ntp_config(String ntp);
 int read_wifi_config(char *ssid, char ssid_len, char *pwd, char pwd_len);
 int set_wifi_config(const char *ssid, const char *pwd);
 
-int read_city_config(char *city, char ct_len, int* timezone, int *mintimezone, char *code, char cd_len, char *location, char loc_len);
-int set_city_config(const char *city, int timezone, int8_t mintimezone, const char *code, const char *location);
+int read_city_config(char *city, char ct_len, char *code, char cd_len, char *location, char loc_len);
+int set_city_config(const char *city, const char *code, const char *location);
 
 int set_kline_config(String kline);
 int read_kline_config(String *k);
@@ -68,8 +68,12 @@ int read_font_config(String *path);
 int read_dst_config(int *i);
 int set_dst_config(int i);
 void update_time_colors();
-int read_time_color_config(String *h, String *m , String *s);
+int read_time_color_config(String &h, String &m , String &s);
 int set_time_color_config(String h, String m, String s);
+
+int read_timezone_config(int *tz, int *mtz);
+int set_timezone_config(int tz, int mtz);
+
 int set_day_config(int day_format);
 int read_day_config(int *day_format);
 

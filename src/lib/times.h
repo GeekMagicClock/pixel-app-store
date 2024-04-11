@@ -7,5 +7,12 @@ String week();
 int getRemainDays(int iYear1, int iMonth1, int iDay1, int iYear2, int iMonth2, int iDay2);  //1. 确保 日期1 < 日期2
 void sync_http_time();
 time_t getNtpTime();
-void sync_udp_time();
+//void sync_udp_time();
+void sync_http_time(bool force);
+void sync_time(bool force);
+
+//异步 udp 同步时间
+void init_ntp();
+void update_ntp_time();
+void process_ntp_event();
 #endif

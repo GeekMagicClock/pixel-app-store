@@ -7,6 +7,9 @@ extern MatrixPanel_I2S_DMA mdisplay;
 
 uint16_t parseRGBColor(String hexColor);
 
+void init_display();
+void auto_adjust_brt();
+
 struct ScrollText {
   String message;
   int16_t x;

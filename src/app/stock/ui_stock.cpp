@@ -72,6 +72,15 @@ float processPrice(float price) {
 
 #include "Fonts/FreeMono9pt7b.h"
 void display_stock(){
+    if(run_data->err != 0){
+        //mdisplay.clearScreen();
+        mdisplay.setTextColor(parseRGBColor(C_RED));
+        mdisplay.setCursor(4,8);
+        mdisplay.println("Network");
+        mdisplay.setCursor(4,17);
+        mdisplay.print("Error");
+        return;
+    }
     if(!run_data->stockdata.kline_updated ) return;
 
     mdisplay.clearScreen();

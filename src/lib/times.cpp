@@ -19,7 +19,9 @@ String weekCN = "";
 String monthCN = "";
 String monthEN = "";
 String my_ntp_server = "";
-extern int timeZone;  
+
+int timeZone = 8;     //东八区
+int minutesTimeZone = 0;//分钟的时区偏移，还有相差半小时的时区
 //NTP服务器参数
 //很奇怪的bug，当使用PROGMEM的时候，会引起ipaddress的fromString4 崩溃, 20230819
 //const char ntpServerName[] PROGMEM = "ntp.aliyun.com";
@@ -170,14 +172,15 @@ void init_time(){
   //setSyncProvider(sync_http_time);
   // 5 分钟同步一次
   //setSyncInterval(300);
-  update_time();
+  //update_time();
 }
 
 void sync_udp_time(){
   setSyncProvider(getNtpTime);
-  update_time();
+  //update_time();
 }
 
+//#include "lib/NtpClientLib.h"
 const int NTP_PACKET_SIZE = 48; // NTP时间在消息的前48字节中
 byte packetBuffer[NTP_PACKET_SIZE]; //buffer to hold incoming & outgoing packets
 
@@ -205,7 +208,11 @@ time_t syncNtp(const char *serverName){
       secsSince1900 |= (unsigned long)packetBuffer[42] << 8;
       secsSince1900 |= (unsigned long)packetBuffer[43];
       //DBG_PTN(secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR);
-      return secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR;
+      unsigned long tt =  secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR + minutesTimeZone*SECS_PER_MIN;
+      DBG_PTN(tt);
+      DBG_PTN(hour());
+      setTime(tt);
+      return tt;
     }
   }
   return 0; // 无法获取时间时返回0
@@ -216,7 +223,7 @@ bool http_time_fail = true;
 time_t getNtpTime() {
   //IPAddress ntpServerIP; // NTP server's ip address
   //如果http同步成功，那说明udp第一次是失败了的，不必再继续udp同步，否则界面卡住
-  if(http_time_fail == false) return 0;
+  //if(http_time_fail == false) return 0;
 
   time_t tt;
   if(my_ntp_server != ""){
@@ -321,7 +328,6 @@ void sync_http_time(){
 
 #include "lib/AsyncHTTPRequest_Generic.h"             // https://github.com/khoih-prog/AsyncHTTPRequest_Generic
 //extern bool udp_time_fail;
-extern int minutesTimeZone;
 AsyncHTTPRequest req_time;
 
 bool http_update_time_fail = true;
@@ -332,7 +338,7 @@ void req_time_cb (void *optParm, AsyncHTTPRequest *request, int readyState) {
     int code = request->responseHTTPcode();
     if (code == 200) {
       String payload = request->responseText();
-      //DBG_PTN(payload);
+      DBG_PTN(payload);
       JsonDocument doc;
       deserializeJson(doc, payload);
       time_t unixtime = doc["unixtime"];
@@ -375,14 +381,72 @@ time_t getUnixTime() {
 
 //bool http_time_fail = true;
 unsigned long http_update_start_time = 0;
-void sync_http_time(){
-  if(!udp_time_fail) return; //udp 同步成功，则不启用http同步
-  if(http_time_fail && millis() - http_update_start_time < 10000) return;//http 同步失败情况下，10s 同步一次
-  if(!http_time_fail && millis() - http_update_start_time < 1000*3600) return;//http 同步成功后每隔60m同步一次
-  http_update_start_time = millis();
-
+void sync_http_time(bool force){
+  if(!force){
+    if(!udp_time_fail) return; //udp 同步成功，则不启用http同步
+    if(http_time_fail && millis() - http_update_start_time < 10000) return;//http 同步失败情况下，10s 同步一次
+    if(!http_time_fail && millis() - http_update_start_time < 1000*3600) return;//http 同步成功后每隔60m同步一次
+  }
+  
   getUnixTime();
-    //}
+  http_update_start_time = millis();
+}
+#endif
+
+#if 0
+constexpr const char *ntpServerNames[] = {
+    "ntp.aliyun.com",
+};
+boolean syncEventTriggered = false; // True if a time even has been triggered
+NTPSyncEvent_t ntpEvent; // Last triggered event
+int dst_enable = 0;
+
+void update_ntp_time(){
+  if(my_ntp_server != "")
+    NTP.begin (my_ntp_server, timeZone, dst_enable, minutesTimeZone);
+  else
+    NTP.begin (ntpServerNames[0], timeZone, dst_enable, minutesTimeZone);
 }
 
+#define NTP_TIMEOUT 1500
+void init_ntp() {
+  NTP.onNTPSyncEvent([](NTPSyncEvent_t event) {
+    ntpEvent = event;
+    syncEventTriggered = true;
+  });
+
+  NTP.setInterval(60);
+  NTP.setNTPTimeout(NTP_TIMEOUT);
+  update_ntp_time();
+}
+
+void processSyncEvent (NTPSyncEvent_t ntpEvent) {
+    if (ntpEvent < 0) {
+        DBG_PTN (("er"));
+    } else {
+        if (ntpEvent == timeSyncd) {
+           //DBG_PTN("udp get time");
+           udp_time_fail = false;
+           DBG_PTN (NTP.getTimeDateString (NTP.getLastNTPSync ()));
+        }
+    }
+}
+
+void process_ntp_event(){
+  if (syncEventTriggered) {
+      processSyncEvent (ntpEvent);
+      syncEventTriggered = false;
+  }
+}
 #endif
+
+void sync_time(bool force){
+  if(force){
+    if(udp_time_fail == true) 
+      sync_http_time(force);
+    else 
+      sync_udp_time();
+  }
+  else
+      sync_http_time(false);
+}

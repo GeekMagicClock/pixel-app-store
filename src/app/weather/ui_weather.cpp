@@ -1,6 +1,7 @@
 #include "my_debug.h"
 #include "../../lib/gif.h"
 #include "../../lib/display.h"
+#include "../../lib/settings.h"
 #include "weather_en.h"
 #include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
 #include <ESP32-VirtualMatrixPanel-I2S-DMA.h>
@@ -22,10 +23,41 @@ bool wea_init_status = false;
 String weather_key = "";
 String pub_weather_key = "";//默认为空
 float lon = 0, lat = 0;
+String temp_unit;
+String windspeed_unit;
+String pressure_unit;
+extern int timeZone;
+extern int minutesTimeZone;
+int weather_interval;
 
 void init_weather(){
-    wea.cityCode = "Zhongshan";
+    read_unit_config(&windspeed_unit, &temp_unit, &pressure_unit);
+    char citycode[32] = {0};
+    char cityname[32] = {0};
+    char location[64] = {0};
+    int ret = read_city_config(cityname, sizeof(citycode), citycode, sizeof(cityname), location, sizeof(location));
+    if(ret == 0) {
+      wea.cityName = String(cityname);
+      wea.cityCode = String(citycode);
+    }
+
+    read_key_config(&weather_key);
+    if(weather_key.length() < 30){
+      weather_key = pub_weather_key;
+      DBG_PTN("use default interval");
+      weather_interval  = 1200;//20分钟更新频率
+    }else{
+      read_weather_interval_config(&weather_interval);
+      DBG_PTN("use user interval:" + String(weather_interval));
+      DBG_PTN(weather_key);
+      //todo check
+      wea.updateInterval = weather_interval*60;
+    }
+    //wea.cityCode = "Zhongshan";
     wea.init(weather_key, pub_weather_key, wea.cityCode, lon, lat);
+    wea.timeZone = timeZone;
+    wea.minutesTimeZone = minutesTimeZone;
+
     mdisplay.clearScreen();
     mdisplay.setCursor(12,4);
     mdisplay.setTextColor(parseRGBColor(C_LIGHT_BLUE));
@@ -41,9 +73,21 @@ void init_weather(){
     }
 }
 
+#include "../../lib/times.h"
 void update_weather(bool force){
-        wea.update(force);
+    wea.update(force);
+    //同步天气后，如果时区改变了，需要同步时间
+    if(wea.timeZone != timeZone ||wea.minutesTimeZone != minutesTimeZone ) {
+      DBG_PTN("time zone changed");
+      DBG_PTN(wea.timeZone);
+      DBG_PTN(wea.minutesTimeZone);
+      timeZone = wea.timeZone; 
+      minutesTimeZone = wea.minutesTimeZone;
+      set_timezone_config(timeZone, minutesTimeZone);
+      sync_time(true);
+    }
 }
+
 void exit_weather(){
     //wea.init_done = false;
     wea.weather_changed = false;
@@ -79,7 +123,7 @@ void display_weather(){
         String wind;
         String pressure;
         //scrollText[3] = "Min Temp "+ min_temp_str + C_F;
-        if(wea.temp_unit == "C"){
+        if(temp_unit == "C"){
             //min_temp_str = "Min temp " + String(wea.min_temp)+ "C";
             cur_temp = String(wea.temperature)+"C";
             feels_like = ". Feels like "+ String(wea.feels_like) + "C";
@@ -90,21 +134,21 @@ void display_weather(){
             feels_like = ". Feels like "+ String(int(wea.feels_like*1.8+32)) + "F";
         }
 
-        if(wea.pressure_unit == "hPa"){ 
+        if(pressure_unit == "hPa"){ 
           pressure = ". Atm " + String(wea.pressure) + "hPa";
-        }else if(wea.pressure_unit == "kPa"){
+        }else if(pressure_unit == "kPa"){
           pressure = ". Atm " + String(int(wea.pressure/10)) + "kPa";
-        }else if(wea.pressure_unit == "mmHg"){
+        }else if(pressure_unit == "mmHg"){
           pressure = ". Atm "+ String(int(wea.pressure*0.75)) + "mmHg";
-        }else if(wea.pressure_unit == "inHg"){
+        }else if(pressure_unit == "inHg"){
           pressure = ". Atm "+ String(int(wea.pressure*0.02953)) + "inHg";
         }
         
-        if(wea.wind_unit == "m/s"){
+        if(windspeed_unit == "m/s"){
           wind = ". Wind " + String(int(wea.wind_speed)) +"m/s";
-        }else if(wea.wind_unit == "km/h"){
+        }else if(windspeed_unit == "km/h"){
           wind = ". Wind " + String(int(wea.wind_speed*3.6)) +"km/h";
-        }else if(wea.wind_unit == "mile/h"){
+        }else if(windspeed_unit == "mile/h"){
           wind = ". Wind " + String(int(wea.wind_speed*2.2367)) +"mile/h";
         }
 
@@ -122,24 +166,29 @@ void display_weather(){
           mdisplay.setCursor(0,24);
           mdisplay.setTextColor(parseRGBColor(h_color));
           if(hour()<12)
-            mdisplay.print("am");
+            mdisplay.print("AM");
           else
-            mdisplay.print("pm");
+            mdisplay.print("PM");
           int hh = hourFormat12(now());
-          mdisplay.setCursor(11,24);
+          mdisplay.setCursor(15,24);
           mdisplay.setTextColor(parseRGBColor(h_color));
-          mdisplay.print(String(hh/10)+String(hh%10));
+          if(hour() == 12){
+            mdisplay.setCursor(15,24);
+            mdisplay.print(String(hh/10)+String(hh%10));
+          } else {
+            mdisplay.setCursor(22,24);
+            mdisplay.print(String(hh%10));
+          }
           mdisplay.print(":");
 
-          mdisplay.setCursor(11+15,24);
+          mdisplay.setCursor(18+15,24);
           mdisplay.setTextColor(parseRGBColor(m_color));
           mdisplay.print(String(minute()/10)+String(minute()%10));
           mdisplay.print(":");
 
-          mdisplay.setCursor(11+15+15,24);
+          mdisplay.setCursor(20+15+15,24);
           mdisplay.setTextColor(parseRGBColor(s_color));
-          mdisplay.print(String(minute()/10)+String(minute()%10));
-          mdisplay.print(":");
+          mdisplay.print(String(second()/10)+String(second()%10));
         }else{
           mdisplay.setFont();
           mdisplay.fillRect(0, 24, 64, 8, 0);
@@ -149,13 +198,14 @@ void display_weather(){
           mdisplay.print(":");
 
           mdisplay.setTextColor(parseRGBColor(m_color));
-          mdisplay.setCursor(8+15,24);
-          mdisplay.print(minute());
+          mdisplay.setCursor(10+15,24);
+          mdisplay.print(String(minute()/10)+String(minute()%10));
           mdisplay.print(":");
           
-          mdisplay.setCursor(8+15+15,24);
+          mdisplay.setCursor(12+15+15,24);
           mdisplay.setTextColor(parseRGBColor(s_color));
-          mdisplay.print(second());
+          mdisplay.print(String(second()/10)+String(second()%10));
+          //mdisplay.print(second());
         }
                 //mdisplay.print(String(hour())+":"+String(minute()/10)+String(minute()%10)+":"+String(second()/10)+String(second()%10));
 

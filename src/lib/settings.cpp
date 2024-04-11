@@ -34,6 +34,7 @@
 #define KEY_PATH       F("/.sys/key.json") /* 天气KEY */
 #define WEATHER_INTERVAL_PATH       F("/.sys/w_i.json") /* 天气更新间隔 */
 #define DST_PATH       F("/.sys/dst.json") /* 夏令时 */
+#define TZ_PATH       F("/.sys/tz.json") /* time zone*/
 
 void reset_config(){
   LittleFS.remove(CONFIG_PATH);
@@ -276,7 +277,33 @@ int set_wifi_config(const char *ssid, const char *pwd){
     return 0;
 }
 
+int read_timezone_config(int *tz, int *mtz){
+  if (LittleFS.exists(TZ_PATH)){
+    File fp = LittleFS.open(TZ_PATH, "r");
+    if(!fp) return 0;
+    String settings = fp.readString();
+    //DBG_PTN(settings);
+    
+    DynamicJsonDocument doc(256);
+    deserializeJson(doc, settings);
+    JsonObject obj = doc.as<JsonObject>();
 
+    *tz= obj[String("tz")].as<int>();
+    *mtz= obj[String("mtz")].as<int>();
+    fp.close();
+    return 0;
+  }  
+  return -1;
+}
+int set_timezone_config(int tz, int mtz){
+    File fp = LittleFS.open(TZ_PATH, "w");
+    if(!fp) return 0;
+    char settings[256] = {0};
+    snprintf(settings, sizeof(settings), "{\"tz\":%d, \"mtz\":%d}", tz, mtz);
+    fp.write((uint8_t*)settings, strlen(settings));
+    fp.close();
+    return 0;
+}
 
 int read_day_config(int *day_format){
   if (LittleFS.exists(DAY_PATH)){
@@ -295,7 +322,6 @@ int read_day_config(int *day_format){
   }  
   return -1;
 }
-
 int set_day_config(int day_format){
     File fp = LittleFS.open(DAY_PATH, "w");
     if(!fp) return 0;
@@ -306,7 +332,7 @@ int set_day_config(int day_format){
     return 0;
 }
 
-int read_city_config(char *city, char ct_len, int* timezone, int *mintimezone, char *code, char cd_len, char *location, char loc_len){
+int read_city_config(char *city, char ct_len, char *code, char cd_len, char *location, char loc_len){
   //if (SPIFFS.exists(CITY_PATH)){
   if (LittleFS.exists(CITY_PATH)){
     File fp = LittleFS.open(CITY_PATH, "r");
@@ -321,22 +347,18 @@ int read_city_config(char *city, char ct_len, int* timezone, int *mintimezone, c
     snprintf(city, ct_len, "%s", obj[String("ct")].as<String>().c_str());
     snprintf(code, cd_len, "%s", obj[String("cd")].as<String>().c_str());
     snprintf(location, loc_len, "%s", obj[String("loc")].as<String>().c_str());
-    *timezone = obj[String("t")].as<int>();
-    *mintimezone = obj[String("mt")].as<int>();
-    //DBG_PTN("code:");
-    //DBG_PTN(city);
     fp.close();
     return 0;
   }  
   return -1;
 }
 
-int set_city_config(const char *city, int timezone, int8_t mintimezone, const char *code, const char *location){
+int set_city_config(const char *city, const char *code, const char *location){
   
     File fp = LittleFS.open(CITY_PATH, "w");
     if(!fp) return 0;
     char settings[256] = {0};
-    snprintf(settings, sizeof(settings), "{\"ct\":\"%s\", \"t\":\"%d\",\"mt\":\"%d\",\"cd\":\"%s\", \"loc\":\"%s\"}", city,timezone, mintimezone, code, location);
+    snprintf(settings, sizeof(settings), "{\"ct\":\"%s\", \"cd\":\"%s\", \"loc\":\"%s\"}", city, code, location);
     fp.write((uint8_t*)settings, strlen(settings));
     fp.close();
     return 0;
@@ -879,21 +901,18 @@ int set_stock_config(const char *code, const char *exchange, int s_i){
 }
 #endif
 
-int read_time_color_config(String *h, String *m , String *s){
-  //if (SPIFFS.exists(BRT_PATH)){
+int read_time_color_config(String &h, String &m , String &s){
   if (LittleFS.exists(TIME_COLOR_PATH)){
-    //File fp = SPIFFS.open(BRT_PATH, "r");
     File fp = LittleFS.open(TIME_COLOR_PATH, "r");
     String settings = fp.readString();
-    //DBG_PTN(settings);
     
     DynamicJsonDocument doc(256);
     deserializeJson(doc, settings);
     JsonObject obj = doc.as<JsonObject>();
 
-    *h = obj[String("hc")].as<String>();
-    *m = obj[String("mc")].as<String>();
-    *s = obj[String("sc")].as<String>();
+    h = obj[String("hc")].as<String>();
+    m = obj[String("mc")].as<String>();
+    s = obj[String("sc")].as<String>();
     fp.close();
     return 0;
   }  
@@ -1079,8 +1098,8 @@ extern String font_path;
 extern int dst_enable;
 extern int day_format;
 extern int page_index;
-int timeZone = 8;     //东八区
-int minutesTimeZone = 0;//分钟的时区偏移，还有相差半小时的时区
+extern int timeZone;     //东八区
+extern int minutesTimeZone;//分钟的时区偏移，还有相差半小时的时区
 
 int init_config(){
   read_font_config(&font_path);
@@ -1145,14 +1164,13 @@ int init_config(){
     if(page_index == 2) flip_index = "";
   }
 
-  read_time_color_config(&h_color,&m_color,&s_color);
   update_time_colors();
 
   read_wifi_config(ssid, sizeof(ssid), pwd, sizeof(pwd));
   char citycode[32] = {0};
   char cityname[32] = {0};
   char location[64] = {0};
-  ret = read_city_config(cityname, sizeof(citycode), &timeZone, &minutesTimeZone, citycode, sizeof(cityname), location, sizeof(location));
+  ret = read_city_config(cityname, sizeof(citycode), citycode, sizeof(cityname), location, sizeof(location));
   if (ret == 0) {
     cityName = String(cityname);
     cityCode = String(citycode);

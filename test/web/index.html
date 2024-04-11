@@ -14,7 +14,7 @@
 			<div id = "city">
 			<div class="row">
 				<div class="col-12">
-					<div id="error" class="hide"></div>
+					<div id="popup" class="popup"></div>
 					<h1>1.Set your city first</h1>
 				</div>
 			</div>
@@ -93,13 +93,11 @@
 					getResponse(url, function(responseText) {
 						var err = getE("error");
 						if (responseText == "OK") {
-							err.style.background="#5ecb4a";
-							showMessage("Saved Successfully!", 1000);
+							showPopup("Saved Successfully!", 1000, "#02a601");
 							var ele = getE('wifi');
 							ele.style.visibility = 'visible';
 						}else{
-							err.style.background="#af3535";
-							showMessage("Save faild!",1000);
+							showPopup("Save faild!",1000, "#dc0d04");
 						} 
 					});
 				}	

@@ -13,7 +13,7 @@
 		<div class="container">
 			<div class="row">
 				<div class="col-12">
-					<div id="error" class="hide"></div>
+					<div id="popup" class="popup"></div>
 					<h1>1. Choose theme</h1>
 				</div>
 			</div>
@@ -161,7 +161,11 @@
 					0<input type="range" style="width:300px" name="time_brt" id="time_brt" min="-10" max="255" value="50">255
 				</div>
 			</div>		
-					
+			<div class="row">
+				<div class="col-6">
+					<button class="button-primary left" onclick="set_time_brt()">SAVE</button>
+				</div>
+			</div>		
 			<div class="row">
 				<div class="col-12">
 					<h1>4. Factory Reset</h1>

@@ -176,6 +176,8 @@ void Weather::parse_rsp_data(const String* payload) {
     int utcOffsetSeconds = doc["timezone"];
     timeZone = utcOffsetSeconds / 3600; // Convert seconds to hours for timeZone
     minutesTimeZone = (utcOffsetSeconds - timeZone * 3600) / 60; // Calculate minutesTimeZone
+    DBG_PTN("timezone:");
+    DBG_PTN(timeZone);
 
     cityName = doc["name"].as<String>();
     country = doc["sys"]["country"].as<String>(); // Get country field from API response
