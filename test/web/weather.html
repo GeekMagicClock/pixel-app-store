@@ -10,21 +10,21 @@
 		<style>	
 		</style>	
 	</head>
-	<body onload = "getData('/city.json');getData('/w_i.json');getData('/unit.json');getData('/key.json');getData('/dst.json');getNav();">
+	<body onload = "getData('/.sys/city.json');getData('/.sys/w_i.json');getData('/.sys/unit.json');getData('/.sys/key.json');getNav();">
 		<nav id="nav" style="width: 80%;margin: 0 auto;font-size: 25px;text-align: center;">
 		</nav>		
 		<div class="container">
 			<div class="row">
 				<div class="col-12">
 					<div id="error" class="hide"></div>
-					<h1>1. Set City Code</h1>
+					<h1>1. Set City Location</h1>
 				</div>
 			</div>
 			<div class="row">
 				<div class="col-12">
 				<h3>Method 1:Set City Name,Country/Region Name, or City code</h3><p>
-					Input your city location: <input type="text" name="city1" id="city1" placeholder="Seoul,KR">
-					<p>Location example, Seoul, the capital city of Korea, please input: Seoul,KR</br>
+					Input your city location: <input type="text" name="city1" id="city1" placeholder="Seoul">
+					<p>Location example, Seoul, the capital city of Korea, please input: Seoul</br>
 					<a>[If there are several cities with the SAME name, you need to find the correct city code.]</a><p>
 					<b>Tips：Where to find Your Own city code >>></b><p><a href="https://openweathermap.org/find" target="_blank">1.Click me to search your city code after internet is connected</a><p>
 					<div id="ret" style="color:#FF0000"></div>2.Input your city name, click search and then choose the result, open it, the number at the link address tail is your city code! eg: Seoul,KR <b>https://openweathermap.org/city/<a>1835848</a></b>, <b><a>1835848</a></b> is city code of Seoul,KR.
@@ -52,9 +52,9 @@
 				<div class="col-4">
 				Temperature:<p>
 					<select id="temp" style="width:200px">
-					  <option value="°C" style="display:none">°C</option>
-					  <option value="°C">°C</option>
-					  <option value="°F">°F</option>
+					  <option value="°C" style="display:none">C</option>
+					  <option value="°C">C</option>
+					  <option value="°F">F</option>
 					</select>
 				</div>
 				<div class="col-4">

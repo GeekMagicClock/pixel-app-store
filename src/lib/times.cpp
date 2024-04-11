@@ -45,7 +45,7 @@ void sendNTPpacket(IPAddress &address);
 WiFiClient wificlient;
 WiFiUDP Udp;
 
-bool hour12 = true;//12 小时制显示
+int hour12 = 0;//12 小时制显示
 //bool hour12 = false;//24 小时制显示
 
 String monthDay();

@@ -361,8 +361,8 @@ input[type="file"] {
 	content: "";
 	height: 16px;
 	width: 16px;
-	left: 2px; /* 调整圆点位置 */
-	bottom: 2px; /* 调整圆点位置 */
+	left: 2px; 
+	bottom: 2px; 
 	background-color: white;
 	-webkit-transition: .4s;
 	transition: .4s;
@@ -392,17 +392,22 @@ input[type="file"] {
 	border-radius: 50%;
   }
 input{background:#f0f1f1;border:0;padding:0 15px}
-#file-input,input{height:43px;border-radius:4px;margin:10px auto;font-size:15px}
+#file-input,input{border-radius:4px;margin:10px auto;font-size:15px}
 #file-input{width:59%;padding:0 10px;box-sizing:border-box;border:1px solid #ddd;line-height:44px;text-align:left;display:block;cursor:pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
 #bar,#prgbar{background-color:#f0f1f1;border-radius:10px}#bar{background-color:#00acc1;width:0;height:10px;}
 form{background:#2e2e2e;max-width:100%;margin:5px auto;padding:35px; padding-bottom: 30px;border-radius:12px;text-align:center; align-content: center;}
-.btn {background-color: #35382a;box-shadow: 0 0 8px 0 rgba(0, 0, 0, 0.08), 0 0 15px 0 rgba(0, 0, 0, 0.02), 0 0 20px 4px rgba(0, 0, 0, 0.06);color: white;border-radius: 4px;padding: 9px 16px;background-image: none;
+.btn {background-color: #35382a;box-shadow: 0 0 8px 0 rgba(0, 0, 0, 0.08), 0 0 15px 0 rgba(0, 0, 0, 0.02), 0 0 20px 4px rgba(0, 0, 0, 0.06);color: white;border-radius: 4px;padding: 9px 16px;background-image: none;}
 table,th, td{font-family: arial;border-collapse: collapse;border: 0px solid #dddddd;}
-th, td {padding: 9px;}
-tr:nth-child(odd) {background-color: #edebeb;}
-tr:nth-child(0) {background-color: #edebeb;}
+th, td {padding: 9px; border-bottom-width: 2px;}
 th:nth-child(1) {text-align: left;}
 td:nth-child(0) {column-width: 30px;text-align: center;}
-td:nth-child(1) {column-width: 175px;text-align: left;white-space: nowrap;overflow: hidden;}
-td:nth-child(2) {column-width: 100px;text-align: center;}
+td:nth-child(1) {column-width: 5px;text-align: left;white-space: nowrap;overflow: hidden;}
+td:nth-child(2) {column-width: 170px;text-align: center;}
 td:nth-child(3) {column-width: 30px;text-align: center;}
+
+#repo,#model,#copyright{
+	font-size: 0.95em;
+	text-align: center;
+	margin-top: 1em;
+	margin-bottom: 1em;
+}

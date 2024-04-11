@@ -23,7 +23,7 @@ hw_timer_t * timer = NULL;
 hw_timer_t * animationTimer = NULL;
 
 //bool hour12 = false;
-extern bool hour12;
+extern int hour12;
 bool forceRefresh = false;
 
 // This method is needed for driving the display
@@ -48,10 +48,13 @@ void animationHandler()
 #else
     mdisplay.clearScreen();
 #endif
+#if 0
     //display.fillScreen(tetris.tetrisBLACK);
     if (displayIntro) {
       finishedAnimating = tetris.drawText(1, 21);
-    } else {
+    } else 
+#endif
+    {
       if (hour12) {
         // Place holders for checking are any of the tetris objects
         // currently still animating.
@@ -197,7 +200,6 @@ void tetris_clock::setup() {
   timerAlarmEnable(animationTimer);
 
   finishedAnimating = false;
-  displayIntro = false;
   tetris.scale = 2;
 }
 
@@ -221,9 +223,9 @@ void tetris_clock::loop() {
 
 void exit_tetris() {
   finishedAnimating = false;
-  displayIntro = false;
+  //displayIntro = false;
   tetris.scale = 2;
-  lastDisplayedAmPm = "";
+  lastDisplayedAmPm = "0";
   lastDisplayedTime = "";
   timerDetachInterrupt(animationTimer);
   timerEnd(animationTimer);

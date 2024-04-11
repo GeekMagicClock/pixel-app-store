@@ -1,16 +1,23 @@
 #include "tetris_clock.h"
 #include "../../lib/display.h"
 #include "../../lib/btn.h"
+#include "../../lib/settings.h"
 #include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
 extern MatrixPanel_I2S_DMA mdisplay;
 //extern tetris_clock t_clock;
 tetris_clock t_clock;
+extern int hour12;
 void init_tetris() {
+
+    read_hour12_config(&hour12);
+
     mdisplay.clearScreen();
-    mdisplay.setCursor(0,4);
     mdisplay.setTextColor(parseRGBColor(C_LIGHT_PURPLE));
+    mdisplay.setCursor(12,4);
     mdisplay.println("3.");
+    mdisplay.setCursor(12,13);
     mdisplay.println("Tetris");
+    mdisplay.setCursor(12,22);
     mdisplay.print("Clock");
     int i = 0;
     while(!btn_status() && i<200) {

@@ -25,16 +25,6 @@ void linearInterpolation(float input[], int inputLength, float output[], int out
         output[i] = scale(input[i], minValue, maxValue, 0, screenHeight); // 归一化到 [0, screenHeight] 范围
     }
     return;
-    for (int i = 0; i < outputLength; i++) {
-        if (i % 2 == 0) { // 每隔一个数据点插入一个新数据点
-            int dataIndex = i / 2; // 原始数据点的索引
-            output[i] = input[dataIndex]; // 直接复制原始数据点
-        } else {
-            int prevIndex = i / 2;
-            int nextIndex = min(i / 2 + 1, inputLength - 1);
-            output[i] = (i - 2 * prevIndex) * (input[nextIndex] - input[prevIndex]) / 2 + input[prevIndex];
-        }
-    }
 }
 #endif
 void drawLineChart(float data[], int dataLength, uint16_t lineColor, uint16_t fillColor) {
@@ -158,13 +148,17 @@ void display_stock(){
 extern void init_stock_config();
 #include "../../lib/display.h"
 #include "../../lib/btn.h"
+#include "../../font/agencyb8pt7b.h"
 void init_stock(){
     init_stock_config();
     mdisplay.clearScreen();
-    mdisplay.setCursor(0,4);
-    mdisplay.setTextColor(parseRGBColor(C_FOREST_GREEN));
+    mdisplay.setTextColor(parseRGBColor(C_GREEN));
+    //mdisplay.setFont(&agencyb8pt7b);
+    mdisplay.setCursor(12,4);
     mdisplay.println("1.");
+    mdisplay.setCursor(12,13);
     mdisplay.println("Market");
+    mdisplay.setCursor(12,22);
     mdisplay.print("Tracker");
     //delay(2000);
 

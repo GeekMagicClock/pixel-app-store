@@ -42,6 +42,8 @@ void btn_3_click(Button2 &btn){
 }
 
 void btn_double_click(Button2 &btn){
+    if(rgb_off_flag == 1 )//亮屏
+      set_screen_brt(brt);
 
     DBG_PTN("btn click 2");
     theme_index ++;
@@ -51,6 +53,9 @@ void btn_double_click(Button2 &btn){
 
 //void btn_click(){
 void btn_click(Button2 &btn){
+    if(rgb_off_flag == 1 )//亮屏
+      set_screen_brt(brt);
+
     theme_index ++;
     if(theme_index >= THEME_TOTAL) theme_index = 0;
     return;
@@ -76,6 +81,7 @@ void longClickDetected(Button2& btn) {
     DBG_PTN("long press! ...");
     
     if(rgb_off_flag == 1 ){//亮屏
+      set_screen_brt(brt);
       rgb_off_flag = 0;
       return;     
     }else{
@@ -115,9 +121,11 @@ void init_btn(){
   btn.setLongClickDetectedHandler(longClickDetected);
   btn.begin(BTN_PIN);
 }
+
 bool btn_status(){
   return btn.isPressed();
 }
+
 void update_btn(){
   //DBG_PTN(digitalRead(BTN_PIN));
   btn.loop();

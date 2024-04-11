@@ -476,7 +476,7 @@ int set_theme_config(int i){
     return 0;
 }
 
-int read_img_config(String *path){
+int read_img_config(String &path){
   if (LittleFS.exists(IMG_PATH)){
     File fp = LittleFS.open(IMG_PATH, "r");
     String settings = fp.readString();
@@ -486,7 +486,7 @@ int read_img_config(String *path){
     deserializeJson(doc, settings);
     JsonObject obj = doc.as<JsonObject>();
 
-    *path =  obj[String("img")].as<String>();
+    path =  obj[String("img")].as<String>();
     fp.close();
     return 0;
   }  
@@ -502,7 +502,7 @@ int set_img_config(String path){
     return 0;
 }
 
-int read_gif_config(String *path){
+int read_gif_config(String &path){
   if (LittleFS.exists(GIF_PATH)){
     File fp = LittleFS.open(GIF_PATH, "r");
     String settings = fp.readString();
@@ -512,7 +512,7 @@ int read_gif_config(String *path){
     deserializeJson(doc, settings);
     JsonObject obj = doc.as<JsonObject>();
 
-    *path =  obj[String("gif")].as<String>();
+    path =  obj[String("gif")].as<String>();
     fp.close();
     return 0;
   }  
@@ -719,8 +719,10 @@ int set_album_config(int autoplay ,int i){
     snprintf(settings, sizeof(settings), "{\"autoplay\":%d,\"i_i\":%d}", autoplay, i);
     fp.write((uint8_t *)settings, strlen(settings));
     fp.close();
+    DBG_PTN(settings);
     return 0;
 }
+
 int set_kline_config(String kline){
     File fp = LittleFS.open(KLINE_PATH, "w");
     if(!fp) return 0;
@@ -1097,7 +1099,7 @@ int init_config(){
  
   read_unit_config(&windspeed_unit, &temp_unit, &pressure_unit);
   read_brt_config(&brt);
-  read_gif_config(&gif_path);
+  read_gif_config(gif_path);
   //read_img_config(&autoplay_path);
   read_album_config(&autoplay, &album_time);
   read_hour12_config(&hour12);

@@ -26,6 +26,17 @@ uint16_t myWHITE = mdisplay.color565(255, 255, 255);
 //VirtualMatrixPanel *virtualDisp = nullptr;
 VirtualMatrixPanel vdisplay(mdisplay, NUM_ROWS, NUM_COLS, PANEL_RES_X, PANEL_RES_Y);
 #include "lib/settings.h"
+#include "lib/gif.h"
+#include "theme.h"
+#include "lib/web_server.h"
+int theme_index = 0;
+int last_theme_index = -1;
+int brt = 50;
+extern int album_time;
+extern int autodisplay;
+extern struct theme_loop theme_loop_list[THEME_TOTAL];
+char ap_ssid [] = "GeekMagic Pixel";
+
 void setup() {
   Serial.begin(115200);
 
@@ -41,41 +52,53 @@ void setup() {
     LittleFS.mkdir("/.sys");
   }
   read_wifi_config(ssid, sizeof(ssid), password, sizeof(password)); 
+  read_theme_config(&theme_index);
+  read_brt_config(&brt);
+
   // Set WiFi to station mode and disconnect from an AP if it was Previously
   // connected
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
+ // Display Setup
+  //mxconfig.double_buff = true;
+  mdisplay.begin(mxconfig);
+  mdisplay.setBrightness8(50); //0-255
+  mdisplay.clearScreen();
+  //mdisplay.print("Hello");
+  //delay(1000);
 
-  while (WiFi.status() != WL_CONNECTED) {
+  //virtualDisp = new VirtualMatrixPanel(mdisplay, NUM_ROWS, NUM_COLS, PANEL_RES_X, PANEL_RES_Y);
+  long timeout = millis();
+  while (WiFi.status() != WL_CONNECTED && millis()-timeout < 15*1000) {
+    drawGif("/image/w.gif",0,0); 
     Serial.print(".");
-    delay(500);
+    //delay(500);
+  }
+
+  if(WiFi.status() != WL_CONNECTED){
+    mdisplay.clearScreen();
+    mdisplay.setCursor(4, 10);
+    mdisplay.print("WiFi start:");
+    mdisplay.print("GeekMagic");
+    startPortal(ap_ssid, "");
   }
 
   Serial.println("");
   Serial.println("WiFi connected");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
-  // Display Setup
-  //mxconfig.double_buff = true;
-  mdisplay.begin(mxconfig);
-  mdisplay.setBrightness8(20); //0-255
-  mdisplay.clearScreen();
-  mdisplay.setCursor(0, 10);
-  mdisplay.print("Hello");
-  delay(1000);
-
-  //virtualDisp = new VirtualMatrixPanel(mdisplay, NUM_ROWS, NUM_COLS, PANEL_RES_X, PANEL_RES_Y);
  
-  //t_clock.setup();
   init_http_server();
   init_btn();
+
+  mdisplay.clearScreen();
+  mdisplay.setCursor(0, 10);
+  mdisplay.print("Sync");
+  mdisplay.setCursor(24, 10);
+  mdisplay.print("time..");
   init_time();
 }
 
-#include "theme.h"
-int theme_index = 0;
-int last_theme_index = -1;
-extern struct theme_loop theme_loop_list[THEME_TOTAL];
 
 void set_screen_brt(int brt){
   mdisplay.setBrightness8(brt); //0-255

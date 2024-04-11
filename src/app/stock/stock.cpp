@@ -108,6 +108,10 @@ void fill_candle_data(JsonArray& open_prices, JsonArray& close_prices, JsonArray
   int j = 0;
   //假设我们请求的数据一定是大于蜡烛数的, [0] 存放的是最新的数据
   for (int i = num_data_points-1; i >= 0 && j < num_candles; i--,j++) {
+    if(open_prices[i].as<String>() == "null") {
+      j--;
+      continue;//修复服务器返回null数据点的 bug
+    }
     candles[j].open = open_prices[i].as<float>();
     candles[j].close = close_prices[i].as<float>();
     candles[j].high = high_prices[i].as<float>();

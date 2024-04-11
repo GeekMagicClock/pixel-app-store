@@ -139,11 +139,10 @@ static int getRSSIasQuality(int RSSI) {
   return quality;
 }
 
-
 #include <mDNS.h>
 #include <DNSServer.h>
 
-void init_async_http_server();
+void init_http_server();
 
 static const byte DNS_PORT = 53;
 static DNSServer dnsServer;
@@ -173,7 +172,7 @@ boolean startPortal(char const *apName, char const *apPassword) {
   dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
   dnsServer.start(DNS_PORT, "*", WiFi.softAPIP());
 
-  init_async_http_server();
+  init_http_server();
   server.addHandler(new CaptiveRequestHandler()).setFilter(ON_AP_FILTER);//only when requested from AP
   while(1){
     dnsServer.processNextRequest();
@@ -193,47 +192,28 @@ String get_wifi_scan(){
       if(n>15) n = 15; 
 
       JsonDocument root;
-      //JsonArray array = root.createNestedArray("aps");
       JsonArray array = root["aps"].to<JsonArray>();
  
       //String data = "{\"aps\":[";
       for (int i = 0; i < n; i++) {
-          //DBG_PTN(WiFi.SSID(i));
-        //DBG_PTN(WiFi.RSSI(i));
         int quality = getRSSIasQuality(WiFi.RSSI(i));
         //20 经验值,取自开源版
         //if (24 < quality) 
         {
-            //String item = FPSTR(HTTP_ITEM);
             String rssiQ;
             rssiQ += quality;
             //item.replace("{v}", WiFi.SSID(indices[i]));
             array[i]["c"] =  String(WiFi.channel(i));
             array[i]["ss"] = WiFi.SSID(i);
-            //data += "{\"c\":"+String(WiFi.channel(i))+",\"ss\":\""+WiFi.SSID(i)+"\",";
-            //item.replace("{v}", WiFi.SSID(i));
-            //item.replace("{r}", rssiQ);
             if (WiFi.encryptionType(i) != WIFI_AUTH_OPEN) {
             //if (WiFi.encryptionType(i) != AUTH_OPEN) {
-            //if (WiFi.encryptionType(indices[i]) != AUTH_OPEN) {
-                //item.replace("{i}", "l");
               array[i]["e"] = 1;
               //data += "\"e\":1,";
             } else {
               array[i]["e"] = 0;
-              //data += "\"e\":0,";
             }
-            //if(i != n-1)
               array[i]["r"] =(WiFi.RSSI(i));
-              //data += "\"r\":"+String(WiFi.RSSI(i)) + "},";
-            ///else
-              // array["r"] = String(WiFi.RSSI(i));
-              //data += "\"r\":"+String(WiFi.RSSI(i)) + "}]}";
-            //DBG_PTN(data);
         } 
-        //else {
-        //    DBG_PTN(F("Skipping due to quality"));
-        //}
       }
       WiFi.scanDelete();
       if(WiFi.scanComplete() == -2){
@@ -307,7 +287,7 @@ extern String autoplay_path;
 String stock_code, stock_exchange;
 int t1,t2,b1,b2,timer_brt_en;
 extern int hour12;
-int brt = 30;
+extern int brt;
 int delay_wifi_time;
 extern String my_ntp_server;
 #include "../app/weather/weather_en.h"
@@ -414,6 +394,7 @@ void handleSet(AsyncWebServerRequest * request){
   }else if (request->hasArg("i_i") && request->hasArg("autoplay")) {
     album_time = request->arg("i_i").toInt();
     autoplay = request->arg("autoplay").toInt();
+    DBG_PTN(autoplay);
     set_album_config(autoplay, album_time);
   }else if (request->hasArg("font")) {
     myfont = request->arg("font").toInt();
@@ -545,9 +526,6 @@ void handleWifiSave(AsyncWebServerRequest * request) {
     ss.toCharArray(ssid, 32);
     pp.toCharArray(password, 64);
 
-    //request->getParam("s").toCharArray(ssid, sizeof(ssid) - 1);
-    //request->getParam("p").toCharArray(password, sizeof(password) - 1);
-
     set_wifi_config(ssid, password);
 
     String page = FPSTR(HTTP_HEADER);
@@ -564,7 +542,9 @@ void handleWifiSave(AsyncWebServerRequest * request) {
     //重启联网
     ESP.restart();
 }
-
+void send_version(AsyncWebServerRequest* request){
+  request->send(200, F("text/json"), ("{\"m\": \""+String(PRODUCT_MODEL)+"\",\"v\":\"" + String(SW_VERSION) + "\"}"));
+}
 void init_http_server() {
   //以下写法，解决web portal 开启时候，无法正确加载脚本的问题
   server.on("/css/cropper.min.css", HTTP_GET, [](AsyncWebServerRequest *request){
@@ -581,6 +561,10 @@ void init_http_server() {
       AsyncWebServerResponse *response = request->beginResponse(LittleFS, request->url(), getContentType(request->url()));
       response->addHeader("Cache-Control", "public, max-age=36000"); // Cache for 1 hour (3600 seconds)
       request->send(response);
+  });
+
+  server.on("/v.json",  HTTP_GET, [] (AsyncWebServerRequest * request) {
+    send_version(request);
   });
 
   server.on("/set",  HTTP_GET, [] (AsyncWebServerRequest * request) {

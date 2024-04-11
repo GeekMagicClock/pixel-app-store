@@ -90,7 +90,7 @@ void display_album(){
     {
       is_jpg = 1;
       set_screen_brt(0);
-      //drawJpeg(path, 0 ,0 );
+      drawJpeg(path, 0 ,0 );
       int i = 0;
       while(i<brt && theme_index == THEME_ALBUM){
         update_btn();
@@ -105,15 +105,18 @@ void display_album(){
           continue;
       }
       is_jpg = 0;
-      while(drawGif(path, 0, 0) == 1 && theme_index == THEME_ALBUM){
-        //update_http_server();
-        update_btn();
-      };
+      long start = millis();
+      while(millis()-start < album_time*1000 && theme_index == THEME_ALBUM){
+        while(drawGif(path, 0, 0) == 1 && theme_index == THEME_ALBUM){
+          //update_http_server();
+          update_btn();
+        };
+      }
     }
     if(is_jpg) // jpg 播放后等待
     {
       //防止延时时间过长，无法切换主题
-      int i = album_time*10;
+      int i = album_time*100;
       while(i-- && theme_index == THEME_ALBUM){
         //update_http_server();
         update_btn();
@@ -121,6 +124,7 @@ void display_album(){
           app_exit = 0;
           return; 
         }
+        delay(10);
       }
     }
     //DBG_PTN("free size :");
@@ -131,16 +135,22 @@ void display_album(){
 }
 
 #include "../../lib/display.h"
+#include "../../lib/settings.h"
 #include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
 extern MatrixPanel_I2S_DMA mdisplay;
 void init_album(){
   jpegInit();
 
+  read_album_config(&autoplay, &album_time);
+  read_img_config(autoplay_path);
+
   mdisplay.clearScreen();
-  mdisplay.setCursor(0,4);
   mdisplay.setTextColor(parseRGBColor(C_LIGHT_ORANGE));
+  mdisplay.setCursor(12,4);
   mdisplay.println("2.");
-  mdisplay.println("Images");
+  mdisplay.setCursor(12,13);
+  mdisplay.println("Image");
+  mdisplay.setCursor(12,22);
   mdisplay.print("Display");
   //delay(2000);
   int i = 0;

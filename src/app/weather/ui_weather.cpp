@@ -12,6 +12,8 @@ extern Weather wea;
 extern MatrixPanel_I2S_DMA mdisplay;
 //extern VirtualMatrixPanel vdisplay;
 extern String h_color;
+extern String m_color;
+extern String s_color;
 
 #include "WiFi.h"
 #include "../../lib/btn.h"
@@ -25,10 +27,12 @@ void init_weather(){
     wea.cityCode = "Zhongshan";
     wea.init(weather_key, pub_weather_key, wea.cityCode, lon, lat);
     mdisplay.clearScreen();
-    mdisplay.setCursor(0,4);
+    mdisplay.setCursor(12,4);
     mdisplay.setTextColor(parseRGBColor(C_LIGHT_BLUE));
     mdisplay.println("5.");
+    mdisplay.setCursor(12,13);
     mdisplay.println("Weather");
+    mdisplay.setCursor(12,22);
     mdisplay.print("Clock");
     int i = 0;
     while(!btn_status() && i<200) {
@@ -46,6 +50,7 @@ void exit_weather(){
     wea.forecast_changed = false;
     wea_init_status = false;
 }
+extern int hour12;
 void display_weather(){
 
     //DBG_PTN("weather");
@@ -61,7 +66,7 @@ void display_weather(){
     if(!wea.init_done){
         //drawGif("/image/w.gif", 15, 0);//loading.gif
         mdisplay.setFont();
-        mdisplay.setCursor(0,16);
+        mdisplay.setCursor(0,12);
         mdisplay.setTextColor(mdisplay.color565(173, 216, 230));
         mdisplay.print("Updating..");
     }else{
@@ -111,12 +116,48 @@ void display_weather(){
         }
 #if 1
         //mdisplay.setFont(&agencyb8pt7b);
-        mdisplay.setFont();
-        mdisplay.setTextColor(parseRGBColor(h_color));
-        mdisplay.setCursor(8,24);
+        if(hour12){
+          mdisplay.setFont();
+          mdisplay.fillRect(0, 24, 64, 8, 0);
+          mdisplay.setCursor(0,24);
+          mdisplay.setTextColor(parseRGBColor(h_color));
+          if(hour()<12)
+            mdisplay.print("am");
+          else
+            mdisplay.print("pm");
+          int hh = hourFormat12(now());
+          mdisplay.setCursor(11,24);
+          mdisplay.setTextColor(parseRGBColor(h_color));
+          mdisplay.print(String(hh/10)+String(hh%10));
+          mdisplay.print(":");
 
-        mdisplay.fillRect(0, 24, 64, 8, 0);
-        mdisplay.print(String(hour())+":"+String(minute()/10)+String(minute()%10)+":"+String(second()/10)+String(second()%10));
+          mdisplay.setCursor(11+15,24);
+          mdisplay.setTextColor(parseRGBColor(m_color));
+          mdisplay.print(String(minute()/10)+String(minute()%10));
+          mdisplay.print(":");
+
+          mdisplay.setCursor(11+15+15,24);
+          mdisplay.setTextColor(parseRGBColor(s_color));
+          mdisplay.print(String(minute()/10)+String(minute()%10));
+          mdisplay.print(":");
+        }else{
+          mdisplay.setFont();
+          mdisplay.fillRect(0, 24, 64, 8, 0);
+          mdisplay.setCursor(8,24);
+          mdisplay.setTextColor(parseRGBColor(h_color));
+          mdisplay.print(hour());
+          mdisplay.print(":");
+
+          mdisplay.setTextColor(parseRGBColor(m_color));
+          mdisplay.setCursor(8+15,24);
+          mdisplay.print(minute());
+          mdisplay.print(":");
+          
+          mdisplay.setCursor(8+15+15,24);
+          mdisplay.setTextColor(parseRGBColor(s_color));
+          mdisplay.print(second());
+        }
+                //mdisplay.print(String(hour())+":"+String(minute()/10)+String(minute()%10)+":"+String(second()/10)+String(second()%10));
 
         mdisplay.fillRect(16,0,48,16, parseRGBColor(C_BLACK));
         mdisplay.setFont();

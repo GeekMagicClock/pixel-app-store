@@ -12,25 +12,26 @@
 		<script src="js/cropper.min.js"></script>
 		<script src="js/jquery.min.js"></script>  				
 	</head>
-	<body onload = "refreshPwd();getData('/album.json');getNav();">
+	<body onload = "refreshPwd();getData('/.sys/album.json');getNav();">
 		<nav id="nav" style="width: 80%;margin: 0 auto;font-size: 25px;text-align: center;">
 		</nav>
 		<div class="container">
 			<div class="row">
 				<div class="col-12">
 					<div id="error" class="hide"></div>
-					<h1>1. Auto display</h1>
+					<h1>1. Loop display</h1>
 				</div>
 			</div>
 			<div class="row">
-				<div class="col-6">
-					<label for="autoplay">Enable image auto display:</label>
+				<div class="col-12">
+					<span>Enable:</span>
+					<label class="switch">
+						<input type="checkbox" class="switch-input" id="autoplay">
+						<span class="slider round"></span>
+					</label>
 				</div>
 				<div class="col-6">
-					<input type="checkbox" id="autoplay" name="autoplay" />
-				</div>
-				<div class="col-6">
-					<label for="hour12">JPG image display interval:</label>
+					<label for="hour12">Image loop display interval:</label>
 				</div>
 				<div class="col-6">
 					<input type="text" name="image_interval" id="image_interval" value="30">s(seconds)
@@ -315,7 +316,7 @@
 					if(autoplay.checked) autoplay.value=1;
 					else autoplay.value=0;
 					var image_interval = getE("image_interval");
-					var url = "/set?i_i="+image_interval.value+"&autoplay=1";
+					var url = "/set?i_i="+image_interval.value+"&autoplay="+autoplay.value;
 					console.log(url);
 					send_http(url);	
 				}
