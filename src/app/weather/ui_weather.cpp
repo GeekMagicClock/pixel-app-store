@@ -95,6 +95,16 @@ void exit_weather(){
     wea_init_status = false;
 }
 extern int hour12;
+
+int format_hour12(){
+  if( hour(now()) == 0 )
+    return 12; // 12 midnight
+  else if( hour(now())  > 12)
+    return hour(now()) - 12 ;
+  else
+    return hour(now());
+}
+
 void display_weather(){
 
     //DBG_PTN("weather");
@@ -169,7 +179,8 @@ void display_weather(){
             mdisplay.print("AM");
           else
             mdisplay.print("PM");
-          int hh = hourFormat12(now());
+
+          int hh = format_hour12();
           mdisplay.setCursor(15,24);
           mdisplay.setTextColor(parseRGBColor(h_color));
           if(hour() == 12){
@@ -196,10 +207,11 @@ void display_weather(){
           mdisplay.setTextColor(parseRGBColor(h_color));
           mdisplay.print(hour());
           mdisplay.print(":");
+          //DBG_PTN(hour(now()));
 
           mdisplay.setTextColor(parseRGBColor(m_color));
           mdisplay.setCursor(10+15,24);
-          mdisplay.print(String(minute()/10)+String(minute()%10));
+          mdisplay.print(String(minute(now())/10)+String(minute(now())%10));
           mdisplay.print(":");
           
           mdisplay.setCursor(12+15+15,24);

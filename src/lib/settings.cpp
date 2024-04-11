@@ -1032,7 +1032,7 @@ char city_font[4]={0};
 char code[16]={0};
 String cityName = "";
 String cityFont = "1";
-String cityCode = "1835848";  //天气城市代码 长沙:101250101株洲:101250301衡阳:101250401
+String cityCode = "1835848"; 
 
 extern int brt;
 extern int gif_index;
