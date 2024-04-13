@@ -22,6 +22,7 @@ var time_interval = getE("time_interval");
 var hc = getE("hc");
 var mc = getE("mc");
 var sc = getE("sc");
+var cc = getE("cc");
 var yr = getE("yr");
 var mth = getE("mth");
 var day = getE("day");
@@ -108,9 +109,10 @@ function getData(data) {
 	if(res.ntp) ntp.value = res.ntp;
 	if(res.h == "1") h.checked = true;
 	if(res.t_i) time_interval.value = res.t_i;
-	if(res.hc) hc.value = res.hc;
-	if(res.mc) mc.value = res.mc;
-	if(res.sc) sc.value = res.sc;
+	if(res.hc) hc.value = "#"+res.hc;
+	if(res.mc) mc.value = "#"+res.mc;
+	if(res.sc) sc.value = "#"+res.sc;
+	if(res.cc) cc.value = "#"+res.cc;
 	if(res.colon) colon.checked = true;
 	var dayfmt = getE("day-format");
 	if(res.day_fmt) dayfmt.value = res.day_fmt;
@@ -174,13 +176,13 @@ function send_http(url){
 			showPopup("Saved successfully!", 1000, "#02a601");
 		} else{
 			//err.style.background="#af3535";
-			showPopup("Saved successfully!", 1000, "#dc0d04");
+			showPopup("Saved failed.", 1000, "#dc0d04");
 		} 
 	});
 }
 function set_c(){
 	var copyright = getE("copyright");
-	if(copyright != null) copyright.innerHTML = '<br />Copyright (c) 2024 GeekMagic® All rights reseved, Support mail:<a href=\"\" target=\"_blank\"> ifengchao1314@gmail.com</a>';
+	if(copyright != null) copyright.innerHTML = '<br />Copyright (c) 2024 GeekMagic® All rights reserved, bug report or need help or new feature requests please mail:<a href=\"\" target=\"_blank\"> GeekMagic@163.com</a>';
 }
 set_c();
 function getE(name){
@@ -189,13 +191,10 @@ function getE(name){
 function getNav(){
 	var navLinks = [
 		{ href: "network.html", text: "Network" },
-		{ href: "tracker.html", text: "Tracker" },
+		{ href: "ticker.html", text: "Ticker" },
 		{ href: "weather.html", text: "Weather" },
 		{ href: "time.html", text: "Time" },
 		{ href: "image.html", text: "Image" },
-		//{ href: "daytimer.html", text: "Countdown" },
-		//{ href: "bili.html", text: "B站粉" },
-		//{ href: "monitor.html", text: "电脑性能监视器" },
 		{ href: "system.html", text: "System" }
 	];
 
@@ -233,8 +232,7 @@ function showPopup(message, closeAfter,bg) {
 function getResponse(adr, callback, timeoutCallback, timeout, method){
 	if(timeoutCallback === undefined) {
 		timeoutCallback = function(){
-			//showMessage("Device connection lost, check connection and reload please... ");
-			showPopup("Device connection lost, reload please... ", 2000, "#dc0d04");
+			showPopup("Request failed, reload please... ", 2000, "#dc0d04");
 		};
 	}
 	if(timeout === undefined) timeout = 10000; 

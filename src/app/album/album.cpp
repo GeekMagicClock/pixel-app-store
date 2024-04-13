@@ -13,7 +13,7 @@ int app_exit;
 int album_time = 5;
 int autoplay = 1;
 extern int brt;
-extern int theme_index;
+extern int tmp_theme_index;
 extern void set_screen_brt(int brt);
 String autoplay_path ="/image/spaceman.gif";
 void display_album(){
@@ -51,7 +51,7 @@ void display_album(){
       }
       #endif
     }else if (autoplay_path.endsWith(".gif") || autoplay_path.endsWith(".GIF")){
-      while(drawGif(autoplay_path.c_str(), 0, 0) == 1 && theme_index == THEME_ALBUM){
+      while(drawGif(autoplay_path.c_str(), 0, 0) == 1 && tmp_theme_index == THEME_ALBUM){
         update_btn();
         //update_http_server();
       };
@@ -72,7 +72,7 @@ void display_album(){
   }
 
   File file = root.openNextFile();
-  while (file && autoplay && theme_index == THEME_ALBUM) {
+  while (file && autoplay && tmp_theme_index == THEME_ALBUM) {
     //update_http_server();
     update_btn();
     if (file.isDirectory()) {
@@ -92,7 +92,7 @@ void display_album(){
       set_screen_brt(0);
       drawJpeg(path, 0 ,0 );
       int i = 0;
-      while(i<brt && theme_index == THEME_ALBUM){
+      while(i<brt && tmp_theme_index == THEME_ALBUM){
         update_btn();
         set_screen_brt(i++);
         delay(10);
@@ -106,8 +106,8 @@ void display_album(){
       }
       is_jpg = 0;
       long start = millis();
-      while(millis()-start < album_time*1000 && theme_index == THEME_ALBUM){
-        while(drawGif(path, 0, 0) == 1 && theme_index == THEME_ALBUM){
+      while(millis()-start < album_time*1000 && tmp_theme_index == THEME_ALBUM){
+        while(drawGif(path, 0, 0) == 1 && tmp_theme_index == THEME_ALBUM){
           //update_http_server();
           update_btn();
         };
@@ -117,7 +117,7 @@ void display_album(){
     {
       //防止延时时间过长，无法切换主题
       int i = album_time*100;
-      while(i-- && theme_index == THEME_ALBUM){
+      while(i-- && tmp_theme_index == THEME_ALBUM){
         //update_http_server();
         update_btn();
         if(app_exit){

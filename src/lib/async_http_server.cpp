@@ -9,10 +9,11 @@
 AsyncWebServer server(80);
 #include "web/html_system.h"
 #include "web/html_image.h"
-#include "web/html_tracker.h"
+#include "web/html_ticker.h"
 #include "web/html_time.h"
 #include "web/html_network.h"
 #include "web/html_weather.h"
+#include "web/html_index.h"
 
 #include "web/js_settings.h"
 #include "web/js_time.h"
@@ -114,7 +115,8 @@ const String listDir(fs::FS &fs, const char * dirname, uint8_t levels) {
                   partlist +=  ("<tr><td>") + String(i) + ("</td><td>") + (("<a href='javascript:void(0);' path='")) + String(file.name()) + (("' onclick='listDir(this);return false;'>")) + st_after_symb + ("</a></td><td> - </td><td>") + (" ") + ("</td></tr>");
             else
                 //if(gif)
-                partlist +=  ("<tr><td>") + String(i) + ("</td><td>") + ("<a href='") + String(dirname) + String("/") + String(file.name()) + ("'>") + st_after_symb + ("</a></td><td>") + String(file.size() / 1024) + ("</td><td>") + ("<input type='button' class='btndel' onclick=\"deletef('") +String(dirname)+String("/")+ String(file.name()) + ("')\" value='Delete'>") + ("</td><td>") + ("<input type='button' class='btndel' onclick=\"setgif('") +String(dirname)+String("/")+ String(file.name()) + ("')\" value='Set'>")+ ("</td></tr>");
+                partlist +=  ("<tr><td>") + String(i) + ("</td><td>") + ("<a href='") + String(dirname) + String("/") + String(file.name()) + ("'>") + st_after_symb + ("</a></td><td>") + String(file.size() / 1024) + ("</td><td>") + ("<input type='button' onclick=\"deletef('") +String(dirname)+String("/")+ String(file.name()) + ("')\" value='X'>") + ("</td><td>") + ("<input type='button' onclick=\"setgif('") +String(dirname)+String("/")+ String(file.name()) + ("')\" value='Set'>")+ ("</td></tr>");
+                //partlist +=  ("<tr><td>") + String(i) + ("</td><td>") + ("<img width=\"64\" height=\"32\" src='") + String(dirname) + String("/") + String(file.name()) + ("'>") + st_after_symb + ("</a></td><td>") + String(file.size() / 1024) + ("</td><td>") + ("<input type='button' class='btndel' onclick=\"deletef('") +String(dirname)+String("/")+ String(file.name()) + ("')\" value='Delete'>") + ("</td><td>") + ("<input type='button' class='btndel' onclick=\"setgif('") +String(dirname)+String("/")+ String(file.name()) + ("')\" value='Set'>")+ ("</td></tr>");
                 //else
                 //partlist +=  F("<tr><td>") + String(i) + F("</td><td>") + F("<a href='") + String(dirname) + String("/") + String(file.name()) + F("'>") + st_after_symb + F("</a></td><td>") + String(file.size() / 1024) + F("</td><td>") + F("<input type='button' class='btndel' onclick=\"deletef('") +String(dirname)+String("/")+ String(file.name()) + F("')\" value='X'>") + F("</td></tr>");
             //filelist = String("<table id='list'><tbody><tr><th>#</th><th>File name</th><th>Size(KB)</th><th></th></tr>") + partlist + String(" </tbody></table>");
@@ -159,7 +161,7 @@ public:
 
   void handleRequest(AsyncWebServerRequest *request) {
 
-    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)system_html, sizeof(system_html)); response->addHeader("Content-Encoding", "gzip"); 
+    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)index_html, sizeof(index_html)); response->addHeader("Content-Encoding", "gzip"); 
     request->send(response);
   }
 };
@@ -212,7 +214,11 @@ String get_wifi_scan(){
             } else {
               array[i]["e"] = 0;
             }
-              array[i]["r"] =(WiFi.RSSI(i));
+            int percentage = map(WiFi.RSSI(i), -99, -35, 1, 100);
+            // 确保百分比在有效范围内（1% 到 100%）
+            percentage = constrain(percentage, 1, 100);
+            array[i]["r"] = (percentage);
+            //array[i]["r"] = String(percentage)+"%";
         } 
       }
       WiFi.scanDelete();
@@ -277,10 +283,11 @@ void deleteFile(fs::FS &fs, const String& path) {
 
 extern String cityName, cityFont, cityCode;
 extern int theme_index;
+extern int tmp_theme_index;
 extern uint16_t h1_color;
 extern uint16_t m1_color;
 extern uint16_t s1_color;
-int force_time_display; //是否强制更新时间显示
+int force_time_display = 0; //是否强制更新时间显示
 extern int album_time;
 extern int autoplay;
 extern String autoplay_path;
@@ -302,6 +309,7 @@ int myfont;
 #include "theme.h"
 #include "display.h"
 extern struct theme_loop theme_loop_list[THEME_TOTAL];
+extern String c_color;
 extern String h_color;
 extern String m_color;
 extern String s_color;
@@ -328,6 +336,7 @@ void handleSet(AsyncWebServerRequest * request){
       set_city_config("", city.c_str(), "");
       wea.cityCode = cityCode;
       wea.update(true);
+      force_time_display = 1;
     }
    //update_weather(true);
   }else if (request->hasArg("rot")) {//rotation screen
@@ -401,8 +410,6 @@ void handleSet(AsyncWebServerRequest * request){
     //set_font_config(myfont);
   }else if (request->hasArg("brt")) {
     brt  = request->arg("brt").toInt();
-    //Serial.printf("brt:[%d]\r\n",brt);
-    //todoifeng analogWrite(5, 250-brt);//200 是比较合适的亮度
     set_screen_brt(brt);
     set_brt_config(brt);
   }else if (request->hasArg("ntp")) {
@@ -433,12 +440,8 @@ void handleSet(AsyncWebServerRequest * request){
     set_hour12_config(hour12);
     force_time_display = 1;
   }else if (request->hasArg("theme")) {
-    int tmp_theme_index = request->arg("theme").toInt();
-    if(tmp_theme_index >= 0 && tmp_theme_index <THEME_TOTAL){
-      theme_index = tmp_theme_index;
-      set_theme_config(theme_index);
-    }
-    //Serial.printf("theme:[%d]\r\n", theme_index);
+    tmp_theme_index = request->arg("theme").toInt();
+    Serial.printf("theme:[%d]\r\n", theme_index);
     //退出相册轮播
     //if(theme_index != THEME_ALBUM) app_exit = 1;
   }else if (request->hasArg("theme_list") && request->hasArg("sw_en")&& request->hasArg("theme_interval")) {
@@ -459,7 +462,7 @@ void handleSet(AsyncWebServerRequest * request){
     //限制下切换频率
     if(loop_interval < 11) loop_interval = 10;
     saveThemeList(theme_list, enable_theme_loop, loop_interval);
-  }else if (request->hasArg("yr") && request->hasArg("mth") & request->hasArg("day")) {
+  }else if (request->hasArg("yr") && request->hasArg("mth") && request->hasArg("day")) {
     user_year = request->arg("yr").toInt();
     user_month = request->arg("mth").toInt();
     user_day = request->arg("day").toInt();
@@ -469,14 +472,15 @@ void handleSet(AsyncWebServerRequest * request){
     day_format = request->arg("day").toInt();
     force_time_display = 1;
     set_day_config(day_format); 
-  }else if (request->hasArg("hc") && request->hasArg("mc") & request->hasArg("sc")) {
+  }else if (request->hasArg("cc") && request->hasArg("hc") && request->hasArg("mc") && request->hasArg("sc")) {
+    c_color = request->urlDecode(request->arg("cc")).substring(1);//#AABBCC -> AABBCC
     h_color = request->urlDecode(request->arg("hc")).substring(1);
     m_color = request->urlDecode(request->arg("mc")).substring(1);
     s_color = request->urlDecode(request->arg("sc")).substring(1);
  
     //Serial.printf("hc:[%X]\r\n",h1_color);
-    set_time_color_config(h_color, m_color, s_color);
-    update_time_colors();
+    set_time_color_config(h_color, m_color, s_color, c_color);
+    //update_time_colors();
     force_time_display = 1;
  }else if (request->hasArg("uid") && request->hasArg("b_i")) {
     //bili_id = request->arg("uid");
@@ -646,7 +650,7 @@ void init_http_server() {
     DBG_PTN(wifi_list);
     //request->send(200, "text/json", wifi_list);
     request->send(200, "application/json", wifi_list);
-    delay(100);
+    //delay(100);
     //再响应网页以后，再触发一次扫描。修复触发扫描时候响应 web 会导致接收不到的问题。20240409 fix
     WiFi.scanNetworks(true);
   });
@@ -677,8 +681,11 @@ void init_http_server() {
 
   server.on("/weather.html",HTTP_GET, [](AsyncWebServerRequest *request){
     AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)weather_html, sizeof(weather_html)); response->addHeader("Content-Encoding", "gzip");response->addHeader("Cache-Control", "public, max-age=3600"); request->send(response); });
-  server.on("/tracker.html",HTTP_GET, [](AsyncWebServerRequest *request){
-    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)tracker_html, sizeof(tracker_html)); response->addHeader("Content-Encoding", "gzip");response->addHeader("Cache-Control", "public, max-age=3600"); request->send(response); });
+  server.on("/ticker.html",HTTP_GET, [](AsyncWebServerRequest *request){
+    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)ticker_html, sizeof(ticker_html)); response->addHeader("Content-Encoding", "gzip");response->addHeader("Cache-Control", "public, max-age=3600"); request->send(response); });
+
+  server.on("/index.html",HTTP_GET, [](AsyncWebServerRequest *request){
+    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", (uint8_t*)index_html, sizeof(index_html)); response->addHeader("Content-Encoding", "gzip");response->addHeader("Cache-Control", "public, max-age=3600"); request->send(response); });
 
   server.on("/js/settings.js",HTTP_GET, [](AsyncWebServerRequest *request){
     AsyncWebServerResponse *response = request->beginResponse_P(200, "application/javascript", (uint8_t*)settings_js, sizeof(settings_js)); response->addHeader("Content-Encoding", "gzip");response->addHeader("Cache-Control", "public, max-age=3600"); request->send(response); });

@@ -9,6 +9,7 @@ char password[65] = "2048@@@@"; // your network key
 #include "lib/btn.h"
 #include "lib/times.h"
 #include "lib/display.h"
+#include "my_debug.h"
 
 //#define NUM_ROWS 1
 //#define NUM_COLS 1
@@ -20,6 +21,7 @@ char password[65] = "2048@@@@"; // your network key
 #include "theme.h"
 #include "lib/web_server.h"
 int theme_index = 0;
+int tmp_theme_index = 0;
 int last_theme_index = -1;
 extern int album_time;
 extern int autodisplay;
@@ -29,7 +31,7 @@ char ap_ssid [] = "GeekMagic";
 
 extern int timeZone;
 extern int minutesTimeZone;
-
+extern int force_time_display;
 void setup() {
   Serial.begin(115200);
 
@@ -46,14 +48,18 @@ void setup() {
   }
   read_wifi_config(ssid, sizeof(ssid), password, sizeof(password)); 
   read_theme_config(&theme_index);
+  tmp_theme_index = theme_index;//解决异步切换主题的问题
   read_hour12_config(&hour12);
   //提取时区
   read_timezone_config(&timeZone, &minutesTimeZone);
 
+  WiFi.scanNetworks(true);
+  delay(500);
   // Set WiFi to station mode and disconnect from an AP if it was Previously
   // connected
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
+  WiFi.setAutoReconnect(true);
  // Display Setup
   //mxconfig.double_buff = true;
   //mdisplay.print("Hello");
@@ -87,10 +93,24 @@ void setup() {
   mdisplay.clearScreen();
   mdisplay.setCursor(0, 10);
   mdisplay.print("Sync");
-  mdisplay.setCursor(24, 10);
+  mdisplay.setCursor(25, 10);
   mdisplay.print("time..");
   init_time();
   //init_ntp();
+}
+unsigned long lastConnectionAttempt = 0;
+const int connectionInterval = 10 * 60 * 1000; // 10分钟，以毫秒为单位
+
+void check_wifi(){
+    unsigned long currentMillis = millis();
+    if(!WiFi.isConnected()) {
+    if (currentMillis - lastConnectionAttempt >= connectionInterval) {
+      // 如果连接间隔超过30分钟，尝试重新连接
+      DBG_PTN("reconnect");
+      WiFi.begin(ssid, password);
+      lastConnectionAttempt = currentMillis;
+    }
+  }
 }
 
 void loop() {
@@ -98,13 +118,14 @@ void loop() {
     //return;
     //virtualDisp->flipDMABuffer();
     //sync_http_time(false);
+    check_wifi();
   #if 1
     sync_time(false);//
   #endif
     update_btn();
     update_http_server();
     auto_adjust_brt();
-    if(last_theme_index != theme_index){
+    if(last_theme_index != theme_index || force_time_display){
         if(last_theme_index >= 0)
             theme_loop_list[last_theme_index].exit();
 
@@ -115,10 +136,18 @@ void loop() {
 
         last_theme_index = theme_index;
         mdisplay.clearScreen();
+        if(force_time_display) force_time_display = 0;
     }
 
     theme_loop_list[theme_index].display();
 
     if(theme_loop_list[theme_index].update != NULL)
       theme_loop_list[theme_index].update(false);
+    if(tmp_theme_index != theme_index) {
+      //说明客户端修改了主题，需要切换。阻塞式改变theme_index的值
+      if(tmp_theme_index >= 0 && tmp_theme_index <THEME_TOTAL){
+        theme_index = tmp_theme_index;
+        set_theme_config(theme_index);
+      }
+    }
 }

@@ -20,9 +20,10 @@
 			</div>
 			<div class="row">				
 				<div class="col-12">
-				<h3>Method 1:Set City Name,Country/Region Name</h3><p>
+				<h3>Set City Name,Country/Region Name</h3><p>
 					Input your city location: <input type="text" name="city1" id="city1" placeholder="Seoul,KR">
-					<p>Location example, Seoul, the capital city of Korea, please input: Seoul,KR</br>
+					<p>Location example, Seoul, the capital city of Korea, please input: Seoul</br>
+					<span style="color: orange;">Time zone is automatically binded to your city location, no need to set along.</span>
 				</div><p>				
 			</div>
 			
@@ -39,10 +40,13 @@
 					<h1 class="header">2. Set internet connect</h1>	
 					<button onclick="scan()" id="apScanStart" class="right button-primary">SCAN</button>					
 					<p class="clear">
-						<span class="red">Tips: </span><span class="bold">Please select strong signal 2.4G WiFi, 5G is not supported.</span>
-						<br />
+						<span class="red">Tips: </span><br>
+						<span class="bold">1. Click the "SCAN" button and wait.<span><p>
+						<span class="bold">2. Please select strong signal 2.4G WiFi, 5G is not supported.</span><p>
+						<span class="bold">3. Input your password and click "SAVE" button.<span><p>
+						<br/>
 						<a id="scanInfo" style="visibility:hidden" class="left labelFix">Scanning...</a>
-						<br />
+						<br/>
 						<span id="selectAllBtns" style="visibility:hidden">
 							<br />
 						</span>						
@@ -57,13 +61,13 @@
 				</div>					
 				<div class="col-12">
 				<button class="button-primary left" onclick="set_wifi('scan')">SAVE</button>				
+				<p><br><span style="color: orange;">Warm reminder: After successfully connecting to the Internet, the "GeekMagic" hotspot will be turned off, and the new IP address will be displayed on the screen when it is turned on. Please connect your phone to the same WIFI, then open a web browser and enter the new IP address to change settings.</span>
 				</div>
-				<p><br><span style="color: orange;">Warm reminder: After successfully connecting to the Internet, the "GIFTV" hotspot will be turned off, and the new IP address will be displayed on the screen when it is turned on. Please connect your phone to the same WIFI, then open a web browser and enter the new IP address to change settings.</span>
 			</div>
 
 			<div class="row">
 				<div class="col-12">
-					<h1 class="header">2. Manual Input</h1>
+					<h1 class="header">2. Manual Input [Optional]</h1>
 					<label for="delay">Useful for hidden WiFi, 2.4G only.</label><p>
 					SSID     :<input type="text" name="ssid" id="ssid" placeholder="1024"><p>
 					PASSWORD :<input type="text" name="pwd" id="pwd" placeholder="password">
@@ -126,12 +130,12 @@
 					  }else{
 						tr += '<td>' + " " + '</td>';
 					  }
-					  var _width = res.aps[i].r + 130;
+					  var _width = res.aps[i].r;
 					  var _color;
-					  if(res.aps[i].r < -80) _color = "meter_red";
-					  else if(res.aps[i].r < -60) _color = "meter_orange";
+					  if(res.aps[i].r < 30) _color = "meter_red";
+					  else if(res.aps[i].r < 60) _color = "meter_orange";
 					  else _color = "meter_green";
-					  tr += '<td><div class="meter_background"> <div class="meter_forground '+_color+'" style="width: '+_width+'%;"><div class="meter_value">' + res.aps[i].r + '</div></div> </div></td>';
+					  tr += '<td><div class="meter_background"> <div class="meter_forground '+_color+'" style="width: '+_width+'%;"><div class="meter_value">' + res.aps[i].r + '%</div></div> </div></td>';
 					  tr += '<td><button class="select" onclick="var ssid= \''+escapeHTML(res.aps[i].ss)+'\';select(ssid);">SELECT</button></td>';
 					  tr += '</tr>';
 					}

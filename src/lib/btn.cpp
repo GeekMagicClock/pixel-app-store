@@ -5,6 +5,7 @@
 #define BTN_PIN 32
 Button2 btn;
 extern int theme_index;
+extern int tmp_theme_index;
 extern int brt;
 int page_index;
 int rgb_off_flag = 0;
@@ -58,6 +59,7 @@ void btn_click(Button2 &btn){
 
     theme_index ++;
     if(theme_index >= THEME_TOTAL) theme_index = 0;
+    tmp_theme_index = theme_index;
     return;
     DBG_PTN("btn click 1");
     if(theme_index == 0) {//翻页时钟模式

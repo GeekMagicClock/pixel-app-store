@@ -13,6 +13,7 @@ Digit digit5(0, 80 - 7 - 11*6, CLOCK_Y, CLOCK_DIGIT_COLOR);
 
 // The Y axis starts at the bottom for the MorphingClock library... :(
 #include "../../lib/display.h"
+extern String c_color;
 extern String h_color;
 extern String m_color;
 extern String s_color;
@@ -42,8 +43,8 @@ void displayClock() {
       digit3.Draw(mm / 10);
       digit4.Draw(hh % 10);
       digit5.Draw(hh / 10);
-      digit1.DrawColon(CLOCK_DIGIT_COLOR);
-      digit3.DrawColon(CLOCK_DIGIT_COLOR);
+      digit1.DrawColon(parseRGBColor(c_color));
+      digit3.DrawColon(parseRGBColor(c_color));
       displayDate();
       clockStartingUp = false;
     }
@@ -102,6 +103,12 @@ void init_morphing(){
   mdisplay.setCursor(8,22);
   mdisplay.print("Clock");
   //delay(2000);
+  digit5 = Digit(0, CLOCK_X,                                                 PANEL_HEIGHT-CLOCK_Y-2*(CLOCK_SEGMENT_HEIGHT)-3, parseRGBColor(h_color));
+  digit4 = Digit(0, CLOCK_X + (CLOCK_SEGMENT_WIDTH+CLOCK_SEGMENT_SPACING),   PANEL_HEIGHT-CLOCK_Y-2*(CLOCK_SEGMENT_HEIGHT)-3, parseRGBColor(h_color));
+  digit3 = Digit(0, CLOCK_X+2*(CLOCK_SEGMENT_WIDTH+CLOCK_SEGMENT_SPACING)+3, PANEL_HEIGHT-CLOCK_Y-2*(CLOCK_SEGMENT_HEIGHT)-3, parseRGBColor(m_color));
+  digit2 = Digit(0, CLOCK_X+3*(CLOCK_SEGMENT_WIDTH+CLOCK_SEGMENT_SPACING)+3, PANEL_HEIGHT-CLOCK_Y-2*(CLOCK_SEGMENT_HEIGHT)-3, parseRGBColor(m_color));
+  digit1 = Digit(0, CLOCK_X+4*(CLOCK_SEGMENT_WIDTH+CLOCK_SEGMENT_SPACING)+6, PANEL_HEIGHT-CLOCK_Y-2*(CLOCK_SEGMENT_HEIGHT)-3, parseRGBColor(s_color));
+  digit0 = Digit(0, CLOCK_X+5*(CLOCK_SEGMENT_WIDTH+CLOCK_SEGMENT_SPACING)+6, PANEL_HEIGHT-CLOCK_Y-2*(CLOCK_SEGMENT_HEIGHT)-3, parseRGBColor(s_color));
 
   int i = 0;
   while(!btn_status() && i<200) {

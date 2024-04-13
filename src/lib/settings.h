@@ -68,8 +68,8 @@ int read_font_config(String *path);
 int read_dst_config(int *i);
 int set_dst_config(int i);
 void update_time_colors();
-int read_time_color_config(String &h, String &m , String &s);
-int set_time_color_config(String h, String m, String s);
+int set_time_color_config(String h, String m, String s,String c);
+int read_time_color_config(String &h, String &m , String &s, String &c);
 
 int read_timezone_config(int *tz, int *mtz);
 int set_timezone_config(int tz, int mtz);

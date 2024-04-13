@@ -1,0 +1,133 @@
+<!Doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=0.8, minimal-ui">
+		<meta name="author" content="GEEKMAGIC">
+		<meta name="theme-color" content="#36393E" />
+		<link rel="stylesheet" href="css/style.css">
+	</head>
+	<body onload = "getData('/.sys/stock.json');getData('/.sys/stk.json');getNav();">
+		<nav id="nav" style="width: 80%;margin: 0 auto;font-size: 25px;text-align: center;">
+		</nav>
+		
+		<div class="container">
+			<div class="row">
+				<div class="col-12">
+					<div id="popup" class="popup"></div>
+					<h1>1. Set Assets Code</h1>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-6">
+					CODE1 <input type="text" id="c0" value="" style="width:120px" /><p>
+					CODE2 <input type="text" id="c1" value="" style="width:120px" /><p>
+					CODE3 <input type="text" id="c2" value="" style="width:120px" /><p>
+					CODE4 <input type="text" id="c3" value="" style="width:120px" /><p>
+					CODE5 <input type="text" id="c4" value="" style="width:120px" /><p>
+					CODE6 <input type="text" id="c5" value="" style="width:120px" /><p>
+					CODE7 <input type="text" id="c6" value="" style="width:120px" /><p>
+					CODE8 <input type="text" id="c7" value="" style="width:120px" /><p>
+					CODE9 <input type="text" id="c8" value="" style="width:120px" /><p>
+					CODE10 <input type="text" id="c9" value="" style="width:120px" /><p>
+				</div>
+				<div class="col-12">
+					<p><label>All assets codes come from finance.yahoo.com, code could be stock symbols, cryptocurrrencies, forex rate etc, if you could find your symbol there, then it is supported.</label><p>
+					Example code:  <p>
+					"BTC-USD": The bitcoin price in USD. <p>
+					"BTC-CAD": The bitcoin price in CAD. <p>
+					"AAPL": The stock symbol of Apple Ltd. <p>
+					"EURUSD=X": The forex rate of EUR to USD.<p>
+					"GC=F": The gold price.
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-12">
+					<div id="error" class="hide"></div>
+					<h1>2. Chart type select </h1>
+				</div>
+			</div>			
+			<div class="row">
+				<div class="col-6">
+					<select id="st_kline" onchange="set_stock_kline()" style="width:100px">
+					  <option value="1m" selected="selected">1 minute</option>
+					  <option value="2m">2 minutes</option>
+					  <option value="5m" >5 minutes</option>
+					  <option value="15m">15 minutes</option>
+					  <option value="30m">30 minutes</option>
+					  <option value="1h">1 hour</option>
+					  <option value="1d">1 day</option>
+					  <option value="5d">5 days</option>
+					  <option value="1wk">1 week</option>
+					  <option value="1mo">1 month</option>
+					</select>
+					<p>By default the device will get the recent 64 points .<P>
+				</div>
+			</div>			
+			<div class="row">
+				<div class="col-12">
+					<h1>3. Update Interval</h1>
+				</div>
+			</div>			
+			<div class="row">
+				<div class="col-6">
+					<input type="" name="stock_interval" id="stock_interval" value="30">s(in seconds)
+				</div>
+			</div>						
+			<div class="row">
+				<div class="col-12">
+					<h1>4. Loop Assets</h1>
+				</div>
+			</div>			
+			<div class="row">
+				<div class="col-6">
+					<span>Enable:</span>
+					<label class="switch">
+						<input type="checkbox" class="switch-input" id="s_loop">
+						<span class="slider round"></span>
+					</label>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-12">
+					<br />
+					<button class="button-primary left" onclick="set_stock()">SAVE</button>
+					<br class="clear" />
+					<p id="saved"></p>
+					<br class="clear" />
+
+					<div id="copyright">
+					</div>
+						
+					<script src="js/settings.js"></script>
+				</div>
+			</div>
+		</div>
+		<script>		
+			function set_stock(){
+				var interval = getE('stock_interval').value;
+				var c0 = getE('c0').value;
+				var c1 = getE('c1').value;
+				var c2 = getE('c2').value;
+				var c3 = getE('c3').value;
+				var c4 = getE('c4').value;
+				var c5 = getE('c5').value;
+				var c6 = getE('c6').value;
+				var c7 = getE('c7').value;
+				var c8 = getE('c8').value;
+				var c9 = getE('c9').value;
+				var loop = 0;
+				var ani = 0;
+				if(getE('s_loop').checked) loop = 1;
+				var url = "/set?c0="+c0.replace(/ /g,"")+"&c1="+c1.replace(/ /g,"")+"&c2="+c2.replace(/ /g,"")+"&c3="+c3.replace(/ /g,"")+"&c4="+c4.replace(/ /g,"")+"&c5="+c5.replace(/ /g,"")+"&c6="+c6.replace(/ /g,"")+"&c7="+c7.replace(/ /g,"")+"&c8="+c8.replace(/ /g,"")+"&c9="+c9.replace(/ /g,"")+"&s_i="+interval.replace(/ /g,"")+"&s_l="+loop+"&s_ani="+ani;
+				console.log(url);
+				send_http(url);				
+			}
+			function set_stock_kline(){
+				var kline = getE('st_kline').value;
+				var url = "/set?st_kline="+kline;
+				send_http(url);
+			}
+		</script>
+	</body>
+</html>

@@ -12,7 +12,7 @@
 		<nav id="nav" style="width: 80%;margin: 0 auto;font-size: 25px;text-align: center;">
 		</nav>		
 		<div class="container">
-			<div class="row">
+			<!--div class="row">
 				<div class="col-12">
 					<div id="popup" class="popup"></div>
 					<h1>1. Time Zone</h1>
@@ -21,11 +21,11 @@
 					<span>Sync time zone from web browser</span><p>
 				<button class="button-primary left" onclick="set_timezone()">Sync</button>
 				</div>
-			</div>
+			</div-->
 			<div class="row">
 				<div class="col-12">
 					<div id="popup" class="popup"></div>
-					<h1>2. Time Number Color</h1>
+					<h1>1. Time Number Color</h1>
 				</div>
 			</div>
 			<div class="row">
@@ -47,6 +47,12 @@
 				<div class="col-9">
 					<input type="color" id="sc" name="sc" value="#FF5900" />
 				</div>				
+				<div class="col-3">
+					<label >Colon：</label>
+				</div>
+				<div class="col-9">
+					<input type="color" id="cc" value="#FF5900" />
+				</div>
 				<div class="col-12">
 				<button class="button-primary left" onclick="set_timecolor()">SAVE</button>
 				</div>	
@@ -54,7 +60,7 @@
 			<div class="row">
 				<div class="col-12">
 					<div id="error" class="hide"></div>
-					<h1>3. 12/24 Hour Format</h1>
+					<h1>2. 12/24 Hour Format</h1>
 				</div>
 			</div>
 			<div class="row">
@@ -69,7 +75,7 @@
 			<div class="row">
 				<div class="col-12">
 					<div id="error" class="hide"></div>
-					<h1>4. Date Format</h1>
+					<h1>3. Date Format</h1>
 				</div>
 			</div>
 			<div class="row">
@@ -87,7 +93,7 @@
 			</div>						
 			<div class="row">
 				<div class="col-12">
-					<h1>5. Ntp Time server</h1>
+					<h1>4. Ntp Time server</h1>
 				</div>
 			</div>
 			<div class="row">
@@ -105,7 +111,7 @@
 			<div class="row">
 				<div class="col-12">
 					<div id="error" class="hide"></div>
-					<h1>6. DST(Daylight Saving Time) enable</h1>
+					<h1>5. DST(Daylight Saving Time) enable</h1>
 				</div>
 				<div class="col-12">
 					<label>Do not enable it unless your time is incorrect!</label><p>
@@ -144,7 +150,7 @@
 				send_http(url);
 			});
 			function set_timezone(){
-				
+
 				var url = "/set?tz="+ele.value;
 				send_http(url);	
 			}
@@ -156,7 +162,8 @@
 				var hc = getE('hc');
 				var mc = getE('mc');
 				var sc = getE('sc');				
-				var url = "/set?hc="+escape(hc.value)+"&mc="+encodeURIComponent(mc.value)+"&sc="+encodeURIComponent(sc.value);
+				var cc = getE('cc');				
+				var url = "/set?cc="+escape(cc.value)+"&hc="+escape(hc.value)+"&mc="+encodeURIComponent(mc.value)+"&sc="+encodeURIComponent(sc.value);
 				console.log(url);
 				send_http(url);				
 			}		

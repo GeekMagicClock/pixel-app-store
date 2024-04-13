@@ -65,13 +65,14 @@ MatrixPanel_I2S_DMA mdisplay(mxconfig);
 #include "settings.h"
 int t1,t2,b1,b2,timer_brt_en;
 int brt = 50;
+String c_color = C_CYAN;//colon color
 String h_color = C_CYAN;
 String m_color = C_CYAN;
 String s_color =  C_CYAN;
 void init_display(){
   read_brt_config(&brt);
   read_timer_brt_config(&timer_brt_en, &t1, &t2, &b2);	
-  read_time_color_config(h_color,m_color,s_color);
+  read_time_color_config(h_color,m_color,s_color,c_color);
 
   mdisplay.begin(mxconfig);
   mdisplay.setBrightness8(50); //0-255

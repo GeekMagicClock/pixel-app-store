@@ -168,7 +168,7 @@ void init_stock(){
     mdisplay.setCursor(12,13);
     mdisplay.println("Market");
     mdisplay.setCursor(12,22);
-    mdisplay.print("Tracker");
+    mdisplay.print("Ticker");
     //delay(2000);
 
     int i = 0;

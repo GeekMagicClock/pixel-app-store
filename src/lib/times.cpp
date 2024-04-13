@@ -163,20 +163,26 @@ int getRemainDays(int iYear1, int iMonth1, int iDay1, int iYear2, int iMonth2, i
 #if 1
 //wifi连接UDP设置参数
 unsigned int localPort = 8000;
-bool udp_time_fail;
+bool udp_time_fail = true;
+bool last_udp_time_fail = true;
+#define UDP_TIME_UPDATE_INTERVAL 300 //5minutes
+
 //time_t sync_http_time();
+void sync_udp_time(){
+  if (last_udp_time_fail != udp_time_fail) {
+    setSyncProvider(getNtpTime);
+    setSyncInterval(UDP_TIME_UPDATE_INTERVAL); 
+  }
+}
+
 void init_time(){
   Udp.begin(localPort);
   //DBG_PTN("等待同步...");
-  setSyncProvider(getNtpTime);
+  //setSyncProvider(getNtpTime);
+  getNtpTime();
   //setSyncProvider(sync_http_time);
   // 5 分钟同步一次
   //setSyncInterval(300);
-  //update_time();
-}
-
-void sync_udp_time(){
-  setSyncProvider(getNtpTime);
   //update_time();
 }
 
@@ -201,6 +207,8 @@ time_t syncNtp(const char *serverName){
       unsigned long secsSince1900;
       //udp同步成功，开启5分钟同步一次时间
       udp_time_fail = false;
+      DBG_PTN("启用 UDP 同步.");
+      //会崩溃 setSyncProvider(getNtpTime);
       setSyncInterval(300);
       // convert four bytes starting at location 40 to a long integer
       secsSince1900 =  (unsigned long)packetBuffer[40] << 24;
@@ -209,9 +217,9 @@ time_t syncNtp(const char *serverName){
       secsSince1900 |= (unsigned long)packetBuffer[43];
       //DBG_PTN(secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR);
       unsigned long tt =  secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR + minutesTimeZone*SECS_PER_MIN;
-      DBG_PTN(tt);
-      DBG_PTN(hour());
       setTime(tt);
+      DBG_PTN(tt);
+      DBG_PTN(hour(now()));
       return tt;
     }
   }
@@ -330,7 +338,6 @@ void sync_http_time(){
 //extern bool udp_time_fail;
 AsyncHTTPRequest req_time;
 
-bool http_update_time_fail = true;
 
 void req_time_cb (void *optParm, AsyncHTTPRequest *request, int readyState) {
   (void) optParm;
@@ -343,7 +350,7 @@ void req_time_cb (void *optParm, AsyncHTTPRequest *request, int readyState) {
       deserializeJson(doc, payload);
       time_t unixtime = doc["unixtime"];
       setTime(unixtime+ SECS_PER_HOUR * timeZone + minutesTimeZone * 60);
-      http_update_time_fail = false;
+      http_time_fail = false;
       //timesynced = true;
     }else{
       DBG_PTN("time code = " + String(code));
@@ -354,7 +361,7 @@ void req_time_cb (void *optParm, AsyncHTTPRequest *request, int readyState) {
 void send_req_time(){
   //DBG_PTN(("rq t"));
   String url = "http://worldtimeapi.org/api/timezone/UTC";
-  //DBG_PTN(url);
+  DBG_PTN(url);
   static bool requestOpenResult;
   if (req_time.readyState() == readyStateUnsent || req_time.readyState() == readyStateDone) {
     //requestOpenResult = request.open("GET", "http://worldtimeapi.org/api/timezone/Europe/London.txt");
@@ -441,6 +448,9 @@ void process_ntp_event(){
 #endif
 
 void sync_time(bool force){
+
+  //sync_udp_time();
+
   if(force){
     if(udp_time_fail == true) 
       sync_http_time(force);

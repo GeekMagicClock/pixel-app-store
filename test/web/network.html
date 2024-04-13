@@ -48,7 +48,6 @@
 					<label for="delay">Useful for hidden WiFi, 2.4G only.</label><p>
 					SSID     :<input type="text" name="ssid" id="ssid" placeholder="1024"><p>
 					PASSWORD :<input type="text" name="pwd" id="pwd" placeholder="password">
-
 				</div>
 				<div class="col-12">
 					<button class="button-primary left" onclick="set_wifi('manual')">SAVE</button>
@@ -107,12 +106,12 @@
 					  }else{
 						tr += '<td>' + " " + '</td>';
 					  }
-					  var _width = res.aps[i].r + 130;
+					  var _width = res.aps[i].r;// + 130;
 					  var _color;
-					  if(res.aps[i].r < -80) _color = "meter_red";
-					  else if(res.aps[i].r < -60) _color = "meter_orange";
+					  if(res.aps[i].r < 30) _color = "meter_red";
+					  else if(res.aps[i].r < 60) _color = "meter_orange";
 					  else _color = "meter_green";
-					  tr += '<td><div class="meter_background"> <div class="meter_forground '+_color+'" style="width: '+_width+'%;"><div class="meter_value">' + res.aps[i].r + '</div></div> </div></td>';
+					  tr += '<td><div class="meter_background"> <div class="meter_forground '+_color+'" style="width: '+_width+'%;"><div class="meter_value">' + res.aps[i].r + '%</div></div> </div></td>';
 					  tr += '<td><button class="select" onclick="var ssid= \''+escapeHTML(res.aps[i].ss)+'\';select(ssid);">SELECT</button></td>';
 					  tr += '</tr>';
 					}

@@ -113,16 +113,9 @@ void fill_candle_data(JsonArray& open_prices, JsonArray& close_prices, JsonArray
     candles[j].close = close_prices[i].as<float>();
     candles[j].high = high_prices[i].as<float>();
     candles[j].low = low_prices[i].as<float>();
-    DBG_PTN(candles[j].open);
+    //DBG_PTN(candles[j].open);
   }
   return;
-  for (int i = 0; i < num_data_points && i < num_candles; i++) {
-    candles[i].open = open_prices[i].as<float>();
-    candles[i].close = close_prices[i].as<float>();
-    candles[i].high = high_prices[i].as<float>();
-    candles[i].low = low_prices[i].as<float>();
-  }
-
 }
 #include "HttpClient.h"
 void get_realtime_price_yahoo(){

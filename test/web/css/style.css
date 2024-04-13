@@ -398,12 +398,12 @@ input{background:#f0f1f1;border:0;padding:0 15px}
 form{background:#2e2e2e;max-width:100%;margin:5px auto;padding:35px; padding-bottom: 30px;border-radius:12px;text-align:center; align-content: center;}
 .btn {background-color: #35382a;box-shadow: 0 0 8px 0 rgba(0, 0, 0, 0.08), 0 0 15px 0 rgba(0, 0, 0, 0.02), 0 0 20px 4px rgba(0, 0, 0, 0.06);color: white;border-radius: 4px;padding: 9px 16px;background-image: none;}
 table,th, td{font-family: arial;border-collapse: collapse;border: 0px solid #dddddd;}
-th, td {padding: 9px; border-bottom-width: 2px;}
+th, td {border-bottom-width: 1px;}
 th:nth-child(1) {text-align: left;}
 td:nth-child(0) {column-width: 30px;text-align: center;}
 td:nth-child(1) {column-width: 5px;text-align: left;white-space: nowrap;overflow: hidden;}
-td:nth-child(2) {column-width: 170px;text-align: center;}
-td:nth-child(3) {column-width: 30px;text-align: center;}
+td:nth-child(2) {column-width: 170px;text-align: left;}
+td:nth-child(3) {column-width: 30px;text-align: left;}
 
 #repo,#model,#copyright{
 	font-size: 0.95em;

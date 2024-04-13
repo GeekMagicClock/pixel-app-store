@@ -18,7 +18,7 @@
 #define GIF_PATH       F("/.sys/gif.json") /* gif文件顺序 */
 #define IMG_PATH       F("/.sys/img.json") /* gif文件顺序 */
 #define THEME_PATH       F("/.sys/app.json") /* 主题*/
-#define TIME_COLOR_PATH       F("/.sys/timecolor2.json") /* 时间数字的颜色 */
+#define TIME_COLOR_PATH       F("/.sys/timecolor.json") /* 时间数字的颜色 */
 #define ALBUM_PATH        F("/.sys/album.json") /* 相册设置 */
 #define STOCK_PATH        F("/.sys/stock.json") /* 股票设置 */
 #define T_BRT_PATH       F("/.sys/timebrt.json") /* 定时亮度 */
@@ -901,7 +901,7 @@ int set_stock_config(const char *code, const char *exchange, int s_i){
 }
 #endif
 
-int read_time_color_config(String &h, String &m , String &s){
+int read_time_color_config(String &h, String &m , String &s, String &c){
   if (LittleFS.exists(TIME_COLOR_PATH)){
     File fp = LittleFS.open(TIME_COLOR_PATH, "r");
     String settings = fp.readString();
@@ -913,17 +913,18 @@ int read_time_color_config(String &h, String &m , String &s){
     h = obj[String("hc")].as<String>();
     m = obj[String("mc")].as<String>();
     s = obj[String("sc")].as<String>();
+    c = obj[String("cc")].as<String>();
     fp.close();
     return 0;
   }  
   return -1;
 }
 
-int set_time_color_config(String h, String m, String s){
+int set_time_color_config(String h, String m, String s,String c){
     //File fp = SPIFFS.open(BRT_PATH, "w");
     File fp = LittleFS.open(TIME_COLOR_PATH, "w");
-    char settings[64] = {0};
-    snprintf(settings, sizeof(settings), "{\"hc\":\"%s\",\"mc\":\"%s\",\"sc\":\"%s\"}", h.c_str(), m.c_str(), s.c_str());
+    char settings[128] = {0};
+    snprintf(settings, sizeof(settings), "{\"hc\":\"%s\",\"mc\":\"%s\",\"sc\":\"%s\",\"cc\":\"%s\"}", h.c_str(), m.c_str(), s.c_str(),c.c_str());
     fp.write((uint8_t *)settings, strlen(settings));
     fp.close();
     return 0;
@@ -1026,7 +1027,6 @@ int loadThemeList(char* themeList, size_t themeListSize, int *en, int *interval)
 //char ssid[64] = {0};
 extern char ssid[32];
 char pwd[65] = {0};
-//todo 初始化所有参数
 char city[16]={0};
 char city_font[4]={0};
 char code[16]={0};
