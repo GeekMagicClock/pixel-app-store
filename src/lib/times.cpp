@@ -169,9 +169,12 @@ bool last_udp_time_fail = true;
 
 //time_t sync_http_time();
 void sync_udp_time(){
+  //udp 同步成功，后续就启用 udp 间隔同步时间
   if (last_udp_time_fail != udp_time_fail) {
+    DBG_PTN("enable UDP update.");
     setSyncProvider(getNtpTime);
     setSyncInterval(UDP_TIME_UPDATE_INTERVAL); 
+    last_udp_time_fail = udp_time_fail;
   }
 }
 
@@ -207,9 +210,9 @@ time_t syncNtp(const char *serverName){
       unsigned long secsSince1900;
       //udp同步成功，开启5分钟同步一次时间
       udp_time_fail = false;
-      DBG_PTN("启用 UDP 同步.");
+      DBG_PTN("UDP 同步成功.");
       //会崩溃 setSyncProvider(getNtpTime);
-      setSyncInterval(300);
+      //setSyncInterval(300);
       // convert four bytes starting at location 40 to a long integer
       secsSince1900 =  (unsigned long)packetBuffer[40] << 24;
       secsSince1900 |= (unsigned long)packetBuffer[41] << 16;
@@ -451,7 +454,7 @@ void sync_time(bool force){
 
   //sync_udp_time();
 
-  if(force){
+  if(!force){
     if(udp_time_fail == true) 
       sync_http_time(force);
     else 
