@@ -79,13 +79,49 @@ void init_display(){
   mdisplay.clearScreen();
 }
 
+int is_in_night_time(){
+  if(!timer_brt_en){
+    return 0;
+  }
+  //处理夜间模式
+  int currentHour = hour();
+  if (t1 <= t2) {
+    // 同一天的情况
+    if (currentHour >= t1 && currentHour < t2) {
+      return 1;
+    } else {
+      return 0;
+    }
+  } else {
+    // 跨天的情况
+    if (currentHour >= t1 || currentHour < t2) {
+      return 1;
+    } else {
+      return 0;
+    }
+  }
+}
+
 void auto_adjust_brt(){
-  if(timer_brt_en ){
-    if(hour() >= t1 || hour() < t2)
-      set_screen_brt(b2);
-    else
-      set_screen_brt(brt);
-  } else{
+  if(!timer_brt_en){
     set_screen_brt(brt);
+    return;
+  }
+  //处理夜间模式
+  int currentHour = hour();
+  if (t1 <= t2) {
+    // 同一天的情况
+    if (currentHour >= t1 && currentHour < t2) {
+      set_screen_brt(b2);
+    } else {
+      set_screen_brt(brt);
+    }
+  } else {
+    // 跨天的情况
+    if (currentHour >= t1 || currentHour < t2) {
+      set_screen_brt(b2);
+    } else {
+      set_screen_brt(brt);
+    }
   }
 }

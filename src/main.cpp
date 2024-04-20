@@ -32,6 +32,8 @@ char ap_ssid [] = "GeekMagic";
 extern int timeZone;
 extern int minutesTimeZone;
 extern int force_time_display;
+static int last_tz = 8;
+static int last_mtz = 0;
 void setup() {
   Serial.begin(115200);
 
@@ -92,9 +94,9 @@ void setup() {
 
   mdisplay.clearScreen();
   mdisplay.setCursor(0, 10);
-  mdisplay.print("Sync");
+  mdisplay.print("SYNC");
   mdisplay.setCursor(25, 10);
-  mdisplay.print("time..");
+  mdisplay.print("TIME..");
   init_time();
   //init_ntp();
 }
@@ -120,7 +122,12 @@ void loop() {
     //sync_http_time(false);
     check_wifi();
   #if 1
-    sync_time(false);//
+    if(last_tz != timeZone || last_mtz != minutesTimeZone){
+      sync_time(true);//
+      last_mtz = minutesTimeZone;
+      last_tz = timeZone;
+    } else
+      sync_time(false);//
   #endif
     update_btn();
     update_http_server();

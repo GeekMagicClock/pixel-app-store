@@ -6,6 +6,7 @@
 #include "../../lib/jpg.h"
 #include "../../lib/gif.h"
 #include "../../lib/btn.h"
+#include "../../lib/display.h"
 #include "my_debug.h"
 #include "theme.h"
 //FS fs = LittleFS;
@@ -13,6 +14,7 @@ int app_exit;
 int album_time = 5;
 int autoplay = 1;
 extern int brt;
+extern int b2;
 extern int tmp_theme_index;
 extern void set_screen_brt(int brt);
 String autoplay_path ="/image/spaceman.gif";
@@ -92,7 +94,12 @@ void display_album(){
       set_screen_brt(0);
       drawJpeg(path, 0 ,0 );
       int i = 0;
-      while(i<brt && tmp_theme_index == THEME_ALBUM){
+      int tmp_brt = brt;
+      if(is_in_night_time()){
+        tmp_brt = b2;
+      }
+
+      while(i<tmp_brt && tmp_theme_index == THEME_ALBUM){
         update_btn();
         set_screen_brt(i++);
         delay(10);
@@ -146,12 +153,14 @@ void init_album(){
 
   mdisplay.clearScreen();
   mdisplay.setTextColor(parseRGBColor(C_LIGHT_ORANGE));
+  mdisplay.setFont();
   mdisplay.setCursor(12,4);
+  //mdisplay.setFont(&pixel3pt7b);
   mdisplay.println("2.");
   mdisplay.setCursor(12,13);
-  mdisplay.println("Image");
+  mdisplay.println("IMAGE");
   mdisplay.setCursor(12,22);
-  mdisplay.print("Display");
+  mdisplay.print("DISPLAY");
   //delay(2000);
   int i = 0;
   while(!btn_status() && i<200) {

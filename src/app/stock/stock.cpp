@@ -117,6 +117,7 @@ void fill_candle_data(JsonArray& open_prices, JsonArray& close_prices, JsonArray
   }
   return;
 }
+#if 0
 #include "HttpClient.h"
 void get_realtime_price_yahoo(){
 //  String url = "https://query1.finance.yahoo.com/v7/finance/quote?symbols="+run_data->stock_id;
@@ -267,11 +268,116 @@ void get_kline_data_yahoo(){
     http.end();
   }
 }
+
+#else
+
+#include "lib/AsyncHTTPRequest_Generic.h"             // https://github.com/khoih-prog/AsyncHTTPRequest_Generic
+AsyncHTTPRequest req_stock;
+
+void req_stock_cb(void *optParm, AsyncHTTPRequest *request, int readyState) {
+  (void) optParm;
+  if (readyState == readyStateDone) {
+    int code = request->responseHTTPcode();
+    if (code == 200) {
+      String payload = request->responseText();
+      //DBG_PTN(payload);
+      JsonDocument doc;
+      auto err = deserializeJson(doc, payload);
+      if (err) {
+        DBG_PTN("deser failed: ");
+        DBG_PTN(err.c_str());
+        return;
+      }
+      
+      int price_pos = payload.indexOf("regularMarketPrice");
+      int price_start = payload.indexOf(":", price_pos) + 1;
+      int price_end = payload.indexOf(",", price_start);
+      String price_str = payload.substring(price_start, price_end);
+
+      int prev_close_pos = payload.indexOf("chartPreviousClose");
+      int prev_close_start = payload.indexOf(":", prev_close_pos) + 1;
+      int prev_close_end = payload.indexOf(",", prev_close_start);
+      String prev_close_str = payload.substring(prev_close_start, prev_close_end);
+
+      float price = price_str.toFloat();
+      float prev_close = prev_close_str.toFloat();
+
+      JsonArray open_prices = doc["chart"]["result"][0]["indicators"]["quote"][0]["open"];
+      JsonArray high_prices = doc["chart"]["result"][0]["indicators"]["quote"][0]["high"];
+      JsonArray low_prices = doc["chart"]["result"][0]["indicators"]["quote"][0]["low"];
+      JsonArray close_prices = doc["chart"]["result"][0]["indicators"]["quote"][0]["close"];
+      // Process and draw the candle data using LVGL here
+      my_stock_t* stock_data = &run_data->stockdata;
+      stock_data->price = price;
+      stock_data->percent = ((price -prev_close) /prev_close * 10);
+      stock_data->percent = roundf(stock_data->percent * 10)/10;
+      //这里有bug，char 太长，解析不出实时价格 20230508 ifeng
+      //stock_data->price= doc['chart']['result'][0]['meta']['regularMarketPrice'];
+      //stock_data->price= doc['chart']['result'][0]['meta']['regular'];
+      //float previous_close_price = doc['chart']['result'][0]['meta']['chartPreviousClose'].as<float>();
+      //float price_change = stock_data->price - previous_close_price;
+      //stock_data->percent = (price_change / previous_close_price) * 100;
+
+      stock_data->kline_updated = 1;
+      fill_candle_data(open_prices, close_prices, high_prices, low_prices, stock_data->candles, CANDLE_NUMS);
+      run_data->err = 0;
+      //timesynced = true;
+    }else{
+      DBG_PTN("time code = " + String(code));
+    }
+  }
+}
+
+void send_req_stock(){
+  //DBG_PTN(("rq t"));
+  String a = run_data->stockdata.kline_interval;
+  DBG_PTN(a);
+  int value = 0;//a.toInt();
+  //String unit = a.substring(a.length()-1);
+  int i = 0;
+  for (i = 0; i < a.length(); i++) {
+    if (isDigit(a.charAt(i))) {
+      value = value*10+(a.charAt(i) - '0');
+    } else {
+      // 遇到非数字字符时退出循环
+      break;
+    }
+  }
+  DBG_PTN("value = "+String(value));
+  String unit = a.substring(i);
+  String range = String(value*CANDLE_NUMS+20)+unit;
+  DBG_PTN(range);
+  //注意下，雅虎也提供了http接口，异步http client 似乎暂不支持https的请求, 20240420
+  String url = "http://query1.finance.yahoo.com/v8/finance/chart/"+run_data->stock_id+"?interval="+a+"&range="+range;
+  DBG_PTN(url);
+  bool requestOpenResult;
+  req_stock.setReqHeader("User-Agent","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36");
+  req_stock.setReqHeader("Connection", "close");
+  //Serial.println(req_stock.headers());
+  if (req_stock.readyState() == readyStateUnsent || req_stock.readyState() == readyStateDone) {
+    requestOpenResult = req_stock.open("GET", url.c_str());
+    if (requestOpenResult) {
+      req_stock.send();
+      //http.setUserAgent(F("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"));
+    } else {
+      DBG_PTN(F("bad request"));
+    }
+  } else {
+    DBG_PTN("rt can't send req");
+  }
+}
+
+void async_http_get_stock() {
+  req_stock.setDebug(true);
+  req_stock.onReadyStateChange(req_stock_cb);
+  send_req_stock();
+}
+#endif
+
 //todo 股票更新逻辑：
 //1. 一支股票固定间隔更新。
 //2. 多只股票间隔更新
 //3. 设置突然改变，立刻更新。
-
 void update_stock(bool force){
     if(run_data == NULL) return;
     if(!force && millis() - run_data->refresh_time_millis < cfg_data.updateInterval*1000 ) return;
@@ -282,7 +388,8 @@ void update_stock(bool force){
       run_data->stockdata.stock_name = run_data->stock_id;
       DBG_PTN(run_data->stock_id);
     }
-    get_kline_data_yahoo();
+    //get_kline_data_yahoo();
+    async_http_get_stock();
     run_data->refresh_time_millis = millis();
     //get_realtime_stock_data();    
     //get_30_days_kline_data();

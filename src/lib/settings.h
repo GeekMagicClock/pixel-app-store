@@ -17,6 +17,9 @@ int set_wifi_config(const char *ssid, const char *pwd);
 int read_city_config(char *city, char ct_len, char *code, char cd_len, char *location, char loc_len);
 int set_city_config(const char *city, const char *code, const char *location);
 
+int read_stock_bg(String *bg);
+int set_stock_bg(String bg);
+
 int set_kline_config(String kline);
 int read_kline_config(String *k);
 

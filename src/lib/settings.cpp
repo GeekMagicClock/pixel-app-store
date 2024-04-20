@@ -21,6 +21,7 @@
 #define TIME_COLOR_PATH       F("/.sys/timecolor.json") /* 时间数字的颜色 */
 #define ALBUM_PATH        F("/.sys/album.json") /* 相册设置 */
 #define STOCK_PATH        F("/.sys/stock.json") /* 股票设置 */
+#define STOCK_BG_PATH        F("/.sys/stock_bg.json") /* 股票设置 */
 #define T_BRT_PATH       F("/.sys/timebrt.json") /* 定时亮度 */
 #define HOUR12_PATH       F("/.sys/hour12.json") /* 定时亮度 */
 #define COLON_PATH       F("/.sys/colon.json") /* 是否开启冒号闪烁 */
@@ -749,7 +750,7 @@ int set_kline_config(String kline){
     File fp = LittleFS.open(KLINE_PATH, "w");
     if(!fp) return 0;
     char settings[32] = {0};
-    snprintf(settings, sizeof(settings), "{\"k\":\"%s\"}", kline);
+    snprintf(settings, sizeof(settings), "{\"k\":\"%s\"}", kline.c_str());
     fp.write((uint8_t*)settings, strlen(settings));
     fp.close();
     return 0;
@@ -792,10 +793,36 @@ int set_stock_kline_config(String kline){
     File fp = LittleFS.open(STOCK_KLINE_PATH, "w");
     if(!fp) return 0;
     char settings[32] = {0};
-    snprintf(settings, sizeof(settings), "{\"st_kline\":\"%s\"}", kline);
+    snprintf(settings, sizeof(settings), "{\"st_kline\":\"%s\"}", kline.c_str());
     fp.write((uint8_t*)settings, strlen(settings));
     fp.close();
     return 0;
+}
+
+int set_stock_bg(String bg){
+    File fp = LittleFS.open(STOCK_BG_PATH, "w");
+    char settings[512] = {0};
+    snprintf(settings, sizeof(settings), "{\"ticker_bg\":\"%s\"}",bg.c_str());
+    fp.write((uint8_t *)settings, strlen(settings));
+    fp.close();
+    return 0;
+}
+
+int read_stock_bg(String *bg){
+  if (LittleFS.exists(STOCK_BG_PATH)){
+    File fp = LittleFS.open(STOCK_BG_PATH, "r");
+    if(!fp) return 0;
+    String settings = fp.readString();
+    DBG_PTN(settings);
+
+    JsonDocument doc;
+    deserializeJson(doc, settings);
+    JsonObject obj = doc.as<JsonObject>();
+
+    *bg = obj[String("ticker_bg")].as<String>();
+    return 0;
+  }
+  return -1;
 }
 
 int set_stock_config(int ani, int loop, int i, const char *c0, const char *c1, const char *c2, const char *c3, const char *c4, const char *c5, const char *c6, const char *c7, const char *c8, const char *c9){

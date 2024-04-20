@@ -1,7 +1,20 @@
 #!/bin/bash
+file2hex="./file_to_hex_array.exe"
+platform=$(uname)
+if [[ "$platform" == "Darwin" ]]; then
+     plat="mac"
+    echo "Mac OS X"
+elif [[ "$platform" =~ "CYGWIN" || "$platform" =~ "MSYS" || "$platform" =~ "MINGW" ]]; then
+     plat="win"
+    file2hex="./file_to_hex_array_win.exe"
+    echo "Windows"
+else
+    echo "Other"
+fi
+
 gzip -9k *.js -f
 # 检查 file_to_hex_array 工具是否存在
-if ! [ -x "$(command -v ./file_to_hex_array)" ]; then
+if ! [ -x "$(command -v $file2hex)" ]; then
   echo 'Error: file_to_hex_array is not executable or not found.' >&2
   exit 1
 fi
@@ -17,7 +30,7 @@ for gz_file in ./*.js.gz; do
   output_file="js_${file_basename}.h"
 
   # 使用 file_to_hex_array 工具进行转换
-  ./file_to_hex_array "$gz_file" "$array_name" "$output_file"
+  $file2hex "$gz_file" "$array_name" "$output_file"
 
   echo "Converted: $gz_file -> $output_file"
 done

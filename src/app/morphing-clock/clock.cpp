@@ -95,13 +95,15 @@ void init_morphing(){
   clockStartingUp = true;
 
   mdisplay.clearScreen();
-  mdisplay.setCursor(8,4);
   mdisplay.setTextColor(parseRGBColor(C_CYAN));
+  mdisplay.setFont();
+  mdisplay.setCursor(8,4);
   mdisplay.println("4.");
   mdisplay.setCursor(8,13);
-  mdisplay.println("Morphing");
+  //mdisplay.println("Morphing");
+  mdisplay.println("MORPHING");
   mdisplay.setCursor(8,22);
-  mdisplay.print("Clock");
+  mdisplay.print("CLOCK");
   //delay(2000);
   digit5 = Digit(0, CLOCK_X,                                                 PANEL_HEIGHT-CLOCK_Y-2*(CLOCK_SEGMENT_HEIGHT)-3, parseRGBColor(h_color));
   digit4 = Digit(0, CLOCK_X + (CLOCK_SEGMENT_WIDTH+CLOCK_SEGMENT_SPACING),   PANEL_HEIGHT-CLOCK_Y-2*(CLOCK_SEGMENT_HEIGHT)-3, parseRGBColor(h_color));

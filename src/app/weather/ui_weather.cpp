@@ -59,13 +59,15 @@ void init_weather(){
     wea.minutesTimeZone = minutesTimeZone;
 
     mdisplay.clearScreen();
+    mdisplay.setFont();
     mdisplay.setCursor(12,4);
     mdisplay.setTextColor(parseRGBColor(C_LIGHT_BLUE));
     mdisplay.println("5.");
     mdisplay.setCursor(12,13);
-    mdisplay.println("Weather");
+    //mdisplay.println("Weather");
+    mdisplay.println("WEATHER");
     mdisplay.setCursor(12,22);
-    mdisplay.print("Clock");
+    mdisplay.print("CLOCK");
     int i = 0;
     while(!btn_status() && i<200) {
       i++;
@@ -76,16 +78,7 @@ void init_weather(){
 #include "../../lib/times.h"
 void update_weather(bool force){
     wea.update(force);
-    //同步天气后，如果时区改变了，需要同步时间
-    if(wea.timeZone != timeZone ||wea.minutesTimeZone != minutesTimeZone ) {
-      DBG_PTN("time zone changed");
-      DBG_PTN(wea.timeZone);
-      DBG_PTN(wea.minutesTimeZone);
-      timeZone = wea.timeZone; 
-      minutesTimeZone = wea.minutesTimeZone;
-      set_timezone_config(timeZone, minutesTimeZone);
-      sync_time(true);
-    }
+
 }
 
 void exit_weather(){
@@ -122,7 +115,7 @@ void display_weather(){
         mdisplay.setFont();
         mdisplay.setCursor(0,12);
         mdisplay.setTextColor(mdisplay.color565(173, 216, 230));
-        mdisplay.print("Updating..");
+        mdisplay.print("UPDATING..");
     }else{
         String weather_gif = "/wea/" + wea.weather_code + ".gif";
         drawGif(weather_gif.c_str(), 0, 0);
@@ -175,7 +168,7 @@ void display_weather(){
           mdisplay.fillRect(0, 24, 64, 8, 0);
           mdisplay.setCursor(0,24);
           mdisplay.setTextColor(parseRGBColor(h_color));
-          if(hour()<12)
+          if(hour(now())<12)
             mdisplay.print("AM");
           else
             mdisplay.print("PM");
@@ -205,7 +198,8 @@ void display_weather(){
           mdisplay.fillRect(0, 24, 64, 8, 0);
           mdisplay.setCursor(8,24);
           mdisplay.setTextColor(parseRGBColor(h_color));
-          mdisplay.print(hour());
+          //mdisplay.print(hour());
+          mdisplay.print(String(hour(now())/10)+String(hour(now())%10));
           mdisplay.print(":");
           //DBG_PTN(hour(now()));
 

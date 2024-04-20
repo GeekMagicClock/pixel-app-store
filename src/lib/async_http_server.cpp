@@ -67,6 +67,48 @@ void notFound(AsyncWebServerRequest *request) {
   }
 }
 
+bool isImageFile(String filename) {
+    filename.toLowerCase();
+    return filename.endsWith(".jpeg") ||filename.endsWith(".jpg") || filename.endsWith(".gif");
+}
+
+const String list_img() {
+    String filelist = "[";
+    File root = LittleFS.open("/image");
+    if (!root || !root.isDirectory()) {
+        return "None";
+    }
+
+    bool firstFile = true;
+    File file = root.openNextFile();
+    while (file) {
+        if (file.isDirectory() || !isImageFile(file.name())) {
+            file = root.openNextFile();
+            continue;
+        }
+        if (!firstFile) {
+            filelist += ",";
+        } else {
+            firstFile = false;
+        }
+        filelist += "{\"s\":\"";
+        filelist += file.name();
+        filelist += "\"}";
+        file = root.openNextFile();
+    }
+    filelist += "]";
+    
+    // 检查 JSON 格式的合法性
+    // 通过尝试解析 JSON 数据来验证其格式是否正确
+    JsonDocument doc;
+    DeserializationError error = deserializeJson(doc, filelist);
+    if (error) {
+        return "Invalid JSON";
+    }
+
+    return filelist;
+}
+
 const String listDir(fs::FS &fs, const char * dirname, uint8_t levels) {
     String filelist = "";
     String partlist;
@@ -318,6 +360,7 @@ extern String temp_unit;
 extern String windspeed_unit;
 extern String pressure_unit;
 extern String weather_key;
+extern String ticker_bg;
 extern int weather_interval;
 int dst_enable;
 int day_format;
@@ -325,7 +368,9 @@ extern Weather wea;
 int rot;
 extern void set_screen_brt(int brt);
 #include "settings.h"
-
+#include "times.h"
+extern int timeZone;
+extern int minutesTimeZone;
 void handleSet(AsyncWebServerRequest * request){
   String message = "OK";
   if (request->hasArg("cd1")){
@@ -337,8 +382,13 @@ void handleSet(AsyncWebServerRequest * request){
       wea.cityCode = cityCode;
       wea.update(true);
       force_time_display = 1;
+      sync_time(true);
     }
    //update_weather(true);
+  }else if (request->hasArg("tz")||request->hasArg("mtz")) {//rotation screen
+    timeZone = request->arg("tz").toInt();
+    minutesTimeZone = request->arg("mtz").toInt();
+    set_timezone_config(timeZone,minutesTimeZone);
   }else if (request->hasArg("rot")) {//rotation screen
     rot = request->arg("rot").toInt();
   }else if (request->hasArg("img")) {
@@ -488,10 +538,13 @@ void handleSet(AsyncWebServerRequest * request){
     //set_bili_config(bili_id.c_str(), request->arg("b_i").toInt());
   }else if(request->hasArg("st_kline")){
     set_stock_kline_config(request->arg("st_kline"));
+  }else if (request->hasArg("ticker_bg")){
+    ticker_bg = "/image/"+request->arg("ticker_bg");
+    set_stock_bg(ticker_bg);
+    DBG_PTN(ticker_bg);
   }else if (request->hasArg("c0") &&request->hasArg("c1") && request->hasArg("c2")&& request->hasArg("c3")&& request->hasArg("c4")&& request->hasArg("c5")&& request->hasArg("c6")&& request->hasArg("c7")&& request->hasArg("c8")&& request->hasArg("c9") && request->hasArg("s_i")&& request->hasArg("s_l")&& request->hasArg("s_ani")) {
     set_stock_config(request->arg("s_ani").toInt(), request->arg("s_l").toInt(),request->arg("s_i").toInt(),request->arg("c0").c_str(),request->arg("c1").c_str(),request->arg("c2").c_str(),request->arg("c3").c_str(),request->arg("c4").c_str(),request->arg("c5").c_str(),request->arg("c6").c_str(),request->arg("c7").c_str(),request->arg("c8").c_str(),request->arg("c9").c_str());
   }else if(request->hasArg("en") && request->hasArg("t2") && request->hasArg("b2") && request->hasArg("t1")){
-
     t1 = request->arg("t1").toInt();
     t2 = request->arg("t2").toInt();
     //b1 = request->arg("b1").toInt();
@@ -523,6 +576,176 @@ const char HTTP_SCRIPT[] PROGMEM          = "<script>function c(l){document.getE
 const char HTTP_HOME[] PROGMEM            = "<form action=\"/\" method=\"get\"><button>首页</button></form><br/>";
 const char HTTP_END[] PROGMEM             = "</div></body></html>";
 const char HTTP_HEADER_END[] PROGMEM        = "</head><body><div style='text-align:left;display:inline-block;min-width:260px;'>";
+static const char serverIndex[] PROGMEM =
+R"(<!DOCTYPE html>
+<html lang='en'>
+<head>
+    <meta charset='utf-8'>
+    <meta name='viewport' content='width=device-width,initial-scale=1'/>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #2e2e2e;
+            color: #fff;
+        }
+        #updateForm {
+            max-width: 400px;
+            margin: auto;
+        }
+        #fileInputContainer {
+            margin-top: 10px;
+            text-align: left;
+        }
+        #chooseButton {
+            padding: 10px;
+            background-color: #3498db;
+            color: #fff;
+            cursor: pointer;
+            border: 1px solid #3498db;
+            border-radius: 5px;
+            display: inline-block;
+        }
+        #selectedFileName {
+            display: inline-block;
+            margin-left: 10px;
+            color: #0ec7f1;
+        }
+        #updateButton {
+            display: none;  
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #2ecc71;
+            color: #fff;
+            cursor: pointer;
+            border: 1px solid #2ecc71;
+            border-radius: 5px;
+            display: inline-block;
+        }
+        #fileInput {
+            display: none;
+        }
+        #progressBarContainer {
+            display: none;
+            margin-top: 10px;
+            background-color: #ddd;
+            border-radius: 10px;
+            padding: 5px;
+        }
+        #progressBar {
+            width: 100%;
+            height: 20px;
+            background-color: #555;
+            position: relative;
+            border-radius: 5px;
+        }
+        #progressBarFill {
+            height: 100%;
+            background-color: #2ecc71;
+            width: 0;
+            transition: width 0.3s ease-in-out;
+            border-radius: 5px;
+        }
+        #percentage {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+        }
+        #statusMessage {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        #updateButton:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div id='updateFormContainer'>
+        <form id='updateForm' method='POST' action='' enctype='multipart/form-data'>
+            <p>
+                Choose the firmware and click 'Update.' Please wait for the upgrade to finish automatically. Avoid clicking again.
+            </p>
+            <div id='fileInputContainer'>
+                <label for='fileInput'>
+                    <div id='chooseButton'>Choose Firmware</div>
+                </label>
+                <input type='file' accept='.bin,.bin.gz' name='firmware' id='fileInput' onchange='handleFileSelect(event)' required>
+                <div id='selectedFileName'></div>
+            </div>
+            <button type='button' style="display: none;" id='updateButton' onclick='handleUpdateClick()'>Update</button>
+            <div id='progressBarContainer'>
+                <div id='progressBar'>
+                    <div id='progressBarFill'></div>
+                    <div id='percentage'>0%</div>
+                </div>
+            </div>
+            <p id='statusMessage'></p>
+        </form>
+    </div>
+    <script>
+        function handleFileSelect(event) {
+            const updateButton = document.getElementById('updateButton');
+            const selectedFileName = document.getElementById('selectedFileName');
+            const fileName = event.target.files[0].name;
+            const fileInput = document.getElementById('fileInput');
+            selectedFileName.textContent = ` ${fileName}`;
+            updateButton.style.display = 'inline-block';
+            const updateForm = document.getElementById('updateForm');
+            const formData = new FormData(updateForm);
+        }
+        function handleUpdateClick() {
+            const updateButton = document.getElementById('updateButton');
+            const fileInput = document.getElementById('fileInput');
+            const progressBarFill = document.getElementById('progressBarFill');
+            const percentage = document.getElementById('percentage');
+            const statusMessage = document.getElementById('statusMessage');
+            const updateForm = document.getElementById('updateForm');
+            const progressBarContainer = document.getElementById('progressBarContainer');
+            updateButton.disabled = true;
+            fileInput.disabled = true;
+            progressBarContainer.style.display = 'block';
+            const formData = new FormData(updateForm);
+            formData.append('firmware', fileInput.files[0]);
+            const xhr = new XMLHttpRequest();
+            let progress = 0;
+            const intervalId = setInterval(function () {
+                progress = (progress + 4);
+                if (progress <= 100) {
+                    progressBarFill.style.width = `${progress}%`;
+                    percentage.textContent = `${Math.round(progress)}%`;
+                } else {
+                    clearInterval(intervalId);
+                }
+            }, 1000);
+            xhr.open('POST', '/update', true);
+            xhr.upload.onprogress = function (event) {
+            };
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState === XMLHttpRequest.DONE) {
+                    if (xhr.status === 200) {
+                        statusMessage.textContent = 'Upload finished successfully.';
+                        progressBarFill.style.width = '100%';
+                        percentage.textContent = `${Math.round(100)}%`;
+                        clearInterval(intervalId);
+                        fileInput.disabled = false;
+                        setTimeout(() => {
+                            location.href = '/';
+                        }, 15000);
+                    } else {
+                        statusMessage.textContent = 'Please check version.';
+                        fileInput.disabled = false;
+                    }
+                }
+            };
+            xhr.send(formData);
+        }
+   </script>
+</body>
+</html>)";
 /** Handle the WLAN save form and redirect to WLAN config page again */
 void handleWifiSave(AsyncWebServerRequest * request) {
     String ss = request->getParam("s")->value();
@@ -571,6 +794,7 @@ void init_http_server() {
     send_version(request);
   });
 
+
   server.on("/set",  HTTP_GET, [] (AsyncWebServerRequest * request) {
         handleSet(request);
   });
@@ -605,7 +829,8 @@ void init_http_server() {
   });
 
   server.on("/update", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(200, "text/html", "Please choose the correct .bin file, and then click \"update\" and wait.<p><form method='POST' action='/update' enctype='multipart/form-data'><input type='file' name='update'><input type='submit' value='Update'></form>");
+    //request->send(200, "text/html", "Please choose the correct .bin file, and then click \"update\" and wait.<p><form method='POST' action='/update' enctype='multipart/form-data'><input type='file' name='update'><input type='submit' value='Update'></form>");
+    request->send(200, "text/html", serverIndex);
   });
 
   server.on("/update", HTTP_POST, [](AsyncWebServerRequest *request){
@@ -653,6 +878,11 @@ void init_http_server() {
     //delay(100);
     //再响应网页以后，再触发一次扫描。修复触发扫描时候响应 web 会导致接收不到的问题。20240409 fix
     WiFi.scanNetworks(true);
+  });
+
+  server.on("/img.json",  HTTP_GET, [] (AsyncWebServerRequest * request) {
+    String img_list = list_img();
+    request->send(200, "application/json", img_list);
   });
 
   server.on("/space.json", HTTP_GET, [](AsyncWebServerRequest *request){

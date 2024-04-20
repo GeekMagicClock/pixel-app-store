@@ -5,9 +5,11 @@
 #define CANDLE_NUMS 64
 
 void init_stock();
+void init_stock2();
 void update_stock(bool force);
 void display_stock();
 void exit_stock();
+void display_stock2();
 
 typedef struct {
   float open;

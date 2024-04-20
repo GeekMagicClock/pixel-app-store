@@ -17,6 +17,8 @@ var scan_ssid = getE('scan_ssid');
 var delay=getE("delay");
 //时间
 var ntp = getE("ntp");
+var tz = getE("timezone");
+var mtz = getE("mtimezone");
 var h = getE("hour12");
 var time_interval = getE("time_interval");
 var hc = getE("hc");
@@ -118,6 +120,8 @@ function getData(data) {
 	if(res.day_fmt) dayfmt.value = res.day_fmt;
 	if(res.dst) dst.checked = true;
 	if(res.font) font.value = res.font;
+	if(res.tz) tz.value = res.tz;
+	if(res.mtz) mtz.value = res.mtz;
 	
 	//天数倒计时
 	if(res.yr) yr.value = res.yr;

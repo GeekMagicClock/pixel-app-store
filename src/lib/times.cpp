@@ -364,6 +364,7 @@ void req_time_cb (void *optParm, AsyncHTTPRequest *request, int readyState) {
 void send_req_time(){
   //DBG_PTN(("rq t"));
   String url = "http://worldtimeapi.org/api/timezone/UTC";
+  //String url = "https://query1.finance.yahoo.com/v8/finance/chart/BTC-EUR?interval=1d&range=84d";
   DBG_PTN(url);
   static bool requestOpenResult;
   if (req_time.readyState() == readyStateUnsent || req_time.readyState() == readyStateDone) {
@@ -461,5 +462,5 @@ void sync_time(bool force){
       sync_udp_time();
   }
   else
-      sync_http_time(false);
+      sync_http_time(force);
 }

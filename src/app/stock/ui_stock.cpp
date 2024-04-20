@@ -154,21 +154,104 @@ void display_stock(){
     drawLineChart(chart_data, CANDLE_NUMS, lineColor, fillColor);
 }
 
+String stock_name;
+String stock_price;
+String ticker_bg = "/image/ezgif-1-7d443236bb.gif";
+String last_ticker_bg = "";
+String last_stock_price = "";
+#include "../../lib/gif.h"
+#include "../../lib/jpg.h"
+#include "../../font/agencyb8pt7b.h"
+
+void display_stock2(){
+    if(run_data->err != 0){
+        //mdisplay.clearScreen();
+        mdisplay.setTextColor(parseRGBColor(C_RED));
+        mdisplay.setCursor(4,8);
+        mdisplay.println("Network");
+        mdisplay.setCursor(4,17);
+        mdisplay.print("Error");
+        return;
+    }
+    stock_name = run_data->stock_id;
+    stock_price = String(run_data->stockdata.price);
+   //1. gif 背景 
+    if(ticker_bg.endsWith(".gif") ||ticker_bg.endsWith(".GIF") ){
+        if(last_ticker_bg != ticker_bg) {
+            gifDeinit();
+            last_ticker_bg = ticker_bg;
+        } 
+        drawGif2(ticker_bg.c_str(), 0, 0); 
+    }
+    
+    if(!run_data->stockdata.kline_updated ) return;
+
+    mdisplay.clearScreen();
+    run_data->stockdata.kline_updated = 0;
+
+    //2. jpg 背景
+    if(ticker_bg.endsWith(".jpg")||ticker_bg.endsWith(".jpeg")||ticker_bg.endsWith(".JPG")||ticker_bg.endsWith(".JPEG")){
+        if(last_ticker_bg == ticker_bg && last_stock_price == stock_price) 
+            return;
+        last_ticker_bg = ticker_bg;
+        last_stock_price = stock_price;
+        drawJpeg(ticker_bg.c_str(), 0, 0);
+        mdisplay.setFont(&agencyb8pt7b);
+        mdisplay.setCursor(5, 11);
+        mdisplay.printf(stock_name.c_str());
+        mdisplay.setCursor(5, 30);
+        mdisplay.printf("%s", stock_price.c_str());
+    }
+
+}
+
 extern void init_stock_config();
 #include "../../lib/display.h"
+#include "../../lib/settings.h"
 #include "../../lib/btn.h"
-#include "../../font/agencyb8pt7b.h"
+//#include "../../font/agencyb8pt7b.h"
 void init_stock(){
+    jpegInit();
     init_stock_config();
+    //read_stock_bg(&ticker_bg);
+    //DBG_PTN(ticker_bg);
+    mdisplay.clearScreen();
+    mdisplay.setTextColor(parseRGBColor(C_GREEN));
+    //mdisplay.setFont(&agencyb8pt7b);
+    mdisplay.setFont();
+    mdisplay.setCursor(12,4);
+    mdisplay.println("1.");
+    mdisplay.setCursor(12,13);
+    //mdisplay.println("Market");
+    mdisplay.println("MARKET");
+    mdisplay.setCursor(12,22);
+    //mdisplay.print("Ticker");
+    mdisplay.print("TICKER I");
+    //delay(2000);
+
+    int i = 0;
+    while(!btn_status() && i<200) {
+      i++;
+      delay(10);
+    }
+}
+void init_stock2(){
+    jpegInit();
+    init_stock_config();
+    read_stock_bg(&ticker_bg);
+    DBG_PTN(ticker_bg);
     mdisplay.clearScreen();
     mdisplay.setTextColor(parseRGBColor(C_GREEN));
     //mdisplay.setFont(&agencyb8pt7b);
     mdisplay.setCursor(12,4);
-    mdisplay.println("1.");
+    mdisplay.setFont();
+    mdisplay.println("2.");
     mdisplay.setCursor(12,13);
-    mdisplay.println("Market");
+    //mdisplay.println("Market");
+    mdisplay.println("MARKET");
     mdisplay.setCursor(12,22);
-    mdisplay.print("Ticker");
+    //mdisplay.print("Ticker");
+    mdisplay.print("TICKER II");
     //delay(2000);
 
     int i = 0;

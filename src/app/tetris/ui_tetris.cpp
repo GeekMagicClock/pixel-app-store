@@ -13,12 +13,15 @@ void init_tetris() {
 
     mdisplay.clearScreen();
     mdisplay.setTextColor(parseRGBColor(C_LIGHT_PURPLE));
+    mdisplay.setFont();
     mdisplay.setCursor(12,4);
     mdisplay.println("3.");
     mdisplay.setCursor(12,13);
-    mdisplay.println("Tetris");
+    //mdisplay.println("Tetris");
+    mdisplay.println("TETRIS");
     mdisplay.setCursor(12,22);
-    mdisplay.print("Clock");
+    //mdisplay.print("Clock");
+    mdisplay.print("CLOCK");
     int i = 0;
     while(!btn_status() && i<200) {
       i++;

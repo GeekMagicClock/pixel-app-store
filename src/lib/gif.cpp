@@ -288,6 +288,104 @@ void GIFDraw(GIFDRAW *pDraw)
     mdisplay->printf("%s",tt.c_str());
     #endif
 } /* GIFDraw() */
+extern String stock_name;
+extern String stock_price;
+#include  "../font/agencyb8pt7b.h"
+void GIFDraw2(GIFDRAW *pDraw)
+{
+    uint8_t *s;
+    uint16_t *d, *usPalette, usTemp[320];
+    int x, y, iWidth;
+
+  iWidth = pDraw->iWidth;
+  if (iWidth > MATRIX_WIDTH)
+      iWidth = MATRIX_WIDTH;
+
+    usPalette = pDraw->pPalette;
+    y = pDraw->iY + pDraw->y; // current line
+    
+    s = pDraw->pPixels;
+    if (pDraw->ucDisposalMethod == 2) // restore to background color
+    {
+      for (x=0; x<iWidth; x++)
+      {
+        if (s[x] == pDraw->ucTransparent)
+           s[x] = pDraw->ucBackground;
+      }
+      pDraw->ucHasTransparency = 0;
+    }
+    // Apply the new pixels to the main image
+    if (pDraw->ucHasTransparency) // if transparency used
+    {
+      uint8_t *pEnd, c, ucTransparent = pDraw->ucTransparent;
+      int x, iCount;
+      pEnd = s + pDraw->iWidth;
+      x = 0;
+      iCount = 0; // count non-transparent pixels
+      while(x < pDraw->iWidth)
+      {
+        c = ucTransparent-1;
+        d = usTemp;
+        while (c != ucTransparent && s < pEnd)
+        {
+          c = *s++;
+          if (c == ucTransparent) // done, stop
+          {
+            s--; // back up to treat it like transparent
+          }
+          else // opaque
+          {
+             *d++ = usPalette[c];
+             iCount++;
+          }
+        } // while looking for opaque pixels
+        if (iCount) // any opaque pixels?
+        {
+          for(int xOffset = 0; xOffset < iCount; xOffset++ ){
+            mdisplay.drawPixel(x + xOffset, y, usTemp[xOffset]); // 565 Color Format
+          }
+          x += iCount;
+          iCount = 0;
+        }
+        // no, look for a run of transparent pixels
+        c = ucTransparent;
+        while (c == ucTransparent && s < pEnd)
+        {
+          c = *s++;
+          if (c == ucTransparent)
+             iCount++;
+          else
+             s--; 
+        }
+        if (iCount)
+        {
+          x += iCount; // skip these
+          iCount = 0;
+        }
+      }
+    }
+    else // does not have transparency
+    {
+      s = pDraw->pPixels;
+      // Translate the 8-bit pixels through the RGB565 palette (already byte reversed)
+      for (x=0; x<pDraw->iWidth; x++)
+      {
+          mdisplay.drawPixel(x, y, usPalette[*s++]); // color 565
+      }
+    }
+     // 绘制文字
+     // 绘制文字背景
+    //String tt = "$" + String(brt)+"000";
+    //mdisplay->fillRect(5, 20, 60, 8, mdisplay->color565(0, 0, 0)); 
+    //mdisplay.setFont(&FreeSansBold8pt7b);
+    mdisplay.setFont(&agencyb8pt7b);
+    //mdisplay->setFont(&FreeSansBold20pt7b);
+   
+    mdisplay.setCursor(5, 11);
+    mdisplay.printf(stock_name.c_str());
+    mdisplay.setCursor(5, 30);
+    mdisplay.printf("%s", stock_price.c_str());
+} /* GIFDraw() */
 
 File f;
 static void * GIFOpenFile(const char *fname, int32_t *pSize)
@@ -361,10 +459,14 @@ static int init_gif = 0;
 static int ShowNextFrame(const char *name){
   long lTime = micros();
   int iFrames = 0;
-  if(gif == NULL) return 0;
+  if(gif == NULL){
+    DBG_PTN("gif == null");
+    return 0;
+  }
   //未初始化gif，停止播放
   if (init_gif == 0){
     
+      DBG_PTN("gif not init");
 #ifdef GIF_POINTER
       gif->close();
 #else
@@ -380,8 +482,9 @@ static int ShowNextFrame(const char *name){
     //mdisplay.startWrite(); // The TFT chip slect is locked low
     //Serial.printf(" tft size = %d x %d\n",mdisplay.width(), mdisplay.height());
 
+    //DBG_PTN("gif play frame");
 #ifdef GIF_POINTER
-    if(gif->playFrame(true, NULL))
+    if(gif->playFrame(true, NULL) == 1)
 #else
     if(gif.playFrame(true, NULL))
 #endif
@@ -400,6 +503,7 @@ static int ShowNextFrame(const char *name){
         init_gif = 0;
         // reopen to play 
         //gif.open(name, GIFOpenFile, GIFCloseFile, GIFReadFile, GIFSeekFile, GIFDraw);
+        Serial.printf("close gif %s\r\n", name);
     }
       
     //mdisplay.endWrite(); // Release TFT chip select for other SPI devices
@@ -417,6 +521,65 @@ void gifDeinit(){
   if(gif != NULL){gif->close(); free(gif); gif = NULL; }
   //if(gif != NULL){gif->close(); delete gif; gif = NULL; }
 #endif
+}
+
+void gifInit2(const char *name){
+  if (init_gif == 1){
+    //DBG_PTN("already gif init");
+    return;
+  } 
+
+#ifdef GIF_POINTER
+#if 0 
+//使用try catch 来捕获new造成的OOM, 但需要开启-fexceptions 编译选项，增加了flash代码内存占用.
+  try {
+    // 尝试分配内存
+    //int* myInt = new int;
+    gif = new AnimatedGIF; 
+  } catch (const std::bad_alloc& e) {
+    // 捕获到内存分配失败的情况
+    Serial.println("oom: " + String(e.what()));
+    // 你可以在这里进行任何必要的错误处理，例如释放资源
+  }
+#else
+#endif
+#if 0
+  if(gif == NULL)
+    gif = new AnimatedGIF; 
+#else
+  if(gif == NULL){
+    gif = static_cast<AnimatedGIF*>(malloc(sizeof(AnimatedGIF)));//明明内存还够，却有内存无法分配的情况。
+    if(gif == NULL){
+      Serial.println("oo");
+      Serial.print(ESP.getFreeHeap());
+      return;
+    }
+  }
+#endif
+  //new (gif) AnimatedGIF();
+#endif
+
+#ifdef GIF_POINTER
+  //gif->begin(GIF_PALETTE_RGB565_BE);
+  gif->begin(LITTLE_ENDIAN_PIXELS);
+#else
+  gif.begin(GIF_PALETTE_RGB565_BE);
+#endif
+
+#ifdef GIF_POINTER
+  int ret = 0;
+  //DBG_PTN("open gif");
+  //DBG_PTN(name);
+  ret = gif->open(name, GIFOpenFile, GIFCloseFile, GIFReadFile, GIFSeekFile, GIFDraw2);
+  if(ret == 0){
+    init_gif = 0;
+    gifDeinit();//释放内存
+    return;
+  }
+#else
+  gif.open(name, GIFOpenFile, GIFCloseFile, GIFReadFile, GIFSeekFile, GIFDraw);
+#endif
+  init_gif = 1;
 }
 
 void gifInit(const char *name){
@@ -495,6 +658,25 @@ int drawGif(const char *filename, int xpos, int ypos){
 
   cur_gif = String(filename);
   gifInit(filename);
+  return ShowNextFrame(filename);
+}
+
+int drawGif2(const char *filename, int xpos, int ypos){
+  //Serial.printf("debug gif draw2\r\n");
+  x_offset = xpos;
+  y_offset = ypos;
+
+  //gif变化后，立刻更新为新的gif播放
+  if(cur_gif != String(filename))  
+    gif_change = 1;
+
+  if(gif_change){
+    gifDeinit();
+    gif_change = 0;
+  }
+
+  cur_gif = String(filename);
+  gifInit2(filename);
   return ShowNextFrame(filename);
 }
 

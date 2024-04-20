@@ -8,6 +8,7 @@ extern MatrixPanel_I2S_DMA mdisplay;
 uint16_t parseRGBColor(String hexColor);
 
 void init_display();
+int is_in_night_time();
 void auto_adjust_brt();
 
 struct ScrollText {
