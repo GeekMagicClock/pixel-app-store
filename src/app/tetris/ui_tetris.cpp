@@ -15,7 +15,7 @@ void init_tetris() {
     mdisplay.setTextColor(parseRGBColor(C_LIGHT_PURPLE));
     mdisplay.setFont();
     mdisplay.setCursor(12,4);
-    mdisplay.println("3.");
+    mdisplay.println("4.");
     mdisplay.setCursor(12,13);
     //mdisplay.println("Tetris");
     mdisplay.println("TETRIS");

@@ -8,10 +8,9 @@
 		<link rel="stylesheet" href="css/style.css">
 		<script src="js/jquery.min.js"></script>
 	</head>
-	<body onload = "getData('/.sys/stock.json');getData('/.sys/stk.json');getNav();loadImg();">
+	<body onload = "getData('/.sys/stock_color.json');getData('/.sys/stock.json');getData('/.sys/stk.json');getNav();loadImg();">
 		<nav id="nav" style="width: 80%;margin: 0 auto;font-size: 25px;text-align: center;">
 		</nav>
-		
 		<div class="container">
 			<div class="row">
 				<div class="col-12">
@@ -45,7 +44,7 @@
 			<div class="row">
 				<div class="col-12">
 					<div id="error" class="hide"></div>
-					<h1>2. Chart type select </h1>
+					<h1>2. Chart Type Select </h1>
 				</div>
 			</div>			
 			<div class="row">
@@ -72,7 +71,8 @@
 			</div>			
 			<div class="row">
 				<div class="col-6">
-					<input type="" name="stock_interval" id="stock_interval" value="30">s(in seconds)
+					Market data updated from internet.<br>
+					<input type="text" name="stock_interval" id="stock_interval" value="30">s(in seconds)
 				</div>
 			</div>						
 			<div class="row">
@@ -91,11 +91,27 @@
 			</div>
 			<div class="row">
 				<div class="col-12">
-					<h1>5. Set Background Image</h1>
+					<h1>5. Set Color</h1>
+				</div>
+			</div>			
+			<div class="row">
+				<div class="col-3">
+				Symbol color: 
+					<input type="color" id="s_c" value="#FFFFFF"/>
+				</div>
+				<div class="col-3">
+				Price color: 
+					<input type="color" id="p_c" value="#FFD700"/>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-12">
+					<h1>6. Set Background Image</h1>
 				</div>
 			</div>			
 			<div class="row">
 				<div class="col-6">
+					Only works for theme "Ticker II".<br>
 					<select id="ticker_bg">
 					</select>
 				</div>
@@ -123,6 +139,18 @@
 					console.log(selectedValue);
 					var url = "/set?ticker_bg="+selectedValue;
 					console.log(url);
+					send_http(url);				
+				});
+				$("#s_c").change(function(){
+					var selectedValue = $(this).val();
+					var p_c = $("#p_c").val();
+					var url = "/set?s_c="+encodeURIComponent(selectedValue) +"&p_c="+encodeURIComponent(p_c);
+					send_http(url);				
+				});
+				$("#p_c").change(function(){
+					var selectedValue = $(this).val();
+					var s_c = $("#s_c").val();
+					var url = "/set?s_c="+encodeURIComponent(s_c)+"&p_c="+encodeURIComponent(selectedValue);
 					send_http(url);				
 				});
 			});

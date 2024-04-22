@@ -98,7 +98,7 @@ void init_morphing(){
   mdisplay.setTextColor(parseRGBColor(C_CYAN));
   mdisplay.setFont();
   mdisplay.setCursor(8,4);
-  mdisplay.println("4.");
+  mdisplay.println("5.");
   mdisplay.setCursor(8,13);
   //mdisplay.println("Morphing");
   mdisplay.println("MORPHING");

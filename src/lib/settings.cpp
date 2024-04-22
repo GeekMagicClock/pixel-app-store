@@ -22,6 +22,7 @@
 #define ALBUM_PATH        F("/.sys/album.json") /* 相册设置 */
 #define STOCK_PATH        F("/.sys/stock.json") /* 股票设置 */
 #define STOCK_BG_PATH        F("/.sys/stock_bg.json") /* 股票设置 */
+#define STOCK_COLOR_PATH        F("/.sys/stock_color.json") /* 股票设置 */
 #define T_BRT_PATH       F("/.sys/timebrt.json") /* 定时亮度 */
 #define HOUR12_PATH       F("/.sys/hour12.json") /* 定时亮度 */
 #define COLON_PATH       F("/.sys/colon.json") /* 是否开启冒号闪烁 */
@@ -49,7 +50,11 @@ void reset_config(){
   LittleFS.remove(THEME_PATH);
   LittleFS.remove(TIME_COLOR_PATH);
   LittleFS.remove(ALBUM_PATH);
+  LittleFS.remove(TZ_PATH);
   LittleFS.remove(STOCK_PATH);
+  LittleFS.remove(STOCK_BG_PATH);
+  LittleFS.remove(STOCK_COLOR_PATH);
+  LittleFS.remove(STOCK_KLINE_PATH);
   LittleFS.remove(T_BRT_PATH);
   LittleFS.remove(HOUR12_PATH);
   LittleFS.remove(THEME_LIST_PATH);
@@ -820,6 +825,33 @@ int read_stock_bg(String *bg){
     JsonObject obj = doc.as<JsonObject>();
 
     *bg = obj[String("ticker_bg")].as<String>();
+    return 0;
+  }
+  return -1;
+}
+
+int set_stock_color(String s_c, String p_c){
+    File fp = LittleFS.open(STOCK_COLOR_PATH, "w");
+    char settings[512] = {0};
+    snprintf(settings, sizeof(settings), "{\"s_c\":\"%s\",\"p_c\":\"%s\"}",s_c.c_str(),p_c.c_str());
+    fp.write((uint8_t *)settings, strlen(settings));
+    fp.close();
+    return 0;
+}
+
+int read_stock_color(String *s_c, String *p_c){
+  if (LittleFS.exists(STOCK_COLOR_PATH)){
+    File fp = LittleFS.open(STOCK_COLOR_PATH, "r");
+    if(!fp) return 0;
+    String settings = fp.readString();
+    DBG_PTN(settings);
+
+    JsonDocument doc;
+    deserializeJson(doc, settings);
+    JsonObject obj = doc.as<JsonObject>();
+
+    *s_c = obj[String("s_c")].as<String>();
+    *p_c = obj[String("p_c")].as<String>();
     return 0;
   }
   return -1;

@@ -156,7 +156,7 @@ void init_album(){
   mdisplay.setFont();
   mdisplay.setCursor(12,4);
   //mdisplay.setFont(&pixel3pt7b);
-  mdisplay.println("2.");
+  mdisplay.println("3.");
   mdisplay.setCursor(12,13);
   mdisplay.println("IMAGE");
   mdisplay.setCursor(12,22);

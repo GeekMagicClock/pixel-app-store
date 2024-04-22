@@ -290,7 +290,10 @@ void GIFDraw(GIFDRAW *pDraw)
 } /* GIFDraw() */
 extern String stock_name;
 extern String stock_price;
+extern String s_c;
+extern String p_c;
 #include  "../font/agencyb8pt7b.h"
+#include "../lib/display.h"
 void GIFDraw2(GIFDRAW *pDraw)
 {
     uint8_t *s;
@@ -378,12 +381,18 @@ void GIFDraw2(GIFDRAW *pDraw)
     //String tt = "$" + String(brt)+"000";
     //mdisplay->fillRect(5, 20, 60, 8, mdisplay->color565(0, 0, 0)); 
     //mdisplay.setFont(&FreeSansBold8pt7b);
-    mdisplay.setFont(&agencyb8pt7b);
-    //mdisplay->setFont(&FreeSansBold20pt7b);
+    //mdisplay.setFont(&agencyb8pt7b);
+    mdisplay.setFont();
    
-    mdisplay.setCursor(5, 11);
-    mdisplay.printf(stock_name.c_str());
-    mdisplay.setCursor(5, 30);
+    mdisplay.setCursor(2, 1);
+    mdisplay.setTextColor(parseRGBColor(s_c));
+
+    String tmp_name = "";
+    tmp_name = stock_name.indexOf('=') != -1 ? stock_name.substring(0, stock_name.indexOf('=')) : stock_name;
+    mdisplay.printf(tmp_name.c_str());
+    mdisplay.setCursor(2, 24);
+    mdisplay.setTextSize(1);
+    mdisplay.setTextColor(parseRGBColor(p_c));
     mdisplay.printf("%s", stock_price.c_str());
 } /* GIFDraw() */
 

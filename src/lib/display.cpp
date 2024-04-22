@@ -39,6 +39,9 @@ void animateText(const String& message, int y) {
 }
 
 uint16_t parseRGBColor(String hexColor) {
+    if(hexColor.charAt(0) == '#'){
+      hexColor = hexColor.substring(1);
+    }
     uint32_t rgb = strtol(hexColor.c_str(), NULL, 16);
     uint8_t r = (rgb >> 16) & 0xFF;
     uint8_t g = (rgb >> 8) & 0xFF;
@@ -54,7 +57,7 @@ void set_screen_brt(int brt){
 #include "TimeLib.h"
 extern int timer_brt_en;
 #define PANEL_RES_X 64      // Number of pixels wide of each INDIVIDUAL panel module. 
-#define PANEL_RES_Y 32     // Number of pixels tall of each INDIVIDUAL panel module.
+#define PANEL_RES_Y 64     // Number of pixels tall of each INDIVIDUAL panel module.
 #define PANEL_CHAIN 1      // Total number of panels chained one to another
 HUB75_I2S_CFG mxconfig(
   PANEL_RES_X,   // module width
@@ -73,7 +76,14 @@ void init_display(){
   read_brt_config(&brt);
   read_timer_brt_config(&timer_brt_en, &t1, &t2, &b2);	
   read_time_color_config(h_color,m_color,s_color,c_color);
-
+  
+  //解决一个bug，消除了红点噪声。出处 https://github.com/mrcodetastic/ESP32-HUB75-MatrixPanel-DMA/issues/145
+  mxconfig.latch_blanking = 2;
+  mxconfig.gpio.e = 18;
+  mxconfig.i2sspeed = HUB75_I2S_CFG::HZ_10M;
+  mxconfig.clkphase = false;
+  mxconfig.min_refresh_rate = 120;
+  mxconfig.driver = HUB75_I2S_CFG::FM6124;
   mdisplay.begin(mxconfig);
   mdisplay.setBrightness8(50); //0-255
   mdisplay.clearScreen();

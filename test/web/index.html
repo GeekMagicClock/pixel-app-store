@@ -23,7 +23,6 @@
 				<h3>Set City Name,Country/Region Name</h3><p>
 					Input your city location: <input type="text" name="city1" id="city1" placeholder="Seoul,KR">
 					<p>Location example, Seoul, the capital city of Korea, please input: Seoul</br>
-					<span style="color: orange;">Time zone is automatically binded to your city location, no need to set along.</span>
 				</div><p>				
 			</div>
 			
@@ -153,7 +152,9 @@
 					pwd = getE('pwd').value;
 				}
 				var url = "/wifisave?s="+encodeURIComponent(ssid)+"&p="+encodeURIComponent(pwd);
-				send_http(url);				
+				getResponse(url, function(responseText) {
+						showPopup("WiFi info Saved! Device will reboot to connect.", 1000, "#02a601");
+				});
 			}
 			function select(ssid) {
 				scan_ssid.value = ''+(ssid)+'';

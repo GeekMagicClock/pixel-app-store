@@ -323,6 +323,7 @@ void req_stock_cb(void *optParm, AsyncHTTPRequest *request, int readyState) {
       run_data->err = 0;
       //timesynced = true;
     }else{
+      run_data->err = code;
       DBG_PTN("time code = " + String(code));
     }
   }
@@ -364,6 +365,7 @@ void send_req_stock(){
     }
   } else {
     DBG_PTN("rt can't send req");
+    req_stock.abort();
   }
 }
 

@@ -59,19 +59,26 @@ void setup() {
   delay(500);
   // Set WiFi to station mode and disconnect from an AP if it was Previously
   // connected
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-  WiFi.setAutoReconnect(true);
  // Display Setup
   //mxconfig.double_buff = true;
   //mdisplay.print("Hello");
   //delay(1000);
   init_display();
 
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  WiFi.setAutoReconnect(true);
   //virtualDisp = new VirtualMatrixPanel(mdisplay, NUM_ROWS, NUM_COLS, PANEL_RES_X, PANEL_RES_Y);
   unsigned long timeout = millis();
-  while (WiFi.status() != WL_CONNECTED && (millis()-timeout) < 15*1000) {
-    drawGif("/image/w.gif",0,0); 
+  while ((millis()-timeout) < 15*1000) {
+    if((millis()-timeout) < 2.5*1000)
+     drawGif("/w.gif",0,0); 
+    else if(WiFi.status() != WL_CONNECTED){
+     drawGif("/w.gif",0,0); 
+    }else if(WiFi.status() == WL_CONNECTED) {
+      break;
+    }
+
     Serial.print(".");
     //delay(500);
   }
@@ -79,7 +86,7 @@ void setup() {
   if(WiFi.status() != WL_CONNECTED){
     mdisplay.clearScreen();
     mdisplay.setCursor(0, 4);
-    mdisplay.print("WiFi start");
+    mdisplay.println("AP Start:");
     mdisplay.print("GeekMagic");
     startPortal(ap_ssid, "");
   }
@@ -101,13 +108,13 @@ void setup() {
   //init_ntp();
 }
 unsigned long lastConnectionAttempt = 0;
-const int connectionInterval = 10 * 60 * 1000; // 10分钟，以毫秒为单位
+const int connectionInterval = 5 * 60 * 1000; // 5分钟，以毫秒为单位
 
 void check_wifi(){
     unsigned long currentMillis = millis();
     if(!WiFi.isConnected()) {
     if (currentMillis - lastConnectionAttempt >= connectionInterval) {
-      // 如果连接间隔超过30分钟，尝试重新连接
+      // 如果连接间隔超过5分钟，尝试重新连接
       DBG_PTN("reconnect");
       WiFi.begin(ssid, password);
       lastConnectionAttempt = currentMillis;

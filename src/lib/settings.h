@@ -17,6 +17,9 @@ int set_wifi_config(const char *ssid, const char *pwd);
 int read_city_config(char *city, char ct_len, char *code, char cd_len, char *location, char loc_len);
 int set_city_config(const char *city, const char *code, const char *location);
 
+int set_stock_color(String s_c, String p_c);
+int read_stock_color(String *s_c, String *p_c);
+
 int read_stock_bg(String *bg);
 int set_stock_bg(String bg);
 

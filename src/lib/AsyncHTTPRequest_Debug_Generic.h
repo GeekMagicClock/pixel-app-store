@@ -59,7 +59,7 @@
 // 4: DEBUG: errors, warnings, informational and debug
 
 #ifndef _ASYNC_HTTP_LOGLEVEL_
-  #define _ASYNC_HTTP_LOGLEVEL_       4
+  #define _ASYNC_HTTP_LOGLEVEL_       0
 #endif
 
 /////////////////////////////////////////////////////////

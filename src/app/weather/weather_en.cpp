@@ -125,7 +125,6 @@ void Weather::send_request() {
     else
         url = ("http://api.openweathermap.org:80/data/2.5/weather?q=") + cityCode + ("&appid=") + key + ("&units=metric") + ("&lang=en");
     DBG_PTN(url);
-    DBG_PTN(url);
     static bool requestOpenResult;
     if (requestPtr->readyState() == readyStateUnsent || requestPtr->readyState() == readyStateDone) {
         requestOpenResult = requestPtr->open("GET", url.c_str());

@@ -70,10 +70,13 @@ float processPrice(float price) {
     }
 }
 
+String s_c = "#FFFFFF";//symbol color
+String p_c = "#FFD700";//price color
 #include "Fonts/FreeMono9pt7b.h"
 void display_stock(){
     if(run_data->err != 0){
         //mdisplay.clearScreen();
+        mdisplay.setFont();
         mdisplay.setTextColor(parseRGBColor(C_RED));
         mdisplay.setCursor(4,8);
         mdisplay.println("Network");
@@ -117,10 +120,11 @@ void display_stock(){
     #endif
 
     //mdisplay.print(data->stock_name);
+    mdisplay.setTextColor(parseRGBColor(s_c));
     mdisplay.print(tmp_name);
     
     mdisplay.setCursor(53,0);
-    mdisplay.setTextColor(parseRGBColor(C_GOLD));
+    mdisplay.setTextColor(parseRGBColor(p_c));
     mdisplay.print(data->kline_interval);
 
     mdisplay.setCursor(0,8);
@@ -163,9 +167,11 @@ String last_stock_price = "";
 #include "../../lib/jpg.h"
 #include "../../font/agencyb8pt7b.h"
 
+
 void display_stock2(){
     if(run_data->err != 0){
         //mdisplay.clearScreen();
+        mdisplay.setFont();
         mdisplay.setTextColor(parseRGBColor(C_RED));
         mdisplay.setCursor(4,8);
         mdisplay.println("Network");
@@ -213,18 +219,18 @@ extern void init_stock_config();
 void init_stock(){
     jpegInit();
     init_stock_config();
-    //read_stock_bg(&ticker_bg);
+    read_stock_color(&s_c,&p_c);
     //DBG_PTN(ticker_bg);
     mdisplay.clearScreen();
     mdisplay.setTextColor(parseRGBColor(C_GREEN));
     //mdisplay.setFont(&agencyb8pt7b);
     mdisplay.setFont();
-    mdisplay.setCursor(12,4);
+    mdisplay.setCursor(10,4);
     mdisplay.println("1.");
-    mdisplay.setCursor(12,13);
+    mdisplay.setCursor(10,13);
     //mdisplay.println("Market");
     mdisplay.println("MARKET");
-    mdisplay.setCursor(12,22);
+    mdisplay.setCursor(10,22);
     //mdisplay.print("Ticker");
     mdisplay.print("TICKER I");
     //delay(2000);
@@ -239,17 +245,18 @@ void init_stock2(){
     jpegInit();
     init_stock_config();
     read_stock_bg(&ticker_bg);
+    read_stock_color(&s_c,&p_c);
     DBG_PTN(ticker_bg);
     mdisplay.clearScreen();
     mdisplay.setTextColor(parseRGBColor(C_GREEN));
     //mdisplay.setFont(&agencyb8pt7b);
-    mdisplay.setCursor(12,4);
+    mdisplay.setCursor(8,4);
     mdisplay.setFont();
     mdisplay.println("2.");
-    mdisplay.setCursor(12,13);
+    mdisplay.setCursor(8,13);
     //mdisplay.println("Market");
     mdisplay.println("MARKET");
-    mdisplay.setCursor(12,22);
+    mdisplay.setCursor(8,22);
     //mdisplay.print("Ticker");
     mdisplay.print("TICKER II");
     //delay(2000);

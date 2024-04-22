@@ -371,6 +371,8 @@ extern void set_screen_brt(int brt);
 #include "times.h"
 extern int timeZone;
 extern int minutesTimeZone;
+extern String s_c;
+extern String p_c;
 void handleSet(AsyncWebServerRequest * request){
   String message = "OK";
   if (request->hasArg("cd1")){
@@ -413,6 +415,12 @@ void handleSet(AsyncWebServerRequest * request){
     //gifDeinit();    
     //gifChange();
     set_gif_config(gif_path);
+   }else if (request->hasArg("s_c") && request->hasArg("p_c")) {
+    s_c = request->urlDecode(request->arg("s_c"));
+    p_c = request->urlDecode(request->arg("p_c"));
+    DBG_PTN(s_c);
+    DBG_PTN(p_c);
+    set_stock_color(s_c, p_c);
    }else if (request->hasArg("w_u")&&request->hasArg("t_u")&&request->hasArg("p_u")) {
     windspeed_unit = request->arg("w_u");
     temp_unit = request->arg("t_u");
@@ -474,6 +482,8 @@ void handleSet(AsyncWebServerRequest * request){
     }
  }else if (request->hasArg("delay")) {
     delay_wifi_time  = request->arg("delay").toInt();
+    if(delay_wifi_time > 300) delay_wifi_time = 300;//仿呆操作
+    if(delay_wifi_time < 0) delay_wifi_time = 0;
     //Serial.printf("delay_wifi:[%d]\r\n", delay_wifi_time);
     set_delay_config(delay_wifi_time);
   }else if (request->hasArg("reset")) {
@@ -523,10 +533,10 @@ void handleSet(AsyncWebServerRequest * request){
     force_time_display = 1;
     set_day_config(day_format); 
   }else if (request->hasArg("cc") && request->hasArg("hc") && request->hasArg("mc") && request->hasArg("sc")) {
-    c_color = request->urlDecode(request->arg("cc")).substring(1);//#AABBCC -> AABBCC
-    h_color = request->urlDecode(request->arg("hc")).substring(1);
-    m_color = request->urlDecode(request->arg("mc")).substring(1);
-    s_color = request->urlDecode(request->arg("sc")).substring(1);
+    c_color = request->urlDecode(request->arg("cc"));//#AABBCC -> AABBCC
+    h_color = request->urlDecode(request->arg("hc"));
+    m_color = request->urlDecode(request->arg("mc"));
+    s_color = request->urlDecode(request->arg("sc"));
  
     //Serial.printf("hc:[%X]\r\n",h1_color);
     set_time_color_config(h_color, m_color, s_color, c_color);

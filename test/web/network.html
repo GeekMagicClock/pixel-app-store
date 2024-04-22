@@ -134,7 +134,9 @@
 					pwd = getE('pwd').value;
 				}
 				var url = "/wifisave?s="+encodeURIComponent(ssid)+"&p="+encodeURIComponent(pwd);
-				send_http(url);				
+				getResponse(url, function(responseText) {
+						showPopup("Saved! Device will reboot to connect.", 1000, "#02a601");
+				});
 			}
 			function select(ssid) {
 				scan_ssid.value = ''+(ssid)+'';
