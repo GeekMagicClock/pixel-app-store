@@ -57,7 +57,7 @@ void set_screen_brt(int brt){
 #include "TimeLib.h"
 extern int timer_brt_en;
 #define PANEL_RES_X 64      // Number of pixels wide of each INDIVIDUAL panel module. 
-#define PANEL_RES_Y 64     // Number of pixels tall of each INDIVIDUAL panel module.
+#define PANEL_RES_Y 32     // Number of pixels tall of each INDIVIDUAL panel module.
 #define PANEL_CHAIN 1      // Total number of panels chained one to another
 HUB75_I2S_CFG mxconfig(
   PANEL_RES_X,   // module width
@@ -72,6 +72,9 @@ String c_color = C_CYAN;//colon color
 String h_color = C_CYAN;
 String m_color = C_CYAN;
 String s_color =  C_CYAN;
+#define PANEL_TYPE 0
+#define P64X32 0
+#define P64X64 1
 void init_display(){
   read_brt_config(&brt);
   read_timer_brt_config(&timer_brt_en, &t1, &t2, &b2);	
@@ -79,13 +82,18 @@ void init_display(){
   
   //解决一个bug，消除了红点噪声。出处 https://github.com/mrcodetastic/ESP32-HUB75-MatrixPanel-DMA/issues/145
   mxconfig.latch_blanking = 2;
-  mxconfig.gpio.e = 18;
-  mxconfig.i2sspeed = HUB75_I2S_CFG::HZ_10M;
+  mxconfig.i2sspeed = HUB75_I2S_CFG::HZ_20M;
   mxconfig.clkphase = false;
   mxconfig.min_refresh_rate = 120;
-  mxconfig.driver = HUB75_I2S_CFG::FM6124;
+
+  if(PANEL_TYPE == P64X64) {
+    mxconfig.mx_width = 64;
+    mxconfig.mx_height = 64;
+    mxconfig.gpio.e = 18;//64x64 必须配置E line
+    mxconfig.driver = HUB75_I2S_CFG::FM6124;
+  }
   mdisplay.begin(mxconfig);
-  mdisplay.setBrightness8(50); //0-255
+  mdisplay.setBrightness8(80); //0-255
   mdisplay.clearScreen();
 }
 

@@ -202,10 +202,10 @@ void display_stock2(){
         last_ticker_bg = ticker_bg;
         last_stock_price = stock_price;
         drawJpeg(ticker_bg.c_str(), 0, 0);
-        mdisplay.setFont(&agencyb8pt7b);
-        mdisplay.setCursor(5, 11);
+        //mdisplay.setFont(&agencyb8pt7b);
+        mdisplay.setCursor(5, 1);
         mdisplay.printf(stock_name.c_str());
-        mdisplay.setCursor(5, 30);
+        mdisplay.setCursor(5, 24);
         mdisplay.printf("%s", stock_price.c_str());
     }
 

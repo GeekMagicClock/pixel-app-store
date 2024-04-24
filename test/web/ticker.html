@@ -179,9 +179,9 @@
 				var c9 = getE('c9').value;
 				var loop = 0;
 				var ani = 0;
-				var bg = getE('ticker_bg').value;
+				//var bg = getE('ticker_bg').value;
 				if(getE('s_loop').checked) loop = 1;
-				var url = "/set?ticker_bg="+bg+"&c0="+c0.replace(/ /g,"")+"&c1="+c1.replace(/ /g,"")+"&c2="+c2.replace(/ /g,"")+"&c3="+c3.replace(/ /g,"")+"&c4="+c4.replace(/ /g,"")+"&c5="+c5.replace(/ /g,"")+"&c6="+c6.replace(/ /g,"")+"&c7="+c7.replace(/ /g,"")+"&c8="+c8.replace(/ /g,"")+"&c9="+c9.replace(/ /g,"")+"&s_i="+interval.replace(/ /g,"")+"&s_l="+loop+"&s_ani="+ani;
+				var url = "/set?c0="+c0.replace(/ /g,"")+"&c1="+c1.replace(/ /g,"")+"&c2="+c2.replace(/ /g,"")+"&c3="+c3.replace(/ /g,"")+"&c4="+c4.replace(/ /g,"")+"&c5="+c5.replace(/ /g,"")+"&c6="+c6.replace(/ /g,"")+"&c7="+c7.replace(/ /g,"")+"&c8="+c8.replace(/ /g,"")+"&c9="+c9.replace(/ /g,"")+"&s_i="+interval.replace(/ /g,"")+"&s_l="+loop+"&s_ani="+ani;
 				console.log(url);
 				send_http(url);				
 			}

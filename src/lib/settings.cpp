@@ -777,6 +777,7 @@ int read_kline_config(String *k){
   }
   return -1;
 }
+
 int read_stock_kline_config(String *k){
   if (LittleFS.exists(STOCK_KLINE_PATH)){
     File fp = LittleFS.open(STOCK_KLINE_PATH, "r");
