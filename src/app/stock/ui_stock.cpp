@@ -95,7 +95,7 @@ void display_stock(){
     float chart_data[CANDLE_NUMS];
     for (size_t i = 0; i < CANDLE_NUMS; i++) {
         //chart_data[i] = data->candles[CANDLE_NUMS-1 - i].open;//注意，蜡烛顺序要反一下, 旧的数据先绘制
-        chart_data[i] = data->candles[i].open;//注意，蜡烛顺序要反一下, 旧的数据先绘制
+        chart_data[i] = data->candles[i].close;//注意，蜡烛顺序要反一下, 旧的数据先绘制//注意是close的数据
         Serial.print(chart_data[i]);
         Serial.print(" ");
     }
