@@ -82,9 +82,9 @@ void init_display(){
   
   //解决一个bug，消除了红点噪声。出处 https://github.com/mrcodetastic/ESP32-HUB75-MatrixPanel-DMA/issues/145
   mxconfig.latch_blanking = 2;
-  mxconfig.i2sspeed = HUB75_I2S_CFG::HZ_20M;
+  mxconfig.i2sspeed = HUB75_I2S_CFG::HZ_10M;
   mxconfig.clkphase = false;
-  mxconfig.min_refresh_rate = 120;
+  mxconfig.min_refresh_rate = 100;
 
   if(PANEL_TYPE == P64X64) {
     mxconfig.mx_width = 64;
@@ -141,5 +141,34 @@ void auto_adjust_brt(){
     } else {
       set_screen_brt(brt);
     }
+  }
+}
+static int last_status = 0;
+void display_update(int status){
+  if(last_status == status) return;
+  last_status = status;
+  if(status == 1){
+    mdisplay.clearScreen();
+    mdisplay.setTextColor(parseRGBColor(C_CYAN));
+    mdisplay.setCursor(0, 8);
+    mdisplay.println("FIRMWARE");
+    mdisplay.setCursor(0, 17);
+    mdisplay.print("UPDATING..");
+  }else if(status == -1){
+    mdisplay.clearScreen();
+    mdisplay.setTextColor(parseRGBColor(C_RED));
+    mdisplay.setCursor(0, 0);
+    mdisplay.println("UPDATE ERR");
+    mdisplay.setCursor(0, 9);
+    mdisplay.println("RETRY");
+    mdisplay.setCursor(0, 18);
+    mdisplay.println("PLEASE");
+  }else if(status == 2){
+    mdisplay.clearScreen();
+    mdisplay.setTextColor(parseRGBColor(C_GREEN));
+    mdisplay.setCursor(0, 8);
+    mdisplay.println("UPDATE");
+    mdisplay.setCursor(0, 17);
+    mdisplay.print("SUCCESS!");
   }
 }

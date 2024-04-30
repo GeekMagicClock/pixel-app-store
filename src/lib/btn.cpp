@@ -1,5 +1,6 @@
 #include "Button2.h"
 #include "my_debug.h"
+#include "settings.h"
 #include "../theme.h"
 
 #define BTN_PIN 32
@@ -43,39 +44,33 @@ void btn_3_click(Button2 &btn){
 }
 
 void btn_double_click(Button2 &btn){
-    if(rgb_off_flag == 1 )//亮屏
+    if(rgb_off_flag == 1 ){
       set_screen_brt(brt);
-
+      rgb_off_flag = 0;
+      return;
+    }
     DBG_PTN("btn click 2");
-    theme_index ++;
-    if(theme_index >= THEME_TOTAL) theme_index = 0;
+    tmp_theme_index --;
+    if(tmp_theme_index < 0) tmp_theme_index = THEME_TOTAL -1;
+    //tmp_theme_index = theme_index;
+    //set_theme_config(theme_index);
+    return;
     //set_theme_config(theme_index);
 }
 
 //void btn_click(){
 void btn_click(Button2 &btn){
-    if(rgb_off_flag == 1 )//亮屏
+    if(rgb_off_flag == 1 ){
       set_screen_brt(brt);
+      rgb_off_flag = 0;
+      return;
+    }
 
-    theme_index ++;
-    if(theme_index >= THEME_TOTAL) theme_index = 0;
-    tmp_theme_index = theme_index;
+    tmp_theme_index ++;
+    if(tmp_theme_index >= THEME_TOTAL) tmp_theme_index = 0;
+    //tmp_theme_index = theme_index;
+    //set_theme_config(theme_index);
     return;
-    DBG_PTN("btn click 1");
-    if(theme_index == 0) {//翻页时钟模式
-    }
-
-    if(theme_index == 1) {//图片时间模式
-      page_index ++;
-      if(page_index >= 23) page_index = 1;
-      DBG_PTN(page_index);
-    }
-
-    if(theme_index == 2){//字体时间模式
-      page_index ++;
-      if(page_index >= 14) page_index = 1;
-    }
-
     //set_page_index_config(page_index);
 }
 

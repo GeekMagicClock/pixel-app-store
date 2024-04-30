@@ -111,5 +111,5 @@ struct ScrollText {
 #define C_INDIGO "4B0082"
 
 void animateText(const String& message, int y);
-
+void display_update(int);
 #endif

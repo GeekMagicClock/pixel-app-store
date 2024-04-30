@@ -1,0 +1,334 @@
+<!Doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=0.8, minimal-ui">
+		<meta name="author" content="GEEKMAGIC">
+		<meta name="theme-color" content="#36393E" />
+		<style>		
+		</style>
+		<link rel="stylesheet" href="css/style.css">
+		<link rel="stylesheet" href="css/cropper.min.css">
+		<script src="js/cropper.min.js"></script>
+		<script src="js/jquery.min.js"></script>  				
+	</head>
+	<body onload = "refreshPwd();getData('/.sys/album.json');getNav();">
+		<nav id="nav" style="width: 80%;margin: 0 auto;font-size: 25px;text-align: center;">
+		</nav>
+		<div class="container">
+			<div class="row">
+				<div class="col-12">
+					<div id="popup" class="popup"></div>
+					<h1>1. Loop display</h1>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-12">
+					<span>Enable:</span>
+					<label class="switch">
+						<input type="checkbox" class="switch-input" id="autoplay">
+						<span class="slider round"></span>
+					</label>
+				</div>
+				<div class="col-6">
+					<label for="hour12">Image loop display interval:</label>
+				</div>
+				<div class="col-6">
+					<input type="text" name="image_interval" id="image_interval" value="30">s(seconds)
+				</div>
+			</div>				
+			<div class="row">
+
+				<div class="col-12">
+					<button class="button-primary left" onclick="set_image()">SAVE</button>
+				</div>
+			</div>		
+			<div class="row">
+				<div class="col-12">
+					<div id="error" class="hide"></div>
+					<h1>2. Picture management</h1>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-12">
+					<div id="error" class="hide"></div>
+					<form method="POST" action="/filesystem" enctype="multipart/form-data" id="upload_form">
+					  <div class="model cut-img-model" style="display: none;">
+						<div class="model-content" style="width: 350px;height: 400px;margin: 0px auto;">
+						  <div class="cut-img-box">
+							<img id="image" height="auto" width="100%">
+						  </div>
+						  <p class="instructions">Please crop and resize to 64x64px</p>
+						  <div class=" btn-container" style="width: 240px;margin: 0px auto;">
+							<div id="cancel" style="width: 40px;float:left;" class = "btn">CANCEL</div>
+							<div id="rotate" style="width: 40px;float:left;margin-left:10px;" class = "btn">ROTATE</div>
+							<div id="crop" style="width: 40px;float:left;margin-left:10px;" class = "btn">SAVE</div>
+						  </div>
+						</div>
+					  </div>
+					  <span>1. Please check free space before uploading.</span><p>
+					  <span>2. Support JPG/JPEG/PNG/BMP and GIF format file only.</span><p>
+					  <span>3. GIF files need to be resized to 64x64px before uploading, <a target="_blank" href="https://ezgif.com">resize online</a>.</span><p>
+					  <span>4. Example images could be downloaded <a href="https://github.com/GeekMagicClock/gif">HERE</a>.</span>
+					<input type="file" name="update" id="selectImg" onchange="sub(this)" accept="image/gif, image/jpeg, image/png, image/bmp" style="display:none">
+					<label id="file-input" for="selectImg">   Choose...</label>
+
+					<input type="submit" id="updateBtn" class="btn2" disabled="true" value="UPLOAD">
+					<input type="button" id="btnback" class="btn" onclick="listDir(this)" path="/image" value="RELOAD">
+					<input type="button" id="btnback" class="btn" onclick="clearDir(this)" value="CLEAR">
+					<br>
+					<div id="prg" style="display:none">Ready to upload</div>
+					<br><div id="prgbar" style="width:60%;margin:0 auto;display:none"><div id="bar"></div></div>
+					<h4 style="text-align: center;"><span id="free">Free</span>, Current path:<span id="pwd">/image</span></h4>
+						<span id="filelist"><table id="list"></table></span>
+					<br>
+					</form>	
+				</div>
+				<script src="js/settings.js"></script>
+			</div>					
+			<script>
+				var image1 = $('#image');
+				var cropper = new Cropper(image, {
+					aspectRatio:1/1,
+					viewMode: 1,
+					ContainerWidth: 320,
+					ContainerHeight: 320,
+					dragMode: 'move',
+					autoCropArea: 0.8, 
+					restore: false,
+					modal: false,
+					guides: true,
+					highlight: false,
+					cropBoxMovable: true,
+					cropBoxResizable: true,
+					toggleDragModeOnDblclick: false,
+				});
+				$('#selectImg').on('change',function(e){
+				  var file = e.target.files[0];
+				  var format = file.name.toLowerCase().substring(file.name.lastIndexOf('.') + 1);
+				  if(format != "bmp" && format != "jpg" &&format != "png" && format != "jpeg") return;
+				  $(".cut-img-model").toggle(); 
+				  var reader = new FileReader();  
+				  reader.onload = function(evt) {  
+					  var replaceSrc = evt.target.result;
+					  // 更换cropper的图片
+					  cropper.replace(replaceSrc, false);
+				  }
+				  reader.readAsDataURL(file);
+				})
+				$('#rotate').on('click', function() {
+				  cropper.rotate(90);
+				})	
+				$('#crop').on('click', function() {
+				  $(".cut-img-model").toggle(); 
+				  var src = cropper.getCroppedCanvas({width:64,height:64}).toDataURL('image/jpeg', 1);
+				  console.log(src); // base64格式
+				})
+				$('#cancel').on('click', function() {
+					$(".cut-img-model").toggle();
+				})	
+				function listDir(obj){
+					var path = $(obj).attr("path");
+					var xhr = new XMLHttpRequest();
+					var fnstring = String("/filelist?dir=")+path;
+					xhr.open("GET", fnstring, true);
+					//console.log(fnstring);
+					xhr.send();
+					//setTimeout("location.href = '../filesystem';", 3000);
+					xhr.onreadystatechange = function() {
+						if (xhr.readyState == XMLHttpRequest.DONE) {
+							//console.log(xhr.responseText);
+							$("#list").replaceWith(xhr.responseText);
+							$("#pwd").html(path);
+							$("#btnback").attr("path", path);
+						}
+					}
+				}
+
+				function refreshPwd(){
+					var path = $('#pwd').html();
+					if(path == "") path = "/image";
+					var xhr = new XMLHttpRequest();
+					var fnstring = String("/filelist?dir=")+path;
+					xhr.open("GET", fnstring, true);
+					xhr.send();
+					xhr.onreadystatechange = function() {
+						if (xhr.readyState == XMLHttpRequest.DONE) {
+							if(xhr.responseText != "")
+							$("#list").replaceWith(xhr.responseText);
+						}
+					}
+					var xh = new XMLHttpRequest();
+					var fnstring = String("/space.json");
+					xh.open("GET", fnstring, true);
+					xh.send();
+					xh.onreadystatechange = function() {
+						if (xh.readyState == XMLHttpRequest.DONE) {
+							var rsp = JSON.parse(xh.responseText);
+							console.log(rsp.free);
+							if(rsp.free != ""){							
+								getE("free").innerText = "Total:"+Math.floor(rsp.total/1024)+"KB, Free Space:"+ Math.floor(rsp.free/1024) +"KB";
+							}						
+						}
+					}	
+				}
+				function clearDir() {
+				   var ret = confirm("Confirm? Do you want to delete all the images?");
+				   if(!ret) return;
+
+				   var xhr = new XMLHttpRequest();
+				   var fnstring=String("/set?clear=image");
+					console.log(fnstring);
+				    xhr.open("GET", fnstring, true);
+					xhr.send();
+					xhr.onreadystatechange = function() {
+						if (xhr.readyState == XMLHttpRequest.DONE) {
+							alert("clear ok");
+							console.log(xhr.responseText);
+							refreshPwd();
+						}
+					}	
+				}
+				function deletef(h) {
+				   var xhr = new XMLHttpRequest();
+				   var fnstring=String("/delete?file=")+encodeURIComponent(h);
+				   xhr.open("GET", fnstring, true);
+				   console.log(fnstring);
+					xhr.send();
+					xhr.onreadystatechange = function() {
+						if (xhr.readyState == XMLHttpRequest.DONE) {
+							alert("delete ok");
+							console.log(xhr.responseText);
+							refreshPwd();
+						}
+					}
+				}
+				function setgif(f){
+					var url = String("/set?img=")+encodeURIComponent(f);
+					send_http(url);
+				}				
+				function sub(obj){
+				  var a = obj.value;
+				  console.log(a);
+				  var fileName = a.replace(/^.*[\\\/]/, '');
+				  fileName = fileName.replace(/&/g, '_');
+				  console.log(fileName);
+				  var len = fileName.length;
+				  if(fileName.length>30){
+					fileName = fileName.substring(len-20);
+					console.log(fileName);
+				  }
+				  getE('file-input').innerHTML = fileName;
+				  getE('updateBtn').disabled = false;
+				  getE('prgbar').style.display = 'block';
+				  getE('prg').style.display = 'block';
+				};
+
+				$('#upload_form').submit(function(e){
+					getE('updateBtn').disabled = "disabled";  
+					e.preventDefault();
+					var form = $('#upload_form')[0];
+					var data = new FormData(form);
+					var dir = $("#pwd").html();
+					var filename = getE('file-input').innerHTML;
+					var format = filename.toLowerCase().substring(filename.lastIndexOf('.') + 1);
+					if(format != "jpg" && format != "jpeg") {
+					console.log("upload not jpg files.");
+						$.ajax({
+							url: '/doUpload?dir='+dir,
+							type: 'POST',
+							data: data,
+							contentType: false,
+							processData:false,
+							xhr: function() {
+								var xhr = new window.XMLHttpRequest();
+								xhr.upload.addEventListener('progress', function(evt) {
+									if (evt.lengthComputable) {
+										var per = evt.loaded / evt.total;
+										$('#prg').html('Progress: ' + Math.round(per*100));
+										$('#bar').css('width', Math.round(per*350)+"px");
+										}
+								}, false);
+								return xhr;
+							},
+							success:function(d, s) {
+								console.log('success!'); 
+								getE('prgbar').style.display = 'none';
+								getE('prg').style.display = 'none';
+								$('#prg').html('Ready to upload');
+								$('#bar').css('width:0px');
+								getE('file-input').innerHTML = 'Choose ...';
+								getE('updateBtn').disabled = true;
+								refreshPwd();
+							},
+							error: function (a, b, c) {
+								alert("Upload error");
+							}
+						});
+					}else{
+						var canvas = cropper.getCroppedCanvas({width:64,height:64});
+						var src = cropper.getCroppedCanvas({width:64,height:64}).toDataURL('image/jpeg', 1);
+						canvas.toBlob(function (blob){
+							var formData = new FormData();
+							formData.append('file', blob, getE('file-input').innerHTML);
+							$.ajax({
+								url: '/doUpload?dir='+dir,
+								type: 'POST',
+								data: formData,
+								contentType: false,
+								processData:false,
+								xhr: function() {
+									var xhr = new window.XMLHttpRequest();
+									xhr.upload.addEventListener('progress', function(evt) {
+										if (evt.lengthComputable) {
+											var per = evt.loaded / evt.total;
+											$('#prg').html('Progress: ' + Math.round(per*100));
+											$('#bar').css('width', Math.round(per*350)+"px");
+											}
+									}, false);
+									return xhr;
+								},
+								success:function(d, s) {
+									console.log('success!'); 
+									getE('prgbar').style.display = 'none';
+									getE('prg').style.display = 'none';
+									$('#prg').html('Ready to upload');
+									$('#bar').css('width:0px');
+									getE('file-input').innerHTML = 'Choose...';
+									getE('updateBtn').disabled = true;
+
+									refreshPwd();
+								},
+								error: function (a, b, c) {
+									alert("Upload OK");
+									//setTimeout("location.href = '/fs.html';", 1000);
+									refreshPwd();
+								}
+							});
+						
+					
+							console.log("upload "+dir);
+						},"image/jpeg", 0.99);
+					}
+				});
+				function set_image(){
+					var autoplay = getE("autoplay");
+					if(autoplay.checked) autoplay.value=1;
+					else autoplay.value=0;
+					var image_interval = getE("image_interval");
+					var url = "/set?i_i="+image_interval.value+"&autoplay="+autoplay.value;
+					console.log(url);
+					send_http(url);	
+				}
+				</script>					
+		</div>
+			<div class="row">
+				<div class="col-12">
+					<br />
+					<div id="copyright">
+					</div>						
+					<script src="js/settings.js"></script>
+				</div>
+			</div>
+	</body>
+</html>

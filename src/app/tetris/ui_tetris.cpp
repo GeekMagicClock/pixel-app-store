@@ -23,11 +23,11 @@ void init_tetris() {
     //mdisplay.print("Clock");
     mdisplay.print("CLOCK");
     int i = 0;
-    while(!btn_status() && i<200) {
-      i++;
-      delay(10);
+    while(i<1000) {
+        i++;
+        delay(1);
+        update_btn();
     }
-    //delay(2000);
     t_clock.setup();  
 }
 

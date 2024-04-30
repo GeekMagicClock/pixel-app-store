@@ -18,15 +18,14 @@ ScrollText scrollText3;
 
 void init_info(){
     //scrollText.start("中文测试阿里巴巴普惠体",&alibabaM64pt7b,C_GOLD,0);
-    scrollText1.start("GeekMagic Pixel Display",NULL, C_GOLD, 0);
-    scrollText2.start("SSID: " + WiFi.SSID(),NULL, C_CYAN, 10);
-    scrollText3.start("Please visit http://" + WiFi.localIP().toString() +" to change settings.", NULL, C_FOREST_GREEN, 20);
+    scrollText1.start("GeekMagic Pixel Display",NULL, C_GOLD, 1);
+    scrollText2.start("SSID: " + WiFi.SSID(),NULL, C_CYAN, 11);
+    scrollText3.start("Please visit http://" + WiFi.localIP().toString() +" to change settings.", NULL, C_FOREST_GREEN, 21);
 }
 
 void display_info(){
-    
   //scrollText.update(0);
-  scrollText1.update(0); 
-  scrollText2.update(10);
-  scrollText3.update(20);
+  scrollText1.update(1); 
+  scrollText2.update(11);
+  scrollText3.update(21);
 }

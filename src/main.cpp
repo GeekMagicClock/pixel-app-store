@@ -85,8 +85,11 @@ void setup() {
 
   if(WiFi.status() != WL_CONNECTED){
     mdisplay.clearScreen();
-    mdisplay.setCursor(0, 4);
-    mdisplay.println("AP Start:");
+    mdisplay.setCursor(0, 1);
+    mdisplay.println("WiFi");
+    mdisplay.setCursor(0, 9);
+    mdisplay.println("START:");
+    mdisplay.setCursor(0, 18);
     mdisplay.print("GeekMagic");
     startPortal(ap_ssid, "");
   }
@@ -100,9 +103,9 @@ void setup() {
   init_btn();
 
   mdisplay.clearScreen();
-  mdisplay.setCursor(0, 10);
+  mdisplay.setCursor(0, 12);
   mdisplay.print("SYNC");
-  mdisplay.setCursor(25, 10);
+  mdisplay.setCursor(25, 12);
   mdisplay.print("TIME..");
   init_time();
   //init_ntp();
@@ -121,12 +124,21 @@ void check_wifi(){
     }
   }
 }
-
+int sys_update_status = 0;
 void loop() {
     //scroll_text(0, 20, "This is a long text stringgggggggggggggggggggggg.");
     //return;
     //virtualDisp->flipDMABuffer();
     //sync_http_time(false);
+    if(sys_update_status == 1){
+      display_update(sys_update_status); 
+    }else if(sys_update_status == -1){
+      display_update(sys_update_status); 
+    }else if(sys_update_status == 2){
+      display_update(sys_update_status); 
+    }
+    if(sys_update_status != 0) return;
+
     check_wifi();
   #if 1
     if(last_tz != timeZone || last_mtz != minutesTimeZone){
@@ -143,13 +155,14 @@ void loop() {
         if(last_theme_index >= 0)
             theme_loop_list[last_theme_index].exit();
 
+        mdisplay.clearScreen();
+        last_theme_index = theme_index;
         theme_loop_list[theme_index].init();
+        //if(last_theme_index != theme_index) return;//初始化阶段又被按下按键
 
         if(theme_loop_list[theme_index].update != NULL)
           theme_loop_list[theme_index].update(true);
 
-        last_theme_index = theme_index;
-        mdisplay.clearScreen();
         if(force_time_display) force_time_display = 0;
     }
 

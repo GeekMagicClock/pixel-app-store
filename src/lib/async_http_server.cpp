@@ -725,7 +725,7 @@ R"(<!DOCTYPE html>
             const xhr = new XMLHttpRequest();
             let progress = 0;
             const intervalId = setInterval(function () {
-                progress = (progress + 4);
+                progress = (progress + 3);
                 if (progress <= 100) {
                     progressBarFill.style.width = `${progress}%`;
                     percentage.textContent = `${Math.round(progress)}%`;
@@ -748,7 +748,7 @@ R"(<!DOCTYPE html>
                             location.href = '/';
                         }, 15000);
                     } else {
-                        statusMessage.textContent = 'Please check version.';
+                        statusMessage.textContent = 'Network error, please retry.';
                         fileInput.disabled = false;
                     }
                 }
@@ -784,6 +784,9 @@ void handleWifiSave(AsyncWebServerRequest * request) {
 void send_version(AsyncWebServerRequest* request){
   request->send(200, F("text/json"), ("{\"m\": \""+String(PRODUCT_MODEL)+"\",\"v\":\"" + String(SW_VERSION) + "\"}"));
 }
+
+extern int sys_update_status;
+
 void init_http_server() {
   //以下写法，解决web portal 开启时候，无法正确加载脚本的问题
   server.on("/css/cropper.min.css", HTTP_GET, [](AsyncWebServerRequest *request){
@@ -853,23 +856,45 @@ void init_http_server() {
     request->send(response);
   },[](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final){
     if(!index){
+      sys_update_status = 1;
       Serial.printf("Update Start: %s\n", filename.c_str());
       //Update.runAsync(true);
       if(!Update.begin((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000)){
+        sys_update_status = -1;
         Update.printError(Serial);
+
+        AsyncWebServerResponse *response = request->beginResponse(500, "text/plain", "FAIL");
+        response->addHeader("Connection", "close");
+        request->send(response);
       }
     }
     if(!Update.hasError()){
       if(Update.write(data, len) != len){
+        sys_update_status = -1;
         Update.printError(Serial);
+
+        AsyncWebServerResponse *response = request->beginResponse(500, "text/plain", "FAIL");
+        response->addHeader("Connection", "close");
+        request->send(response);
       }
     }
     if(final){
       if(Update.end(true)){
+        sys_update_status = 2;
         Serial.printf("Update Success: %uB\n", index+len);
+        AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", "SUCCESS");
+        response->addHeader("Connection", "close");
+        request->send(response);
+
+        delay(2000);
         ESP.restart();
       } else {
+        sys_update_status = -1;
         Update.printError(Serial);
+
+        AsyncWebServerResponse *response = request->beginResponse(500, "text/plain", "FAIL");
+        response->addHeader("Connection", "close");
+        request->send(response);
       }
     }
   });

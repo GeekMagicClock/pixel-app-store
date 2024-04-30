@@ -58,7 +58,7 @@
 						  <div class="cut-img-box">
 							<img id="image" height="auto" width="100%">
 						  </div>
-						  <p class="instructions">Please crop and resize to 64x64px</p>
+						  <p class="instructions">Please crop and resize to 64x32px</p>
 						  <div class=" btn-container" style="width: 240px;margin: 0px auto;">
 							<div id="cancel" style="width: 40px;float:left;" class = "btn">CANCEL</div>
 							<div id="rotate" style="width: 40px;float:left;margin-left:10px;" class = "btn">ROTATE</div>
@@ -68,7 +68,7 @@
 					  </div>
 					  <span>1. Please check free space before uploading.</span><p>
 					  <span>2. Support JPG/JPEG/PNG/BMP and GIF format file only.</span><p>
-					  <span>3. GIF files need to be resized to 64x64px before uploading, <a target="_blank" href="https://ezgif.com">resize online</a>.</span><p>
+					  <span>3. GIF files need to be resized to 64x32px before uploading, <a target="_blank" href="https://ezgif.com">resize online</a>.</span><p>
 					  <span>4. Example images could be downloaded <a href="https://github.com/GeekMagicClock/gif">HERE</a>.</span>
 					<input type="file" name="update" id="selectImg" onchange="sub(this)" accept="image/gif, image/jpeg, image/png, image/bmp" style="display:none">
 					<label id="file-input" for="selectImg">   Choose...</label>
@@ -89,10 +89,10 @@
 			<script>
 				var image1 = $('#image');
 				var cropper = new Cropper(image, {
-					aspectRatio:1/1,
+					aspectRatio:2/1,
 					viewMode: 1,
 					ContainerWidth: 320,
-					ContainerHeight: 320,
+					ContainerHeight: 160,
 					dragMode: 'move',
 					autoCropArea: 0.8, 
 					restore: false,
@@ -121,7 +121,7 @@
 				})	
 				$('#crop').on('click', function() {
 				  $(".cut-img-model").toggle(); 
-				  var src = cropper.getCroppedCanvas({width:64,height:64}).toDataURL('image/jpeg', 1);
+				  var src = cropper.getCroppedCanvas({width:64,height:32}).toDataURL('image/jpeg', 1);
 				  console.log(src); // base64格式
 				})
 				$('#cancel').on('click', function() {
@@ -266,8 +266,8 @@
 							}
 						});
 					}else{
-						var canvas = cropper.getCroppedCanvas({width:64,height:64});
-						var src = cropper.getCroppedCanvas({width:64,height:64}).toDataURL('image/jpeg', 1);
+						var canvas = cropper.getCroppedCanvas({width:64,height:32});
+						var src = cropper.getCroppedCanvas({width:64,height:32}).toDataURL('image/jpeg', 1);
 						canvas.toBlob(function (blob){
 							var formData = new FormData();
 							formData.append('file', blob, getE('file-input').innerHTML);

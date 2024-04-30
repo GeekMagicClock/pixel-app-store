@@ -30,6 +30,7 @@ int last_second;
 extern int timeZone;
 extern int minutesTimeZone;
 int weather_interval;
+extern int theme_index;
 
 void init_weather(){
     read_unit_config(&windspeed_unit, &temp_unit, &pressure_unit);
@@ -70,10 +71,13 @@ void init_weather(){
     mdisplay.setCursor(12,22);
     mdisplay.print("CLOCK");
     int i = 0;
-    while(!btn_status() && i<200) {
-      i++;
-      delay(10);
+    while(i<1000) {
+        i++;
+        delay(1);
+        update_btn();
     }
+
+    mdisplay.clearScreen();
 }
 
 #include "../../lib/times.h"
@@ -193,8 +197,8 @@ void display_weather(){
         if(hour12){
           if(last_second != second()){
             mdisplay.setFont();
-            mdisplay.fillRect(0, 24, 64, 8, 0);
-            mdisplay.setCursor(0,24);
+            mdisplay.fillRect(0, 25, 64, 8, 0);
+            mdisplay.setCursor(0,25);
             mdisplay.setTextColor(parseRGBColor(h_color));
             if(hour(now())<12)
               mdisplay.print("AM");
@@ -202,23 +206,23 @@ void display_weather(){
               mdisplay.print("PM");
 
             int hh = format_hour12();
-            mdisplay.setCursor(15,24);
+            mdisplay.setCursor(15,25);
             mdisplay.setTextColor(parseRGBColor(h_color));
             if(hour() == 12){
-              mdisplay.setCursor(15,24);
+              mdisplay.setCursor(15,25);
               mdisplay.print(String(hh/10)+String(hh%10));
             } else {
-              mdisplay.setCursor(22,24);
+              mdisplay.setCursor(22,25);
               mdisplay.print(String(hh%10));
             }
             mdisplay.print(":");
 
-            mdisplay.setCursor(18+15,24);
+            mdisplay.setCursor(18+15,25);
             mdisplay.setTextColor(parseRGBColor(m_color));
             mdisplay.print(String(minute()/10)+String(minute()%10));
             mdisplay.print(":");
 
-            mdisplay.setCursor(20+15+15,24);
+            mdisplay.setCursor(20+15+15,25);
             mdisplay.setTextColor(parseRGBColor(s_color));
             mdisplay.print(String(second()/10)+String(second()%10));
             last_second = second();

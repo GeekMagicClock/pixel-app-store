@@ -51,7 +51,7 @@ update_firmware() {
 
     # 开始上传
     start_time=$(date +%s)
-    response=$(curl -X POST "$url" --max-time 30  -F "firmware=@$local_firmware_path" -v -s -w "%{http_code}"  --output /dev/null)
+    response=$(curl -X POST "$url" --max-time 50  -F "firmware=@$local_firmware_path" -v -s -w "%{http_code}"  --output /dev/null)
     
     # 上传完成后的处理
     if [ "$response" == "200" ]; then

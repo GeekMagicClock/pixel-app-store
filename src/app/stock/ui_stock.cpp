@@ -84,6 +84,8 @@ void display_stock(){
         mdisplay.print("Error");
         return;
     }
+
+
     if(!run_data->stockdata.kline_updated ) return;
 
     mdisplay.clearScreen();
@@ -233,14 +235,19 @@ void init_stock(){
     mdisplay.setCursor(10,22);
     //mdisplay.print("Ticker");
     mdisplay.print("TICKER I");
-    //delay(2000);
-
     int i = 0;
-    while(!btn_status() && i<200) {
-      i++;
-      delay(10);
+    while(i<1000) {
+        i++;
+        delay(1);
+        update_btn();
     }
+    mdisplay.clearScreen();
+    mdisplay.setFont();
+    mdisplay.setCursor(0,12);
+    mdisplay.setTextColor(mdisplay.color565(173, 216, 230));
+    mdisplay.print("UPDATING..");
 }
+
 void init_stock2(){
     jpegInit();
     init_stock_config();
@@ -259,11 +266,11 @@ void init_stock2(){
     mdisplay.setCursor(8,22);
     //mdisplay.print("Ticker");
     mdisplay.print("TICKER II");
-    //delay(2000);
 
     int i = 0;
-    while(!btn_status() && i<200) {
-      i++;
-      delay(10);
+    while(i<1000) {
+        i++;
+        delay(1);
+        update_btn();
     }
 }

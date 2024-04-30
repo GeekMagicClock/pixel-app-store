@@ -1,6 +1,6 @@
 
 #define PRODUCT_MODEL "Pixel64x32"
-#define SW_VERSION  "V1.0.1"
+#define SW_VERSION  "V1.0.2"
 
 //#define DISABLE_ALL_PRINT  // 若要禁用所有打印，取消注释此行
 #define ENABLE_ERROR_PRINT  // 若要启用错误打印，取消注释此行

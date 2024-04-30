@@ -123,7 +123,9 @@ void fill_candle_data(JsonArray& open_prices, JsonArray& close_prices, JsonArray
 AsyncHTTPRequest req_stock;
 
 void req_stock_cb(void *optParm, AsyncHTTPRequest *request, int readyState) {
-  (void) optParm;
+
+  if(run_data == NULL) return;//修复频繁按键切换主题，退出时，仍然会进入到这里导致崩溃。20240430
+
   if (readyState == readyStateDone) {
     int code = request->responseHTTPcode();
     if (code == 200) {
@@ -154,6 +156,8 @@ void req_stock_cb(void *optParm, AsyncHTTPRequest *request, int readyState) {
       JsonArray high_prices = doc["chart"]["result"][0]["indicators"]["quote"][0]["high"];
       JsonArray low_prices = doc["chart"]["result"][0]["indicators"]["quote"][0]["low"];
       JsonArray close_prices = doc["chart"]["result"][0]["indicators"]["quote"][0]["close"];
+
+
       // Process and draw the candle data using LVGL here
       my_stock_t* stock_data = &run_data->stockdata;
       stock_data->price = price;
@@ -252,6 +256,8 @@ void update_stock(bool force){
 
 void exit_stock(){
 //todo
+
+  req_stock.abort();
   free(run_data);
   run_data = NULL;
 }

@@ -18,6 +18,7 @@ extern int b2;
 extern int tmp_theme_index;
 extern void set_screen_brt(int brt);
 String autoplay_path ="/image/spaceman.gif";
+extern int sys_update_status;
 void display_album(){
 
   if(autoplay == 0){
@@ -53,7 +54,7 @@ void display_album(){
       }
       #endif
     }else if (autoplay_path.endsWith(".gif") || autoplay_path.endsWith(".GIF")){
-      while(drawGif(autoplay_path.c_str(), 0, 0) == 1 && tmp_theme_index == THEME_ALBUM){
+      while(drawGif(autoplay_path.c_str(), 0, 0) == 1 && tmp_theme_index == THEME_ALBUM && sys_update_status == 0){
         update_btn();
         //update_http_server();
       };
@@ -74,7 +75,7 @@ void display_album(){
   }
 
   File file = root.openNextFile();
-  while (file && autoplay && tmp_theme_index == THEME_ALBUM) {
+  while (file && autoplay && tmp_theme_index == THEME_ALBUM && sys_update_status == 0) {
     //update_http_server();
     update_btn();
     if (file.isDirectory()) {
@@ -99,7 +100,7 @@ void display_album(){
         tmp_brt = b2;
       }
 
-      while(i<tmp_brt && tmp_theme_index == THEME_ALBUM){
+      while(i<tmp_brt && tmp_theme_index == THEME_ALBUM && sys_update_status == 0){
         update_btn();
         set_screen_brt(i++);
         delay(10);
@@ -113,8 +114,8 @@ void display_album(){
       }
       is_jpg = 0;
       long start = millis();
-      while(millis()-start < album_time*1000 && tmp_theme_index == THEME_ALBUM){
-        while(drawGif(path, 0, 0) == 1 && tmp_theme_index == THEME_ALBUM){
+      while(millis()-start < album_time*1000 && tmp_theme_index == THEME_ALBUM && sys_update_status == 0){
+        while(drawGif(path, 0, 0) == 1 && tmp_theme_index == THEME_ALBUM && sys_update_status == 0){
           //update_http_server();
           update_btn();
         };
@@ -124,7 +125,7 @@ void display_album(){
     {
       //防止延时时间过长，无法切换主题
       int i = album_time*100;
-      while(i-- && tmp_theme_index == THEME_ALBUM){
+      while(i-- && tmp_theme_index == THEME_ALBUM && sys_update_status == 0){
         //update_http_server();
         update_btn();
         if(app_exit){
@@ -163,10 +164,12 @@ void init_album(){
   mdisplay.print("DISPLAY");
   //delay(2000);
   int i = 0;
-  while(!btn_status() && i<200) {
+  while(i<1000) {
     i++;
-    delay(10);
+    delay(1);
+    update_btn();
   }
+  
 }
 
 void exit_album(){

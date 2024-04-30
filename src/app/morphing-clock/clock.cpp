@@ -104,6 +104,15 @@ void init_morphing(){
   mdisplay.println("MORPHING");
   mdisplay.setCursor(8,22);
   mdisplay.print("CLOCK");
+  
+  int i = 0;
+  while(i<1000) {
+    i++;
+    delay(1);
+    update_btn();
+  }
+  mdisplay.clearScreen();
+
   //delay(2000);
   digit5 = Digit(0, CLOCK_X,                                                 PANEL_HEIGHT-CLOCK_Y-2*(CLOCK_SEGMENT_HEIGHT)-3, parseRGBColor(h_color));
   digit4 = Digit(0, CLOCK_X + (CLOCK_SEGMENT_WIDTH+CLOCK_SEGMENT_SPACING),   PANEL_HEIGHT-CLOCK_Y-2*(CLOCK_SEGMENT_HEIGHT)-3, parseRGBColor(h_color));
@@ -112,11 +121,6 @@ void init_morphing(){
   digit1 = Digit(0, CLOCK_X+4*(CLOCK_SEGMENT_WIDTH+CLOCK_SEGMENT_SPACING)+6, PANEL_HEIGHT-CLOCK_Y-2*(CLOCK_SEGMENT_HEIGHT)-3, parseRGBColor(s_color));
   digit0 = Digit(0, CLOCK_X+5*(CLOCK_SEGMENT_WIDTH+CLOCK_SEGMENT_SPACING)+6, PANEL_HEIGHT-CLOCK_Y-2*(CLOCK_SEGMENT_HEIGHT)-3, parseRGBColor(s_color));
 
-  int i = 0;
-  while(!btn_status() && i<200) {
-    i++;
-    delay(10);
-  }
 }
 
 void exit_morphing(){
