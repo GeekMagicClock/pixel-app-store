@@ -119,8 +119,9 @@ int is_in_night_time(){
     }
   }
 }
-
+extern int rgb_off_flag;
 void auto_adjust_brt(){
+  if(rgb_off_flag == 1) return;//手动息屏，不再点亮
   if(!timer_brt_en){
     set_screen_brt(brt);
     return;

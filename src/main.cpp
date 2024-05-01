@@ -82,8 +82,8 @@ void setup() {
     Serial.print(".");
     //delay(500);
   }
-
-  if(WiFi.status() != WL_CONNECTED){
+  pinMode(32,INPUT_PULLUP);
+  if(WiFi.status() != WL_CONNECTED || digitalRead(32) == LOW){
     mdisplay.clearScreen();
     mdisplay.setCursor(0, 1);
     mdisplay.println("WiFi");
@@ -102,6 +102,14 @@ void setup() {
   init_http_server();
   init_btn();
 
+  mdisplay.clearScreen();
+  mdisplay.setCursor(0, 4);
+  mdisplay.println("NEW IP:");
+  mdisplay.setCursor(0, 13);
+  mdisplay.setTextColor(parseRGBColor(C_GREEN));
+  mdisplay.print(WiFi.localIP().toString());
+  delay(3000);
+ 
   mdisplay.clearScreen();
   mdisplay.setCursor(0, 12);
   mdisplay.print("SYNC");
