@@ -71,7 +71,7 @@ void setup() {
   //virtualDisp = new VirtualMatrixPanel(mdisplay, NUM_ROWS, NUM_COLS, PANEL_RES_X, PANEL_RES_Y);
   unsigned long timeout = millis();
   while ((millis()-timeout) < 15*1000) {
-    if((millis()-timeout) < 2.5*1000)
+    if((millis()-timeout) < 4.3*1000)
      drawGif("/w.gif",0,0); 
     else if(WiFi.status() != WL_CONNECTED){
      drawGif("/w.gif",0,0); 

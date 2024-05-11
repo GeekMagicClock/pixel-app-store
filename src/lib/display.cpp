@@ -84,7 +84,7 @@ void init_display(){
   mxconfig.latch_blanking = 2;
   mxconfig.i2sspeed = HUB75_I2S_CFG::HZ_10M;
   mxconfig.clkphase = false;
-  mxconfig.min_refresh_rate = 100;
+  mxconfig.min_refresh_rate = 80;
 
   if(PANEL_TYPE == P64X64) {
     mxconfig.mx_width = 64;
