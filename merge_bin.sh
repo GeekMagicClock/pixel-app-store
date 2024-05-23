@@ -68,5 +68,5 @@ DIR=PIXEL_$VERSION
 mkdir -p $DIR 
 mv firmware_pixel_$VERSION.bin $MERGED_FIRMWARE_PATH $DIR 
 cp $LITTLEFS_PATH $DIR
-cp update_history.txt $DIR 
+cp update\ history.txt $DIR 
 echo "打包完成"

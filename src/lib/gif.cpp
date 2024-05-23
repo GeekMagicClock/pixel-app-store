@@ -493,6 +493,7 @@ static int ShowNextFrame(const char *name){
 
     //DBG_PTN("gif play frame");
 #ifdef GIF_POINTER
+    //if(gif->playFrame(true, NULL) == 1)
     if(gif->playFrame(true, NULL) == 1)
 #else
     if(gif.playFrame(true, NULL))
