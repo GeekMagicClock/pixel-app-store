@@ -130,7 +130,7 @@ void req_stock_cb(void *optParm, AsyncHTTPRequest *request, int readyState) {
     int code = request->responseHTTPcode();
     if (code == 200) {
       String payload = request->responseText();
-      //DBG_PTN(payload);
+      DBG_PTN(payload);
       JsonDocument doc;
       auto err = deserializeJson(doc, payload);
       if (err) {
@@ -210,12 +210,16 @@ void send_req_stock(){
   String url = "http://query1.finance.yahoo.com/v8/finance/chart/"+run_data->stock_id+"?interval="+a+"&range="+range;
   DBG_PTN(url);
   bool requestOpenResult;
-  req_stock.setReqHeader("User-Agent","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36");
-  req_stock.setReqHeader("Connection", "close");
   //Serial.println(req_stock.headers());
   if (req_stock.readyState() == readyStateUnsent || req_stock.readyState() == readyStateDone) {
+
     requestOpenResult = req_stock.open("GET", url.c_str());
     if (requestOpenResult) {
+      //要放到这里才生效
+      req_stock.setReqHeader("User-Agent","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36");
+      req_stock.setReqHeader("Accept", "application/json");
+      req_stock.setReqHeader("Connection", "keep-alive");
+      DBG_PTN(req_stock.headers());
       req_stock.send();
       //http.setUserAgent(F("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"));
     } else {
@@ -223,7 +227,7 @@ void send_req_stock(){
     }
   } else {
     DBG_PTN("rt can't send req");
-    req_stock.abort();
+    //req_stock.abort();
   }
 }
 
@@ -257,7 +261,7 @@ void update_stock(bool force){
 void exit_stock(){
 //todo
 
-  req_stock.abort();
+  //req_stock.abort();
   free(run_data);
   run_data = NULL;
 }

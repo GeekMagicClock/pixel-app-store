@@ -50,8 +50,8 @@ void drawLineChart(float data[], int dataLength, uint16_t lineColor, uint16_t fi
     // 绘制折线，以及填充折线以下部分
     for (int x = 0; x < screenWidth; x++){
         int y = int(filledData[x]);
-        Serial.print(y);
-        Serial.print(" ");
+        //Serial.print(y);
+        //Serial.print(" ");
         mdisplay.drawPixel(screenWidth-1-x, screenHeight-1 -y + HEIGHT_OFFSET, lineColor);//画点
         mdisplay.drawFastVLine(screenWidth -1 -x, screenHeight-y + HEIGHT_OFFSET, y, fillColor);//画线，需要注意绘制起点，绘制方向，绘制长度，是从Y点继续增加的，以及绘制长度
     }
@@ -81,7 +81,7 @@ void display_stock(){
         mdisplay.setCursor(4,8);
         mdisplay.println("Network");
         mdisplay.setCursor(4,17);
-        mdisplay.print("Error");
+        mdisplay.printf("Error %d", run_data->err);
         return;
     }
 
@@ -98,8 +98,8 @@ void display_stock(){
     for (size_t i = 0; i < CANDLE_NUMS; i++) {
         //chart_data[i] = data->candles[CANDLE_NUMS-1 - i].open;//注意，蜡烛顺序要反一下, 旧的数据先绘制
         chart_data[i] = data->candles[i].close;//注意，蜡烛顺序要反一下, 旧的数据先绘制//注意是close的数据
-        Serial.print(chart_data[i]);
-        Serial.print(" ");
+        //Serial.print(chart_data[i]);
+        //Serial.print(" ");
     }
 
     mdisplay.setFont();
@@ -178,7 +178,9 @@ void display_stock2(){
         mdisplay.setCursor(4,8);
         mdisplay.println("Network");
         mdisplay.setCursor(4,17);
-        mdisplay.print("Error");
+        mdisplay.printf("Error %d", run_data->err);
+        //mdisplay.print("Error");
+        //mdisplay.print(run_data->err);
         return;
     }
     stock_name = run_data->stock_id;
