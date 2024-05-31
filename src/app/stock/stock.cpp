@@ -218,7 +218,8 @@ void send_req_stock(){
       //要放到这里才生效
       req_stock.setReqHeader("User-Agent","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36");
       req_stock.setReqHeader("Accept", "application/json");
-      req_stock.setReqHeader("Connection", "keep-alive");
+      //req_stock.setReqHeader("Connection", "keep-alive");
+      req_stock.setReqHeader("Connection", "close");
       DBG_PTN(req_stock.headers());
       req_stock.send();
       //http.setUserAgent(F("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"));
@@ -232,7 +233,7 @@ void send_req_stock(){
 }
 
 void async_http_get_stock() {
-  req_stock.setDebug(true);
+  req_stock.setDebug(false);
   req_stock.onReadyStateChange(req_stock_cb);
   send_req_stock();
 }
