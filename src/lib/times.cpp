@@ -349,7 +349,8 @@ void req_time_cb (void *optParm, AsyncHTTPRequest *request, int readyState) {
     if (code == 200) {
       String payload = request->responseText();
       DBG_PTN(payload);
-      JsonDocument doc;
+      //JsonDocument doc;
+      DynamicJsonDocument doc(512);
       deserializeJson(doc, payload);
       time_t unixtime = doc["unixtime"];
       setTime(unixtime+ SECS_PER_HOUR * timeZone + minutesTimeZone * 60);

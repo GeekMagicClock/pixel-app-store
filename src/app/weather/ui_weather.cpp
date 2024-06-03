@@ -84,9 +84,10 @@ void init_weather(){
 void update_weather(bool force){
     wea.update(force);
 }
-
+#include "../../lib/gif.h"
 void exit_weather(){
     //wea.init_done = false;
+    gifDeinit();
     wea.weather_changed = false;
     wea.forecast_changed = false;
     wea_init_status = false;

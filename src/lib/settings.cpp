@@ -536,7 +536,8 @@ int read_gif_config(String &path){
     String settings = fp.readString();
     DBG_PTN(settings);
     
-    JsonDocument doc;
+    //JsonDocument doc;
+    DynamicJsonDocument doc(256);
     deserializeJson(doc, settings);
     JsonObject obj = doc.as<JsonObject>();
 
@@ -562,7 +563,8 @@ int read_font_config(String *path){
     String settings = fp.readString();
     DBG_PTN(settings);
     
-    JsonDocument doc;
+    //JsonDocument doc;
+    DynamicJsonDocument doc(512);
     deserializeJson(doc, settings);
     JsonObject obj = doc.as<JsonObject>();
 
@@ -614,7 +616,8 @@ int read_brt_config(int *brt){
     String settings = fp.readString();
     DBG_PTN(settings);
     
-    JsonDocument doc;
+    //JsonDocument doc;
+    DynamicJsonDocument doc(256);
     deserializeJson(doc, settings);
     JsonObject obj = doc.as<JsonObject>();
 
@@ -821,7 +824,8 @@ int read_stock_bg(String *bg){
     String settings = fp.readString();
     DBG_PTN(settings);
 
-    JsonDocument doc;
+    //JsonDocument doc;
+    DynamicJsonDocument doc(512);
     deserializeJson(doc, settings);
     JsonObject obj = doc.as<JsonObject>();
 
@@ -847,7 +851,7 @@ int read_stock_color(String *s_c, String *p_c){
     String settings = fp.readString();
     DBG_PTN(settings);
 
-    JsonDocument doc;
+    DynamicJsonDocument doc(512);
     deserializeJson(doc, settings);
     JsonObject obj = doc.as<JsonObject>();
 

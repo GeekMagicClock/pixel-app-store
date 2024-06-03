@@ -34,6 +34,15 @@ extern int minutesTimeZone;
 extern int force_time_display;
 static int last_tz = 8;
 static int last_mtz = 0;
+void updateDataTask(void *pvParameters) {
+  while (1) {
+    //btn.tick();
+    //不延迟会造成整个系统卡顿
+    //esp_task_wdt_reset();
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+  }
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -117,6 +126,17 @@ void setup() {
   mdisplay.print("TIME..");
   init_time();
   //init_ntp();
+  #if 0
+  xTaskCreatePinnedToCore(
+      updateDataTask,     // 任务函数
+      "dataTask",   // 任务名称
+      10000,          // 任务堆栈大小（字节）
+      NULL,           // 任务参数
+      1,              // 任务优先级
+      NULL,           // 任务句柄
+      1               // 分配给第二个内核的内核编号（1表示第二个内核）
+  );
+  #endif
 }
 unsigned long lastConnectionAttempt = 0;
 const int connectionInterval = 5 * 60 * 1000; // 5分钟，以毫秒为单位

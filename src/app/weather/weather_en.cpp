@@ -143,8 +143,8 @@ void Weather::send_request() {
 void Weather::parse_rsp_data(const String* payload) {
     
     //gifDeinit();
-    //DynamicJsonDocument doc(1024);
-    JsonDocument doc;
+    DynamicJsonDocument doc(1024);
+    //JsonDocument doc;
     //DynamicJsonDocument doc(1224);
     deserializeJson(doc, *payload);
 
@@ -379,8 +379,8 @@ void Weather::forecast_temp_parse_rsp_data(const String* payload) {
 
     //gifDeinit();
     //DynamicJsonDocument doc(3224);//分配空间过小有可能导致无法解析到3天的天气
-    //DynamicJsonDocument doc(2848);//分配空间过小有可能导致无法解析到3天的天气
-    JsonDocument doc;//分配空间过小有可能导致无法解析到3天的天气
+    DynamicJsonDocument doc(2048);//分配空间过小有可能导致无法解析到3天的天气
+    //JsonDocument doc;//分配空间过小有可能导致无法解析到3天的天气
     deserializeJson(doc, *payload);
     // 获取 "forecast" 数组
     JsonArray forecastArray = doc["forecast"]["forecastday"];

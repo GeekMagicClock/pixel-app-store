@@ -61,11 +61,11 @@ extern StockmarketAppRunData *run_data;
 
 float processPrice(float price) {
     if (price < 1) {
-        return roundf(price * 10000) / 10000; // 保留3位小数
+        return roundf(price * 10000) / 10000; // 保留4位小数
     } else if (price < 100) {
-        return roundf(price * 100) / 100; // 保留2位小数
+        return roundf(price * 1000) / 1000; // 保留3位小数
     } else {
-        return roundf(price * 10) / 10; // 保留1位小数
+        return roundf(price * 100) / 100; // 保留2位小数
         //return roundf(price); // 保留2位小数
     }
 }
@@ -132,12 +132,12 @@ void display_stock(){
     mdisplay.setCursor(0,8);
     if(data->price >= 1000)
         mdisplay.print(String(int(data->price)));
-    else if(data->price >= 100)
-        mdisplay.print(String(processPrice(data->price),1));
+    //else if(data->price >= 100)
+    //    mdisplay.print(String(processPrice(data->price),1));
     else
         mdisplay.print(String(processPrice(data->price)));
 
-    mdisplay.setCursor(35,8);
+    mdisplay.setCursor(36,8);
     String percent = "";
     if(data->percent >= 0){
         mdisplay.setTextColor(mdisplay.color565(0, 255, 0));
@@ -154,7 +154,7 @@ void display_stock(){
         percent = (String(data->percent, 1)+"%");
     }
     //动态确定 percent的位置
-    mdisplay.setCursor(mdisplay.width()- (percent.length()+1)*5,8);
+    mdisplay.setCursor(mdisplay.width()- (percent.length()+1)*5+1,8);
     mdisplay.print(percent);
 
     drawLineChart(chart_data, CANDLE_NUMS, lineColor, fillColor);

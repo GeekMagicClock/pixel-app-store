@@ -100,7 +100,8 @@ const String list_img() {
     
     // 检查 JSON 格式的合法性
     // 通过尝试解析 JSON 数据来验证其格式是否正确
-    JsonDocument doc;
+    //JsonDocument doc;
+    DynamicJsonDocument doc(2048);
     DeserializationError error = deserializeJson(doc, filelist);
     if (error) {
         return "Invalid JSON";
@@ -235,7 +236,8 @@ String get_wifi_scan(){
       //display networks in page
       if(n>15) n = 15; 
 
-      JsonDocument root;
+      //JsonDocument root;
+      DynamicJsonDocument root(2024);
       JsonArray array = root["aps"].to<JsonArray>();
  
       //String data = "{\"aps\":[";

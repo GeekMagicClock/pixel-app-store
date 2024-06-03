@@ -62,7 +62,8 @@ static void read_config(B_Config *cfg) {
         cfg->stock_id[8] = String(c8);  // 股票代码
         cfg->stock_id[9] = String(c9);  // 股票代码
         //cfg->stock_scale = 5;//5min
-        if(cfg->updateInterval <20) cfg->updateInterval = 20;
+        if(cfg->updateInterval <10) cfg->updateInterval = 10;
+        cfg->updateInterval = 5;
     }
 
     cfg->st_kline = "1m";
@@ -118,11 +119,19 @@ void fill_candle_data(JsonArray& open_prices, JsonArray& close_prices, JsonArray
   return;
 }
 
-
+#if USE_SSL
+//20240601没有调通，发生 https://github.com/me-no-dev/AsyncTCP/issues/88
+#include "lib/AsyncHTTPSRequest_Generic.h"             // https://github.com/khoih-prog/AsyncHTTPRequest_Generic
+AsyncHTTPSRequest req_stock;
+#else
 #include "lib/AsyncHTTPRequest_Generic.h"             // https://github.com/khoih-prog/AsyncHTTPRequest_Generic
 AsyncHTTPRequest req_stock;
-
+#endif
+#if USE_SSL
+void req_stock_cb(void *optParm, AsyncHTTPSRequest *request, int readyState) {
+#else
 void req_stock_cb(void *optParm, AsyncHTTPRequest *request, int readyState) {
+#endif
 
   if(run_data == NULL) return;//修复频繁按键切换主题，退出时，仍然会进入到这里导致崩溃。20240430
 
@@ -130,8 +139,8 @@ void req_stock_cb(void *optParm, AsyncHTTPRequest *request, int readyState) {
     int code = request->responseHTTPcode();
     if (code == 200) {
       String payload = request->responseText();
-      DBG_PTN(payload);
-      JsonDocument doc;
+      //DBG_PTN(payload);
+      DynamicJsonDocument doc(1024*12);
       auto err = deserializeJson(doc, payload);
       if (err) {
         DBG_PTN("deser failed: ");
@@ -144,7 +153,7 @@ void req_stock_cb(void *optParm, AsyncHTTPRequest *request, int readyState) {
       int price_end = payload.indexOf(",", price_start);
       String price_str = payload.substring(price_start, price_end);
 
-      int prev_close_pos = payload.indexOf("chartPreviousClose");
+      int prev_close_pos = payload.indexOf("previousClose");
       int prev_close_start = payload.indexOf(":", prev_close_pos) + 1;
       int prev_close_end = payload.indexOf(",", prev_close_start);
       String prev_close_str = payload.substring(prev_close_start, prev_close_end);
@@ -172,13 +181,13 @@ void req_stock_cb(void *optParm, AsyncHTTPRequest *request, int readyState) {
       stock_data->kline_updated = 1;
       fill_candle_data(open_prices, close_prices, high_prices, low_prices, stock_data->candles, CANDLE_NUMS);
       run_data->err = 0;
-      prev_close = stock_data->candles[1].close;
-      DBG_PTN(price);
-      DBG_PTN(prev_close);
+      //prev_close = stock_data->candles[1].close;
+      //DBG_PTN(price);
+      //DBG_PTN(prev_close);
       stock_data->percent = ((price -prev_close) /prev_close * 100);
-      DBG_PTN(stock_data->percent);
+      //DBG_PTN(stock_data->percent);
       stock_data->percent = roundf(stock_data->percent * 10)/10;
-      DBG_PTN(stock_data->percent);
+      //DBG_PTN(stock_data->percent);
       //timesynced = true;
     }else{
       run_data->err = code;
@@ -190,7 +199,7 @@ void req_stock_cb(void *optParm, AsyncHTTPRequest *request, int readyState) {
 void send_req_stock(){
   //DBG_PTN(("rq t"));
   String a = run_data->stockdata.kline_interval;
-  DBG_PTN(a);
+  //DBG_PTN(a);
   int value = 0;//a.toInt();
   //String unit = a.substring(a.length()-1);
   int i = 0;
@@ -202,13 +211,16 @@ void send_req_stock(){
       break;
     }
   }
-  DBG_PTN("value = "+String(value));
+  //DBG_PTN("value = "+String(value));
   String unit = a.substring(i);
-  String range = String(value*CANDLE_NUMS+20)+unit;
-  DBG_PTN(range);
-  //注意下，雅虎也提供了http接口，异步http client 似乎暂不支持https的请求, 20240420
+  String range = String(value*CANDLE_NUMS+10)+unit;
+  //DBG_PTN(range);
+#if USE_SSL
+  String url = "https://query1.finance.yahoo.com/v8/finance/chart/"+run_data->stock_id+"?interval="+a+"&range="+range;
+#else
   String url = "http://query1.finance.yahoo.com/v8/finance/chart/"+run_data->stock_id+"?interval="+a+"&range="+range;
-  DBG_PTN(url);
+#endif
+  //DBG_PTN(url);
   bool requestOpenResult;
   //Serial.println(req_stock.headers());
   if (req_stock.readyState() == readyStateUnsent || req_stock.readyState() == readyStateDone) {
@@ -220,7 +232,7 @@ void send_req_stock(){
       req_stock.setReqHeader("Accept", "application/json");
       //req_stock.setReqHeader("Connection", "keep-alive");
       req_stock.setReqHeader("Connection", "close");
-      DBG_PTN(req_stock.headers());
+      //DBG_PTN(req_stock.headers());
       req_stock.send();
       //http.setUserAgent(F("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"));
     } else {
@@ -236,6 +248,118 @@ void async_http_get_stock() {
   req_stock.setDebug(false);
   req_stock.onReadyStateChange(req_stock_cb);
   send_req_stock();
+}
+#include <HTTPClient.h>
+//记录：使用同步方式请求http雅虎接口会出现301转发。但使用异步接口访问http，却能得到正确返回。20250601 
+void get_kline_data_yahoo(){
+  HTTPClient http;
+  //String finnhub_url = "https://finnhub.io/api/v1/stock/candle?symbol="+STOCK_NAME+"&resolution=5&from="+String(now()-50*30*60)+"&to="+String(now())+"&token=ch7rk9hr01qhapm5f7j0ch7rk9hr01qhapm5f7jg";
+  //String finnhub_url = "https://finnhub.io/api/v1/stock/candle?symbol="+STOCK_NAME+"&resolution=5&from=1682969996&to=1683022246&token=ch7rk9hr01qhapm5f7j0ch7rk9hr01qhapm5f7jg";
+  //unsigned long current_time = now(); // 获取当前 UNIX 时间戳
+  //unsigned long start_timestamp = current_time - (45 * 24 * 60 * 60); // 计算 30 天前的 UNIX 时间戳
+  //String finnhub_url = "https://finnhub.io/api/v1/stock/candle?symbol="+run_data->stock_id+"&resolution=D&from="+String(start_timestamp)+"&to="+String(current_time)+"&token=ch7rk9hr01qhapm5f7j0ch7rk9hr01qhapm5f7jg";
+  //[1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1wk, 1mo, 3mo]
+  String a = run_data->stockdata.kline_interval;
+  DBG_PTN(a);
+  int value = 0;//a.toInt();
+  //String unit = a.substring(a.length()-1);
+  int i = 0;
+  for (i = 0; i < a.length(); i++) {
+    if (isDigit(a.charAt(i))) {
+      value = value*10+(a.charAt(i) - '0');
+    } else {
+      // 遇到非数字字符时退出循环
+      break;
+    }
+  }
+  DBG_PTN("value = "+String(value));
+  String unit = a.substring(i);
+  //String range = String(value*30)+unit;
+  String range = String(value*CANDLE_NUMS+10)+unit;
+  DBG_PTN(range);
+  String url = "https://query1.finance.yahoo.com/v8/finance/chart/"+run_data->stock_id+"?interval="+a+"&range="+range;
+
+  //DBG_PTN(url);
+  //http.addHeader("user-agent", "Mozilla/5.0");
+  http.setTimeout(8000);
+  http.setConnectTimeout(5000);
+  http.begin(url);
+  http.setUserAgent(F("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"));
+  //http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+  DBG_PTN(http.headers());
+#ifndef DEBUG_STOCK
+  int httpResponseCode = http.GET();
+  if (httpResponseCode == 200) {
+#else
+  if(1){
+#endif
+    DynamicJsonDocument doc(1024 * 12);
+    //JsonDocument doc;
+    String payload = http.getString();
+    //String payload = R"({"chart":{"result":[{"meta":{"currency":"USD","symbol":"AMZN","exchangeName":"NMS","instrumentType":"EQUITY","firstTradeDate":863703000,"regularMarketTime":1683057604,"gmtoffset":-14400,"timezone":"EDT","exchangeTimezoneName":"America/New_York","regularMarketPrice":103.63,"chartPreviousClose":102.05,"previousClose":102.05,"scale":3,"priceHint":2,"currentTradingPeriod":{"pre":{"timezone":"EDT","start":1683014400,"end":1683034200,"gmtoffset":-14400},"regular":{"timezone":"EDT","start":1683034200,"end":1683057600,"gmtoffset":-14400},"post":{"timezone":"EDT","start":1683057600,"end":1683072000,"gmtoffset":-14400}},"tradingPeriods":[[{"timezone":"EDT","start":1683034200,"end":1683057600,"gmtoffset":-14400}]],"dataGranularity":"1m","range":"30m","validRanges":["1d","5d","1mo","3mo","6mo","1y","2y","5y","10y","ytd","max"]},"timestamp":[1683055800,1683055860,1683055920,1683055980,1683056040,1683056100,1683056160,1683056220,1683056280,1683056340,1683056400,1683056460,1683056520,1683056580,1683056640,1683056700,1683056760,1683056820,1683056880,1683056940,1683057000,1683057060,1683057120,1683057180,1683057240,1683057300,1683057360,1683057420,1683057480,1683057540,1683057600],"indicators":{"quote":[{"high":[103.72000122070312,103.68000030517578,103.68000030517578,103.66419982910156,103.60990142822266,103.63829803466797,103.75,103.75,103.76499938964844,103.87000274658203,103.86710357666016,103.78710174560547,103.76499938964844,103.70999908447266,103.69999694824219,103.68070220947266,103.66999816894531,103.66000366210938,103.5999984741211,103.5999984741211,103.66000366210938,103.69999694824219,103.75,103.73500061035156,103.72000122070312,103.7249984741211,103.74800109863281,103.77999877929688,103.79000091552734,103.79000091552734,103.62999725341797],"close":[103.5999984741211,103.5999984741211,103.66500091552734,103.6050033569336,103.56500244140625,103.62999725341797,103.72840118408203,103.69000244140625,103.76000213623047,103.83999633789062,103.7500991821289,103.7300033569336,103.71009826660156,103.62999725341797,103.66000366210938,103.56999969482422,103.66000366210938,103.57499694824219,103.54000091552734,103.5999984741211,103.58999633789062,103.69999694824219,103.69000244140625,103.66500091552734,103.68000030517578,103.67060089111328,103.68000030517578,103.73500061035156,103.7750015258789,103.66000366210938,103.62999725341797],"open":[103.69999694824219,103.6050033569336,103.6052017211914,103.66419982910156,103.5999984741211,103.55500030517578,103.625,103.7300033569336,103.69000244140625,103.75,103.8396987915039,103.75499725341797,103.73500061035156,103.70999908447266,103.62000274658203,103.66500091552734,103.57499694824219,103.65989685058594,103.57499694824219,103.53500366210938,103.59809875488281,103.58999633789062,103.69999694824219,103.69419860839844,103.66000366210938,103.68000030517578,103.67500305175781,103.67500305175781,103.7300033569336,103.7750015258789,103.62999725341797],"volume":[0,200320,105044,107497,171676,156262,115712,153781,137695,197050,187189,152296,144236,134027,121863,163943,139638,110475,161123,231181,251760,232015,217153,199454,261127,276844,357772,371413,380628,862819,0],"low":[103.5999984741211,103.59500122070312,103.59439849853516,103.5999984741211,103.5,103.55500030517578,103.61000061035156,103.67009735107422,103.69000244140625,103.73999786376953,103.7500991821289,103.69999694824219,103.69999694824219,103.60240173339844,103.60250091552734,103.55010223388672,103.55000305175781,103.56500244140625,103.5199966430664,103.5186996459961,103.52999877929688,103.58999633789062,103.69000244140625,103.6500015258789,103.62999725341797,103.66000366210938,103.66000366210938,103.66999816894531,103.7300033569336,103.58000183105469,103.62999725341797]}]}}],"error":null}})";
+    http.end();
+    DBG_PTN(payload);
+    auto err = deserializeJson(doc, payload);
+    if (err) {
+      DBG_PTN("deser failed: ");
+      DBG_PTN(err.c_str());
+      return;
+    }
+    
+  int price_pos = payload.indexOf("regularMarketPrice");
+  int price_start = payload.indexOf(":", price_pos) + 1;
+  int price_end = payload.indexOf(",", price_start);
+  String price_str = payload.substring(price_start, price_end);
+  DBG_PTN("price_str=");
+  DBG_PTN(price_str);
+  int prev_close_pos = payload.indexOf("previousClose");//百分比是依据这个计算
+  int prev_close_start = payload.indexOf(":", prev_close_pos) + 1;
+  int prev_close_end = payload.indexOf(",", prev_close_start);
+  String prev_close_str = payload.substring(prev_close_start, prev_close_end);
+
+  float price1 = doc['chart']['result'][0]['meta']['regularMarketPrice'].as<float>();
+  DBG_PTN("price1 float =");
+  DBG_PTN(price1);
+  //float price = price_str.toFloat();
+  char *endPtr; // 指向字符串末尾的指针
+  float price = strtof(price_str.c_str(), &endPtr); // 使用 strtof 转换为 float
+
+  DBG_PTN("price float =");
+  DBG_PTN(price);
+  float prev_close = prev_close_str.toFloat();
+
+    JsonArray open_prices = doc["chart"]["result"][0]["indicators"]["quote"][0]["open"];
+    JsonArray high_prices = doc["chart"]["result"][0]["indicators"]["quote"][0]["high"];
+    JsonArray low_prices = doc["chart"]["result"][0]["indicators"]["quote"][0]["low"];
+    JsonArray close_prices = doc["chart"]["result"][0]["indicators"]["quote"][0]["close"];
+    
+    // Process and draw the candle data using LVGL here
+    my_stock_t* stock_data = &run_data->stockdata;
+    stock_data->price = price;
+    DBG_PTN(price);
+    DBG_PTN(prev_close);
+    stock_data->percent = ((price -prev_close) /prev_close * 100);
+    DBG_PTN(stock_data->percent);
+    stock_data->percent = (stock_data->percent * 10)/10;
+    DBG_PTN(stock_data->percent);
+    //这里有bug，char 太长，解析不出实时价格 20230508 ifeng
+    //stock_data->price= doc['chart']['result'][0]['meta']['regularMarketPrice'];
+    //stock_data->price= doc['chart']['result'][0]['meta']['regular'];
+    //float previous_close_price = doc['chart']['result'][0]['meta']['chartPreviousClose'].as<float>();
+    //float price_change = stock_data->price - previous_close_price;
+    //stock_data->percent = (price_change / previous_close_price) * 100;
+
+    stock_data->kline_updated = 1;
+    run_data->refresh_status = 2;
+    fill_candle_data(open_prices, close_prices, high_prices, low_prices, stock_data->candles, CANDLE_NUMS);
+    //fill_candle_data(open_prices, close_prices, high_prices, low_prices, stock_data->candles, 30);
+  } else {
+    DBG_PTN("Err req: ");
+#ifndef DEBUG_STOCK
+    DBG_PTN(httpResponseCode);
+#endif
+    http.end();
+  }
 }
 
 //todo 股票更新逻辑：
@@ -263,6 +387,8 @@ void exit_stock(){
 //todo
 
   //req_stock.abort();
-  free(run_data);
-  run_data = NULL;
+  if(run_data){
+    free(run_data);
+    run_data = NULL;
+  }
 }
