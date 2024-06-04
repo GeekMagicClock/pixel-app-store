@@ -49,6 +49,7 @@ static void read_config(B_Config *cfg) {
         //cfg->stock_scale = 5;//5min
         cfg->updateInterval = 30;
         cfg->loop = 1;
+        cfg->st_kline = "1d";
         write_config(cfg);
     }else{
         cfg->stock_id[0] = String(c0);  // 股票代码
@@ -63,10 +64,10 @@ static void read_config(B_Config *cfg) {
         cfg->stock_id[9] = String(c9);  // 股票代码
         //cfg->stock_scale = 5;//5min
         if(cfg->updateInterval <10) cfg->updateInterval = 10;
-        cfg->updateInterval = 5;
+        //cfg->updateInterval = 5;
     }
 
-    cfg->st_kline = "1m";
+    cfg->st_kline = "1d";
     read_stock_kline_config(&cfg->st_kline);
 }
 
@@ -153,7 +154,7 @@ void req_stock_cb(void *optParm, AsyncHTTPRequest *request, int readyState) {
       int price_end = payload.indexOf(",", price_start);
       String price_str = payload.substring(price_start, price_end);
 
-      int prev_close_pos = payload.indexOf("previousClose");
+      int prev_close_pos = payload.indexOf("chartPreviousClose");
       int prev_close_start = payload.indexOf(":", prev_close_pos) + 1;
       int prev_close_end = payload.indexOf(",", prev_close_start);
       String prev_close_str = payload.substring(prev_close_start, prev_close_end);

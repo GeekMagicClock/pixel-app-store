@@ -1,3 +1,6 @@
+V1.0.5
+1) Fix update interval.
+
 V1.0.4
 1) Fix server limits.
 
