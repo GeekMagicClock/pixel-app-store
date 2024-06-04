@@ -313,7 +313,7 @@ void get_kline_data_yahoo(){
   String price_str = payload.substring(price_start, price_end);
   DBG_PTN("price_str=");
   DBG_PTN(price_str);
-  int prev_close_pos = payload.indexOf("previousClose");//百分比是依据这个计算
+  int prev_close_pos = payload.indexOf("chartPreviousClose");//百分比是依据这个计算
   int prev_close_start = payload.indexOf(":", prev_close_pos) + 1;
   int prev_close_end = payload.indexOf(",", prev_close_start);
   String prev_close_str = payload.substring(prev_close_start, prev_close_end);
