@@ -73,6 +73,7 @@ static void read_config(B_Config *cfg) {
 
 static B_Config cfg_data;
 StockmarketAppRunData *run_data = NULL;
+bool req_stock_done = true;
 
 //const int num_candles = 30;
 //CandleData candles[num_candles];
@@ -93,7 +94,9 @@ void init_stock_config()
     run_data->stockdata.kline_interval = cfg_data.st_kline;
     run_data->stockdata.ani = cfg_data.ani;
     DBG_PTN("init stock ...");
+    req_stock_done = true;
 }
+
 extern int enter_app;
 extern int page_index;
 static int last_page_index;
@@ -119,7 +122,7 @@ void fill_candle_data(JsonArray& open_prices, JsonArray& close_prices, JsonArray
   }
   return;
 }
-
+#define USE_SSL 0
 #if USE_SSL
 //20240601没有调通，发生 https://github.com/me-no-dev/AsyncTCP/issues/88
 #include "lib/AsyncHTTPSRequest_Generic.h"             // https://github.com/khoih-prog/AsyncHTTPRequest_Generic
@@ -134,7 +137,11 @@ void req_stock_cb(void *optParm, AsyncHTTPSRequest *request, int readyState) {
 void req_stock_cb(void *optParm, AsyncHTTPRequest *request, int readyState) {
 #endif
 
-  if(run_data == NULL) return;//修复频繁按键切换主题，退出时，仍然会进入到这里导致崩溃。20240430
+  if(run_data == NULL){
+
+    req_stock_done = true;//完成请求，才可以发送下一个
+    return;//修复频繁按键切换主题，退出时，仍然会进入到这里导致崩溃。20240430
+  }
 
   if (readyState == readyStateDone) {
     int code = request->responseHTTPcode();
@@ -146,6 +153,7 @@ void req_stock_cb(void *optParm, AsyncHTTPRequest *request, int readyState) {
       if (err) {
         DBG_PTN("deser failed: ");
         DBG_PTN(err.c_str());
+        req_stock_done = true;//完成请求，才可以发送下一个
         return;
       }
       
@@ -192,12 +200,14 @@ void req_stock_cb(void *optParm, AsyncHTTPRequest *request, int readyState) {
       //timesynced = true;
     }else{
       run_data->err = code;
-      DBG_PTN("time code = " + String(code));
+      DBG_PTN("rsp code = " + String(code));
     }
+    req_stock_done = true;//完成请求，才可以发送下一个
   }
 }
 
 void send_req_stock(){
+  if(req_stock_done == false) return; 
   //DBG_PTN(("rq t"));
   String a = run_data->stockdata.kline_interval;
   //DBG_PTN(a);
@@ -231,16 +241,19 @@ void send_req_stock(){
       //要放到这里才生效
       req_stock.setReqHeader("User-Agent","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36");
       req_stock.setReqHeader("Accept", "application/json");
-      //req_stock.setReqHeader("Connection", "keep-alive");
-      req_stock.setReqHeader("Connection", "close");
+      req_stock.setReqHeader("Connection", "keep-alive");
+      //req_stock.setReqHeader("Connection", "close");
       //DBG_PTN(req_stock.headers());
       req_stock.send();
+      req_stock_done = false;//完成请求，才可以发送下一个
       //http.setUserAgent(F("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"));
     } else {
-      DBG_PTN(F("bad request"));
+      DBG_PTN(F("bad request" + url));
+      req_stock_done = true;//完成请求，才可以发送下一个
     }
   } else {
-    DBG_PTN("rt can't send req");
+    DBG_PTN("rt can't send req" + url);
+    req_stock_done = true;//完成请求，才可以发送下一个
     //req_stock.abort();
   }
 }
@@ -387,7 +400,7 @@ void update_stock(bool force){
 void exit_stock(){
 //todo
 
-  //req_stock.abort();
+  req_stock.abort();
   if(run_data){
     free(run_data);
     run_data = NULL;
