@@ -37,6 +37,8 @@
 #define WEATHER_INTERVAL_PATH       F("/.sys/w_i.json") /* 天气更新间隔 */
 #define DST_PATH       F("/.sys/dst.json") /* 夏令时 */
 #define TZ_PATH       F("/.sys/tz.json") /* time zone*/
+#define YAHOO_COOKIE_PATH       "/.sys/ck.json" /* stock kline */
+#define YAHOO_CRUMB_PATH       "/.sys/cru.json" /* stock kline */
 
 void reset_config(){
   LittleFS.remove(CONFIG_PATH);
@@ -897,7 +899,60 @@ int read_stock_config(int *ani, int *loop, int *i, char *c0, char *c1, char *c2,
   }
   return -1;
 }
+int set_yahoo_cookie(String cookie){
+    File fp = LittleFS.open(YAHOO_COOKIE_PATH, "w");
+    if(!fp) return 0;
+    char settings[512] = {0};
+    snprintf(settings, sizeof(settings), "{\"ck\":\"%s\"}", cookie.c_str());
+    fp.write((uint8_t*)settings, strlen(settings));
+    fp.close();
+    return 0;
+}
 
+int read_yahoo_cookie(String *cookie){
+  if (LittleFS.exists(YAHOO_COOKIE_PATH)){
+    File fp = LittleFS.open(YAHOO_COOKIE_PATH, "r");
+    if(!fp) return 0;
+    String settings = fp.readString();
+    //DBG_PTN(settings);
+    
+    DynamicJsonDocument doc(1024);
+    deserializeJson(doc, settings);
+    JsonObject obj = doc.as<JsonObject>();
+
+    *cookie = obj[String("ck")].as<String>();
+    return 0;
+  }  
+  return -1;
+}
+
+int set_yahoo_crumb(String crumb){
+    File fp = LittleFS.open(YAHOO_CRUMB_PATH, "w");
+    if(!fp) return 0;
+    char settings[512] = {0};
+    snprintf(settings, sizeof(settings), "{\"cu\":\"%s\"}", crumb.c_str());
+    fp.write((uint8_t*)settings, strlen(settings));
+    fp.close();
+    return 0;
+}
+
+int read_yahoo_crumb(String *crumb){
+  if (LittleFS.exists(YAHOO_CRUMB_PATH)){
+    File fp = LittleFS.open(YAHOO_CRUMB_PATH, "r");
+    if(!fp) return 0;
+    String settings = fp.readString();
+    //DBG_PTN(settings);
+    
+    DynamicJsonDocument doc(512);
+    deserializeJson(doc, settings);
+    JsonObject obj = doc.as<JsonObject>();
+
+    *crumb = obj[String("cu")].as<String>();
+    return 0;
+  }  
+
+  return -1;
+}
 int read_coin_config(int *ani, int *loop, int *i, char *c0, char *c1, char *c2, char *c3,char *c4,char *c5,char *c6,char *c7,char *c8,char *c9,int code_len){
   if (LittleFS.exists(COIN_PATH)){
     File fp = LittleFS.open(COIN_PATH, "r");

@@ -95,6 +95,8 @@ void init_stock_config()
     run_data->stockdata.ani = cfg_data.ani;
     DBG_PTN("init stock ...");
     req_stock_done = true;
+    read_yahoo_cookie(&run_data->cookie);
+    read_yahoo_crumb(&run_data->crumb);
 }
 
 extern int enter_app;
@@ -193,9 +195,9 @@ void req_stock_cb(void *optParm, AsyncHTTPRequest *request, int readyState) {
       //prev_close = stock_data->candles[1].close;
       //DBG_PTN(price);
       //DBG_PTN(prev_close);
-      stock_data->percent = ((price -prev_close) /prev_close * 100);
+      //stock_data->percent = ((price -prev_close) /prev_close * 100);
       //DBG_PTN(stock_data->percent);
-      stock_data->percent = roundf(stock_data->percent * 10)/10;
+      //stock_data->percent = roundf(stock_data->percent * 10)/10;
       //DBG_PTN(stock_data->percent);
       //timesynced = true;
     }else{
@@ -248,7 +250,7 @@ void send_req_stock(){
       req_stock_done = false;//完成请求，才可以发送下一个
       //http.setUserAgent(F("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"));
     } else {
-      DBG_PTN(F("bad request" + url));
+      DBG_PTN(("bad request" + url));
       req_stock_done = true;//完成请求，才可以发送下一个
     }
   } else {
@@ -257,8 +259,160 @@ void send_req_stock(){
     //req_stock.abort();
   }
 }
+#include "HTTPClient.h"
+bool getCookieFromYahoo() {
+  //if (WiFi.status() == WL_CONNECTED) 
+
+  {
+    HTTPClient http;
+    String url = ("https://fc.yahoo.com");
+    //http.addHeader("User-Agent", "Mozilla/5.0 (compatible; yahoo-finance2/0.0.1)");
+    http.setTimeout(8000);
+    http.begin(url);
+    http.setUserAgent(F("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"));
+    DBG_PTN(url);
+    // 定义我们感兴趣的HTTP头文件的键
+    const char* headerKeys[] = {"Set-Cookie"};
+    size_t headerKeysCount = sizeof(headerKeys) / sizeof(char*);
+
+    // 只收集我们感兴趣的HTTP头文件
+    http.collectHeaders(headerKeys, headerKeysCount);
+
+    int httpCode = http.GET();
+    if (httpCode > 0) {
+      #if 0
+        Serial.println("Headers received:");
+        int headerCount = http.headers();
+        for (int i = 0; i < headerCount; i++) {
+          String headerName = http.headerName(i);
+          String headerValue = http.header(i);
+          Serial.println(headerName + ": " + headerValue);
+        }
+      #endif
+        
+      if (httpCode == HTTP_CODE_NOT_FOUND ||httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY || httpCode == HTTP_CODE_FOUND) {
+        // Print all headers
+        
+        String header = http.header("set-cookie");
+        if (header.length() > 0) {
+          //cookie = header.substring(0, header.indexOf(';'));
+          run_data->cookie = header;
+          //Serial.println("Cookie: " + run_data->cookie);
+          http.end();
+          set_yahoo_cookie(run_data->cookie);
+          return true;
+        }
+      }
+      DBG_PTN(httpCode);
+    } else {
+      DBG_PTN("Error on HTTP request: ");
+      DBG_PTN(httpCode);
+    }
+
+    http.end();
+  } 
+  return false;
+}
+
+bool getCrumbFromYahoo() {
+  //if (WiFi.status() == WL_CONNECTED) 
+  {
+    HTTPClient http;
+    String url = ("https://query2.finance.yahoo.com/v1/test/getcrumb");
+    DBG_PTN(url);
+    http.begin(url);
+    DBG_PTN(run_data->cookie);
+    http.addHeader("Cookie", run_data->cookie);
+    http.setUserAgent(F("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"));
+    DBG_PTN(http.header("Cookie"));
+    int httpCode = http.GET();
+    if (httpCode > 0) {
+      if (httpCode == HTTP_CODE_OK) 
+      {
+        run_data->crumb = http.getString();
+        //Serial.println("Crumb: " + run_data->crumb);
+        http.end();
+        set_yahoo_crumb(run_data->crumb);
+        return true;
+      }
+      DBG_PTN(httpCode);
+      DBG_PTN(http.getString());
+    } else {
+      DBG_PTN("Error on HTTP request: ");
+      DBG_PTN(httpCode);
+    }
+
+    http.end();
+  } 
+  return false;
+}
+bool get_today_price_from_yahoo() {
+  //if (WiFi.status() == WL_CONNECTED) 
+  {
+    HTTPClient http;
+    String url = ("https://query1.finance.yahoo.com/v7/finance/quote?&symbols="+run_data->stock_id+"&fields=currency,regularMarketChange,regularMarketChangePercent,regularMarketPrice&crumb="+run_data->crumb);
+    DBG_PTN(url);
+    http.begin(url);
+    http.addHeader("Cookie", run_data->cookie);
+    http.setUserAgent(F("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"));
+
+    int httpCode = http.GET();
+    if (httpCode > 0) {
+      if (httpCode == HTTP_CODE_OK) {
+        String payload = http.getString();
+        DBG_PTN(payload);
+        http.end();
+        // 解析JSON数据
+        DynamicJsonDocument doc(2048);
+        DeserializationError error = deserializeJson(doc, payload);
+        if (error) {
+          DBG_PTN("deserializeJson() failed: " + String(error.c_str()));
+          return false;
+        }
+        
+        // 获取当前价格和涨跌幅
+        float regularMarketPrice = doc["quoteResponse"]["result"][0]["regularMarketPrice"].as<float>();
+        float regularMarketChange = doc["quoteResponse"]["result"][0]["regularMarketChange"].as<float>();
+        float regularMarketChangePercent = doc["quoteResponse"]["result"][0]["regularMarketChangePercent"].as<float>();
+        DBG_PTN(regularMarketPrice);
+        DBG_PTN(regularMarketChangePercent);
+        run_data->stockdata.percent = roundf(regularMarketChangePercent);
+        return true;
+      }else{
+        DBG_PTN("Error on HTTP request: ");
+        DBG_PTN(httpCode);
+        run_data->cookie="";//清空 cookie，重新获取 crumb
+        run_data->crumb="";
+        set_yahoo_cookie("");
+        set_yahoo_crumb("");
+      }
+    } else {
+      DBG_PTN("Error on HTTP request: ");
+      DBG_PTN(httpCode);
+    }
+    http.end();
+  } 
+  return false;
+}
 
 void async_http_get_stock() {
+  // Step 1: Get Set-Cookie from Yahoo
+  if(run_data->cookie == "" ||run_data->crumb ==""){
+    if (getCookieFromYahoo()) {
+      // Step 2: Use the cookie to get the crumb
+      if (getCrumbFromYahoo()) {
+        //Serial.println("Crumb: " + run_data->crumb);
+        //Serial.println("Cookie: " +run_data->cookie);
+      } else {
+        DBG_PTN("Failed to get c.");
+      }
+    }
+  }
+
+  if(run_data->crumb != ""){
+    get_today_price_from_yahoo();
+  }
+
   req_stock.setDebug(false);
   req_stock.onReadyStateChange(req_stock_cb);
   send_req_stock();
@@ -331,9 +485,9 @@ void get_kline_data_yahoo(){
   int prev_close_end = payload.indexOf(",", prev_close_start);
   String prev_close_str = payload.substring(prev_close_start, prev_close_end);
 
-  float price1 = doc['chart']['result'][0]['meta']['regularMarketPrice'].as<float>();
-  DBG_PTN("price1 float =");
-  DBG_PTN(price1);
+  //float price1 = doc['chart']['result'][0]['meta']['regularMarketPrice'].as<float>();
+  //DBG_PTN("price1 float =");
+  //DBG_PTN(price1);
   //float price = price_str.toFloat();
   char *endPtr; // 指向字符串末尾的指针
   float price = strtof(price_str.c_str(), &endPtr); // 使用 strtof 转换为 float

@@ -31,7 +31,10 @@ int read_stock_kline_config(String *k);
 
 int set_stock_config(int ani, int loop, int i, const char *c0, const char *c1, const char *c2, const char *c3, const char *c4, const char *c5, const char *c6, const char *c7, const char *c8, const char *c9);
 int read_stock_config(int *ani, int *loop, int *i, char *c0, char *c1, char *c2,char *c3,char *c4,char *c5,char *c6,char *c7,char *c8,char *c9, int code_len);
-
+int set_yahoo_cookie(String cookie);
+int read_yahoo_cookie(String *cookie);
+int set_yahoo_crumb(String crumb);
+int read_yahoo_crumb(String *crumb);
 int set_coin_config(int ani, int loop, int i, const char *c0, const char *c1, const char *c2, const char *c3,const char *c4,const char *c5,const char *c6,const char *c7,const char *c8,const char *c9);
 int read_coin_config(int *ani, int *loop, int *i, char *c0, char *c1, char *c2, char *c3,char *c4,char *c5,char *c6,char *c7,char *c8,char *c9,int code_len);
 int read_delay_config(int *delay);

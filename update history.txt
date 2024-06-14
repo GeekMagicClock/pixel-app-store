@@ -1,3 +1,9 @@
+V1.0.7
+1) Fix: stock price change percent, it's should not be the chart's change percent.
+
+V1.0.6
+1) Stable fix.
+
 V1.0.5
 1) Fix update interval.
 

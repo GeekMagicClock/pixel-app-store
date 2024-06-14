@@ -39,6 +39,8 @@ struct StockmarketAppRunData {
     int stock_index;
     //String stock_kline_interval;//kline interval
     my_stock_t stockdata;
+    String cookie;
+    String crumb;
     int err;
 };
 
