@@ -99,7 +99,7 @@ void setup() {
     mdisplay.setCursor(0, 9);
     mdisplay.println("START:");
     mdisplay.setCursor(0, 18);
-    mdisplay.print("GeekMagic");
+    mdisplay.print(ap_ssid);
     startPortal(ap_ssid, "");
   }
 

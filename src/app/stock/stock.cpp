@@ -93,6 +93,7 @@ void init_stock_config()
     run_data->stockdata.stock_name = run_data->stock_id;
     run_data->stockdata.kline_interval = cfg_data.st_kline;
     run_data->stockdata.ani = cfg_data.ani;
+    run_data->stock_index = -1;
     DBG_PTN("init stock ...");
     req_stock_done = true;
     read_yahoo_cookie(&run_data->cookie);
@@ -539,11 +540,19 @@ void update_stock(bool force){
     if(!force && millis() - run_data->refresh_time_millis < cfg_data.updateInterval*1000 ) return;
     //display_stock(&run_data->stockdata, 30, LV_SCR_LOAD_ANIM_FADE_IN);
     if(cfg_data.loop){
-      if(run_data->stock_index >= STOCK_TOTAL) run_data->stock_index = 0;
-      run_data->stock_id = cfg_data.stock_id[run_data->stock_index++];
-      run_data->stockdata.stock_name = run_data->stock_id;
+      for(int i= 0; i < STOCK_TOTAL; i++){
+        run_data->stock_index ++;
+        if(run_data->stock_index >= STOCK_TOTAL) run_data->stock_index = 0;
+
+        if(cfg_data.stock_id[run_data->stock_index] != "") {
+          run_data->stock_id = cfg_data.stock_id[run_data->stock_index];
+          run_data->stockdata.stock_name = run_data->stock_id;
+          break;
+        }
+      }
       DBG_PTN(run_data->stock_id);
     }
+    if(cfg_data.stock_id[run_data->stock_index] == "") return;
     //get_kline_data_yahoo();
     async_http_get_stock();
     run_data->refresh_time_millis = millis();
