@@ -75,7 +75,7 @@
 					<input type="text" name="stock_interval" id="stock_interval" value="30">s(in seconds)
 				</div>
 			</div>						
-			<div class="row">
+			<!--div class="row">
 				<div class="col-12">
 					<h1>4. Loop Assets</h1>
 				</div>
@@ -88,10 +88,10 @@
 						<span class="slider round"></span>
 					</label>
 				</div>
-			</div>
+			</div-->
 			<div class="row">
 				<div class="col-12">
-					<h1>5. Set Color</h1>
+					<h1>4. Set Color</h1>
 				</div>
 			</div>			
 			<div class="row">
@@ -106,7 +106,7 @@
 			</div>
 			<div class="row">
 				<div class="col-12">
-					<h1>6. Set Background Image</h1>
+					<h1>5. Set Background Image</h1>
 				</div>
 			</div>			
 			<div class="row">
@@ -177,10 +177,10 @@
 				var c7 = getE('c7').value;
 				var c8 = getE('c8').value;
 				var c9 = getE('c9').value;
-				var loop = 0;
+				var loop = 1;
 				var ani = 0;
 				//var bg = getE('ticker_bg').value;
-				if(getE('s_loop').checked) loop = 1;
+				//if(getE('s_loop').checked) loop = 1;
 				var url = "/set?c0="+c0.replace(/ /g,"")+"&c1="+c1.replace(/ /g,"")+"&c2="+c2.replace(/ /g,"")+"&c3="+c3.replace(/ /g,"")+"&c4="+c4.replace(/ /g,"")+"&c5="+c5.replace(/ /g,"")+"&c6="+c6.replace(/ /g,"")+"&c7="+c7.replace(/ /g,"")+"&c8="+c8.replace(/ /g,"")+"&c9="+c9.replace(/ /g,"")+"&s_i="+interval.replace(/ /g,"")+"&s_l="+loop+"&s_ani="+ani;
 				console.log(url);
 				send_http(url);				

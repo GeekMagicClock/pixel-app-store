@@ -52,6 +52,7 @@ static void read_config(B_Config *cfg) {
         cfg->st_kline = "1d";
         write_config(cfg);
     }else{
+        cfg->loop = 1;//不loop 有bug
         cfg->stock_id[0] = String(c0);  // 股票代码
         cfg->stock_id[1] = String(c1);  // 股票代码
         cfg->stock_id[2] = String(c2);  // 股票代码
@@ -377,7 +378,8 @@ bool get_today_price_from_yahoo() {
         float regularMarketChangePercent = doc["quoteResponse"]["result"][0]["regularMarketChangePercent"].as<float>();
         DBG_PTN(regularMarketPrice);
         DBG_PTN(regularMarketChangePercent);
-        run_data->stockdata.percent = roundf(regularMarketChangePercent);
+        //run_data->stockdata.percent = roundf(regularMarketChangePercent);
+        run_data->stockdata.percent = (regularMarketChangePercent);
         return true;
       }else{
         DBG_PTN("Error on HTTP request: ");
