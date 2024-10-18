@@ -1,3 +1,6 @@
+V1.0.12
+1) Fix night mode bug, it's recommended to enable night mode for long term use.
+
 V1.0.11
 1) Remove loop switch.
 2) Fix percent round problem.
