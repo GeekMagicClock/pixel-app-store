@@ -42,6 +42,7 @@ struct StockmarketAppRunData {
     String cookie;
     String crumb;
     int err;
+    unsigned long last_err_time;
 };
 
 #endif

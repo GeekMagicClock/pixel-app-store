@@ -204,6 +204,7 @@ void req_stock_cb(void *optParm, AsyncHTTPRequest *request, int readyState) {
       //timesynced = true;
     }else{
       run_data->err = code;
+      run_data->last_err_time = millis();
       DBG_PTN("rsp code = " + String(code));
     }
     req_stock_done = true;//完成请求，才可以发送下一个

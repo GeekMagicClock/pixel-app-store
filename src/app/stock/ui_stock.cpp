@@ -74,7 +74,7 @@ String s_c = "#FFFFFF";//symbol color
 String p_c = "#FFD700";//price color
 #include "Fonts/FreeMono9pt7b.h"
 void display_stock(){
-    if(run_data->err != 0){
+    if(run_data->err != 0 && millis() - run_data->last_err_time < 2000){
         //mdisplay.clearScreen();
         mdisplay.setFont();
         mdisplay.setTextColor(parseRGBColor(C_RED));
@@ -171,7 +171,7 @@ String last_stock_price = "";
 
 
 void display_stock2(){
-    if(run_data->err != 0){
+    if(run_data->err != 0 && millis() - run_data->last_err_time < 2000){
         //mdisplay.clearScreen();
         mdisplay.setFont();
         mdisplay.setTextColor(parseRGBColor(C_RED));
