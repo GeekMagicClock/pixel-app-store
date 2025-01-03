@@ -32,8 +32,8 @@ int minutesTimeZone = 0;//分钟的时区偏移，还有相差半小时的时区
 //static const char ntpServerName4[] PROGMEM = ("hk.pool.ntp.org");
 //static const char ntpServerName5[] PROGMEM = ("asia.pool.ntp.org");
 const char ntpServerName[][20] = {
-    "ntp.aliyun.com",
-    "time.windows.com",
+    //"ntp.aliyun.com",
+    //"time.windows.com",
     "pool.ntp.org",
     "hk.pool.ntp.org",
     "asia.pool.ntp.org"
@@ -231,10 +231,20 @@ time_t syncNtp(const char *serverName){
 
 extern String my_ntp_server;
 bool http_time_fail = true;
+
+#include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
+extern MatrixPanel_I2S_DMA mdisplay;
+#include "display.h"
+int i = 0;
 time_t getNtpTime() {
   //IPAddress ntpServerIP; // NTP server's ip address
   //如果http同步成功，那说明udp第一次是失败了的，不必再继续udp同步，否则界面卡住
   //if(http_time_fail == false) return 0;
+  mdisplay.fillRect(0,0,64,8,parseRGBColor(C_BLACK));
+  mdisplay.setTextColor(parseRGBColor(C_RED));
+  mdisplay.setFont();
+  mdisplay.setCursor(0,0);
+  mdisplay.println("sync udp"+String(i++));
 
   time_t tt;
   if(my_ntp_server != ""){
