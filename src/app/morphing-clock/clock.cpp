@@ -27,7 +27,7 @@ Digit digit0(0, CLOCK_X+5*(CLOCK_SEGMENT_WIDTH+CLOCK_SEGMENT_SPACING)+6, PANEL_H
 int prevss = 0;
 int prevmm = 0;
 int prevhh = 0;
-
+extern bool udp_time_fail;
 bool clockStartingUp = true;
 #include "TimeLib.h"
 void displayClock() {
