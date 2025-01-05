@@ -162,7 +162,7 @@ int getRemainDays(int iYear1, int iMonth1, int iDay1, int iYear2, int iMonth2, i
 
 #if 1
 //wifi连接UDP设置参数
-unsigned int localPort = 8000;
+unsigned int localPort = 8888;
 bool udp_time_fail = true;
 bool last_udp_time_fail = true;
 #define UDP_TIME_UPDATE_INTERVAL 300 //5minutes
@@ -172,8 +172,8 @@ void sync_udp_time(){
   //udp 同步成功，后续就启用 udp 间隔同步时间
   if (last_udp_time_fail != udp_time_fail) {
     DBG_PTN("enable UDP update.");
-    setSyncProvider(getNtpTime);
-    setSyncInterval(UDP_TIME_UPDATE_INTERVAL); 
+    //setSyncProvider(getNtpTime);
+    //setSyncInterval(UDP_TIME_UPDATE_INTERVAL); 
     last_udp_time_fail = udp_time_fail;
   }
 }
@@ -181,8 +181,9 @@ void sync_udp_time(){
 void init_time(){
   Udp.begin(localPort);
   //DBG_PTN("等待同步...");
-  //setSyncProvider(getNtpTime);
-  getNtpTime();
+  setSyncProvider(getNtpTime);
+  setSyncInterval(120);
+  //getNtpTime();
   //setSyncProvider(sync_http_time);
   // 5 分钟同步一次
   //setSyncInterval(300);
@@ -191,7 +192,8 @@ void init_time(){
 
 //#include "lib/NtpClientLib.h"
 const int NTP_PACKET_SIZE = 48; // NTP时间在消息的前48字节中
-byte packetBuffer[NTP_PACKET_SIZE]; //buffer to hold incoming & outgoing packets
+//byte packetBuffer[NTP_PACKET_SIZE]; //buffer to hold incoming & outgoing packets
+byte *packetBuffer = NULL;
 
 time_t syncNtp(const char *serverName){
   IPAddress ntpServerIP; // NTP server's ip address
@@ -199,9 +201,11 @@ time_t syncNtp(const char *serverName){
   DBG_PTN(serverName);
   //Serial.print(": ");
   //DBG_PTN(ntpServerIP);
+  if(packetBuffer == NULL) packetBuffer = (byte *)malloc(NTP_PACKET_SIZE);
+  memset(packetBuffer,0, NTP_PACKET_SIZE);
   sendNTPpacket(ntpServerIP);
   uint32_t beginWait = millis();
-  while (millis() - beginWait < 2500) {
+  while (millis() - beginWait < 5000) {
     int size = Udp.parsePacket();
     if (size >= NTP_PACKET_SIZE) {
       //DBG_PTN("Receive NTP Response");
@@ -209,22 +213,39 @@ time_t syncNtp(const char *serverName){
       Udp.read(packetBuffer, NTP_PACKET_SIZE);  // read packet into the buffer
       unsigned long secsSince1900;
       //udp同步成功，开启5分钟同步一次时间
-      udp_time_fail = false;
       DBG_PTN("UDP 同步成功.");
       //会崩溃 setSyncProvider(getNtpTime);
-      //setSyncInterval(300);
+      //if(udp_time_fail == true)
+      {
+       // setSyncInterval(60);
+      }
+      udp_time_fail = false;
       // convert four bytes starting at location 40 to a long integer
       secsSince1900 =  (unsigned long)packetBuffer[40] << 24;
       secsSince1900 |= (unsigned long)packetBuffer[41] << 16;
       secsSince1900 |= (unsigned long)packetBuffer[42] << 8;
       secsSince1900 |= (unsigned long)packetBuffer[43];
       //DBG_PTN(secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR);
-      unsigned long tt =  secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR + minutesTimeZone*SECS_PER_MIN;
+      time_t tt =  secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR + minutesTimeZone*SECS_PER_MIN;
       setTime(tt);
       DBG_PTN(tt);
+      unsigned long hours = (tt % 86400L) / 3600;  // 计算小时
+      unsigned long minutes = (tt % 3600) / 60;    // 计算分钟
+      unsigned long seconds = tt % 60;             // 计算秒
+
+      Serial.print("当前时间: ");
+      Serial.print(hours);
+      Serial.print(":");
+      Serial.print(minutes);
+      Serial.print(":");
+      Serial.println(seconds);
       DBG_PTN(hour(now()));
+      free(packetBuffer); packetBuffer = NULL;
       return tt;
     }
+  }
+  if(packetBuffer){
+    free(packetBuffer); packetBuffer = NULL;
   }
   return 0; // 无法获取时间时返回0
 }
@@ -240,11 +261,13 @@ time_t getNtpTime() {
   //IPAddress ntpServerIP; // NTP server's ip address
   //如果http同步成功，那说明udp第一次是失败了的，不必再继续udp同步，否则界面卡住
   //if(http_time_fail == false) return 0;
+  #if 0
   mdisplay.fillRect(0,0,64,8,parseRGBColor(C_BLACK));
   mdisplay.setTextColor(parseRGBColor(C_RED));
   mdisplay.setFont();
   mdisplay.setCursor(0,0);
   mdisplay.println("sync udp"+String(i++));
+  #endif
 
   time_t tt;
   if(my_ntp_server != ""){

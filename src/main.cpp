@@ -63,6 +63,7 @@ void setup() {
   read_hour12_config(&hour12);
   //提取时区
   read_timezone_config(&timeZone, &minutesTimeZone);
+  init_config();
 
   WiFi.scanNetworks(true);
   delay(500);
@@ -153,6 +154,9 @@ void check_wifi(){
   }
 }
 int sys_update_status = 0;
+unsigned int loop_interval= 30;
+long update_theme_time = -9000000;
+int enable_theme_loop = 0;
 void loop() {
     //scroll_text(0, 20, "This is a long text stringgggggggggggggggggggggg.");
     //return;
@@ -179,6 +183,7 @@ void loop() {
     update_btn();
     update_http_server();
     auto_adjust_brt();
+
     if(last_theme_index != theme_index || force_time_display){
         if(last_theme_index >= 0)
             theme_loop_list[last_theme_index].exit();
@@ -193,11 +198,27 @@ void loop() {
 
         if(force_time_display) force_time_display = 0;
     }
-
+    
     theme_loop_list[theme_index].display();
-
     if(theme_loop_list[theme_index].update != NULL)
       theme_loop_list[theme_index].update(false);
+
+	  if(enable_theme_loop){
+	    if(millis()-update_theme_time > loop_interval*1000 || force_time_display){
+	      //找到下一个要切换的主题
+	      for(int i = 0; i< THEME_TOTAL-1; i++){
+	        tmp_theme_index ++;
+	        if(tmp_theme_index >= THEME_TOTAL -1) tmp_theme_index = 0;
+	        if(theme_loop_list[tmp_theme_index].loop_en){
+	          update_theme_time = millis();
+		        DBG_PTN("to theme index :");
+	    	    DBG_PTN(tmp_theme_index);
+	          break;
+	        }
+	      }
+	   }
+	  }
+   
     if(tmp_theme_index != theme_index) {
       //说明客户端修改了主题，需要切换。阻塞式改变theme_index的值
       if(tmp_theme_index >= 0 && tmp_theme_index <THEME_TOTAL){

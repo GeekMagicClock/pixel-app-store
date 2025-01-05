@@ -7,73 +7,65 @@
 		<meta name="theme-color" content="#36393E" />
 		<link rel="stylesheet" href="css/style.css">
 	</head>
-	<body onload = "getData('/v.json');getData('/.sys/brt.json');getData('/.sys/delay.json');getData('/.sys/app.json');getData('/.sys/timebrt.json');getData('/theme_list.json');getNav();">
+	<body onload = "getData('/v.json');getData('/.sys/brt.json');getData('/.sys/delay.json');getData('/.sys/app.json');getData('/.sys/timebrt.json');getData('/.sys/theme_list.json');getNav();">
 		<nav id="nav" style="width: 80%;margin: 0 auto;font-size: 25px;text-align: center;">
 		</nav>
 		<div class="container">
+
 			<div class="row">
-				<div class="col-12">
-					<div id="popup" class="popup"></div>
-					<h1>1. Choose theme</h1>
-				</div>
-			</div>
-			<div class="row">
-				<div class="col-12">
-					<input class="button-primary left btn-theme" type="button"  onclick="setTheme(0)" value="Market Ticker I"/>
-					<input class="button-primary left btn-theme" type="button"  onclick="setTheme(1)" value="Market Ticker II"/>
-					<input class="button-primary left btn-theme" type="button"  onclick="setTheme(2)" value="Image Display"/>
-					<input class="button-primary left btn-theme" type="button"  onclick="setTheme(3)" value="Tetris Clock"/>
-					<input class="button-primary left btn-theme" type="button"  onclick="setTheme(4)" value="Morphing Clock"/>
-					<input class="button-primary left btn-theme" type="button"  onclick="setTheme(5)" value="Weather Clock"/>
-				</div>
-			</div>	
-			<!--div class="row">
 				<div class="col-12">
 					<div id="error" class="hide"></div>
-					<h1>2. Auto Switch Themes</h1>
+					<h1>1. Loop Themes</h1>
 				</div>
 			</div>
 			<div class="row">
 				<div class="col-12">
 					<label class="switch">
-						<input type="checkbox" class="switch-input" id="ticker">
+						<input type="checkbox" class="switch-input" id="th1">
 						<span class="slider round"></span>
 					</label>
-					<span>1.Market ticker</span>
+					<span>1.Market ticker I</span>
 					<p></p>
 
 					<label class="switch">
-						<input type="checkbox" class="switch-input" id="images">
+						<input type="checkbox" class="switch-input" id="th2">
 						<span class="slider round"></span>
 					</label>
-					<span>2.Image Display</span>
+					<span>2.Market ticker II</span>
 					<p></p>
 
 					<label class="switch">
-						<input type="checkbox" class="switch-input" id="tetris">
+						<input type="checkbox" class="switch-input" id="th3">
 						<span class="slider round"></span>
 					</label>
-					<span>3.Tetris Clock</span>
+					<span>3.Image Display</span>
 					<p></p>
 
 					<label class="switch">
-						<input type="checkbox" class="switch-input" id="morphing">
+						<input type="checkbox" class="switch-input" id="th4">
 						<span class="slider round"></span>
 					</label>
-					<span>4.Morphing Clock</span>
+					<span>4.Tetris Clock</span>
+					<p></p>
+
+					<label class="switch">
+						<input type="checkbox" class="switch-input" id="th5">
+						<span class="slider round"></span>
+					</label>
+					<span>5.Morphing Clock</span>
 
 					<p></p>
 					<label class="switch">
-						<input type="checkbox" class="switch-input" id="weather">
+						<input type="checkbox" class="switch-input" id="th6">
 						<span class="slider round"></span>
 					</label>
-					<span>5.Weather Clock</span>
+					<span>6.Weather Clock</span>
 					<p></p>
 
-					<label>Interval(seconds):</label><input id= "theme_interval" type="text" style="width:60px" placeholder="10s"><p>					
+					<label>Interval:</label><input id= "theme_interval" type="text" style="width:100px" placeholder="min 60s">(seconds)<p>					
 					<button class="button-primary left" onclick="set_theme_list()">SAVE</button><p>
 				</div>
-			</div-->	
+			</div>	
 			<div class="row">
 				<div class="col-12">					
 					<h1>2. Brightness</h1>
@@ -214,55 +206,49 @@
 				var url = "/set?t1="+t1.value+"&t2="+t2.value+"&b1=50&b2="+b2.value+"&en="+en;
 				send_http(url);
 			}
-			function setTheme(th){
-				var url = "/set?theme="+th;
-				send_http(url);
+		
+			function set_theme_list() {
+			    // 获取所有主题的选中状态
+			    const themes = Array.from({ length: 6 }, (_, i) => getE(`th${i + 1}`).checked ? 1 : 0);
+
+			    // 计算选中的主题数量
+			    const selectedCount = themes.reduce((sum, val) => sum + val, 0);
+
+			    // 如果选中的主题少于2个，弹出提示并返回
+			    if (selectedCount < 2) {
+			        alert("At least please choose two themes!");
+			        return;
+			    }
+
+			    // 获取 theme_interval 的值，并确保其不小于 30
+			    let themeInterval = getE("theme_interval").value;
+			    themeInterval = themeInterval.trim() === "" || Number(themeInterval) < 60 ? 60 : Number(themeInterval);
+			    // 根据是否有选中的主题设置 sw_en 的值
+			    const sw_en = selectedCount > 0 ? 1 : 0;
+
+			    // 构建 URL
+			    const url = `/set?theme_list=${themes.join(",")}&sw_en=${sw_en}&theme_interval=${themeInterval}`;
+
+			    // 打印 URL 并发送请求
+			    console.log(url);
+			    send_http(url);
 			}			
-			function set_theme_list(){
-				var arr = new Array();
-				if(getE("th1").checked) arr[0] = 1;else arr[0] = 0;
-				if(getE("th2").checked) arr[1] = 1;else arr[1] = 0;
-				if(getE("th3").checked) arr[2] = 1;else arr[2] = 0;
-				if(getE("th4").checked) arr[3] = 1;else arr[3] = 0;
-				if(getE("th5").checked) arr[4] = 1;else arr[4] = 0;
-				if(getE("th6").checked) arr[5] = 1;else arr[5] = 0;
-				if(getE("th7").checked) arr[6] = 1;else arr[6] = 0;
-				if(getE("sw_en").checked) sw = 1;
-				else sw = 0;
-				if(sw==1){
-					var n=0;
-					for(i=0;i<9;i++){
-						if (arr[i] == 1) n++;
-						console.log(n);
-					}
-					if(n<2){
-						alert("At least please choose two themes!");
-						return;
-					}
-				}
-				var x = getE("theme_interval");
-				var url = "/set?theme_list="+arr+"&sw_en="+sw+"&theme_interval="+x.value;
-				console.log(url);
-				send_http(url);
-			}
+
 			function set_reset(){
 				var ret = confirm("Do you confirm to clear all settings and reboot the device?");
 				if(!ret) return;
 				var url = "/set?reset=1";
-				console.log(url);
 				send_http(url);
 			}
 			function set_reboot(){
 				var ret = confirm("Do you confirm to reboot the device?");
 				if(!ret) return;
 				var url = "/set?reboot=1";
-				console.log(url);
 				send_http(url);
 			}
 			function set_brt(){
 				var brt = getE('brt').value;
 				var url = "/set?brt="+brt.replace(/ /g,"");
-				console.log(url);
 				send_http(url);	
 			}
 		</script>

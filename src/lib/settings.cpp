@@ -1115,7 +1115,7 @@ int saveThemeList(const char* themeList, int en, int interval) {
     return -1;
   }
   char settings[128] = {0};
-  snprintf(settings, sizeof(settings), "{\"list\":\"%s\",\"sw_en\":\"%d\",\"sw_i\":\"%d\"}", themeList, en, interval);
+  snprintf(settings, sizeof(settings), "{\"list\":\"%s\",\"sw_en\":%d,\"sw_i\":%d}", themeList, en, interval);
   fp.write((uint8_t *)settings, strlen(settings));
   // 关闭文件
   fp.close();
@@ -1221,7 +1221,7 @@ extern int timeZone;     //东八区
 extern int minutesTimeZone;//分钟的时区偏移，还有相差半小时的时区
 
 int init_config(){
-  read_font_config(&font_path);
+  //read_font_config(&font_path);
   read_delay_config(&delay_wifi_time);
   read_ntp_config(&my_ntp_server);
   read_key_config(&weather_key);
@@ -1241,22 +1241,26 @@ int init_config(){
   //read_img_config(&autoplay_path);
   read_album_config(&autoplay, &album_time);
   read_hour12_config(&hour12);
-  read_colon_config(&colon);
+  //read_colon_config(&colon);
   read_timer_brt_config(&timer_brt_en, &t1, &t2, &b2);
-  read_daytimer_config(&user_year, &user_month, &user_day);
+  //read_daytimer_config(&user_year, &user_month, &user_day);
   read_dst_config(&dst_enable);
-  read_day_config(&day_format);
+  //read_day_config(&day_format);
 
   char theme_list[20];
   int ret = loadThemeList(theme_list, sizeof(theme_list), &enable_theme_loop, &loop_interval);
   if(ret == 0){
-    for(int i = 0, j=0; j < 7; i=i+2, j++){
+    for(int i = 0, j=0; j < THEME_TOTAL -1; i=i+2, j++){
       if(theme_list[i] == '1')
         theme_loop_list[j].loop_en = 1; 
       else
         theme_loop_list[j].loop_en = 0; 
     }
   }
+  DBG_PTN("enable theme loop");
+  DBG_PTN(enable_theme_loop);
+  DBG_PTN(loop_interval);
+
   #if 0
   int b_i = 0;
   ret = read_bili_config(bili, sizeof(bili), &b_i);
@@ -1278,11 +1282,6 @@ int init_config(){
   if(theme_index > THEME_TOTAL) theme_index = 1;
   //read_time_color_config(&h_color, &m1_color, &s1_color);
  
-  read_page_index_config(&page_index);
-  if(theme_index == 1){
-    if(page_index == 2) flip_index = "";
-  }
-
   update_time_colors();
 
   read_wifi_config(ssid, sizeof(ssid), pwd, sizeof(pwd));

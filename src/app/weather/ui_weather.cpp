@@ -88,8 +88,8 @@ void update_weather(bool force){
 void exit_weather(){
     //wea.init_done = false;
     gifDeinit();
-    wea.weather_changed = false;
-    wea.forecast_changed = false;
+    //wea.weather_changed = false;
+    //wea.forecast_changed = false;
     wea_init_status = false;
 }
 extern int hour12;
@@ -157,7 +157,7 @@ void display_weather(){
           mdisplay.setTextColor(mdisplay.color565(173, 216, 230));
           mdisplay.setCursor(42,8);
           mdisplay.print(String(wea.humidity) + "%");
-          wea.weather_changed = false;
+          //wea.weather_changed = false;
         }
         String weather_gif = "/wea/" + wea.weather_code + ".gif";
         drawGif(weather_gif.c_str(), 0, 0);

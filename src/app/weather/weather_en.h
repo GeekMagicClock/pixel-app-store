@@ -88,12 +88,12 @@ private:
     void forecastOnReadyStateChange(void* optParm, AsyncHTTPRequest* request, int readyState);
     void forecast_send_request();
     static void forecast_request_cb(void* optParm, AsyncHTTPRequest* request, int readyState);
-    #endif
     ReadyStateChangeCB forecastTempOnReadyStateChangeCB; // Callback function
     void forecast_temp_parse_rsp_data(const String* payload);
     void forecastTempOnReadyStateChange(void* optParm, AsyncHTTPRequest* request, int readyState);
     void forecast_temp_send_request();
     static void forecast_temp_request_cb(void* optParm, AsyncHTTPRequest* request, int readyState);
+    #endif
 };
 
 #endif // WEATHER_EN_H

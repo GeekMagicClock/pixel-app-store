@@ -6,7 +6,7 @@ Weather::Weather() {
     // Initialize your member variables here if needed
     requestPtr = nullptr; // 初始化指针为 nullptr
     //requestPtr1 = nullptr; // 初始化指针为 nullptr
-    requestPtr2 = nullptr; // 初始化指针为 nullptr
+    //requestPtr2 = nullptr; // 初始化指针为 nullptr
 }
 
 Weather::~Weather() {
@@ -47,10 +47,10 @@ void Weather::init(const String& usrKey, const String& pubKey, const String& cit
     forecastOnReadyStateChangeCB = [this](void* optParm, AsyncHTTPRequest* request, int readyState) {
         forecastOnReadyStateChange(optParm, request, readyState);
     };
-    #endif
     forecastTempOnReadyStateChangeCB = [this](void* optParm, AsyncHTTPRequest* request, int readyState) {
         forecastTempOnReadyStateChange(optParm, request, readyState);
     };
+    #endif
 }
 
 void Weather::update(bool force) {
@@ -129,6 +129,7 @@ void Weather::send_request() {
     if (requestPtr->readyState() == readyStateUnsent || requestPtr->readyState() == readyStateDone) {
         requestOpenResult = requestPtr->open("GET", url.c_str());
         if (requestOpenResult) {
+            requestPtr->setTimeout(30);
             requestPtr->send();
         } else {
             //DBG_PTN(F("bad request"));
@@ -337,6 +338,7 @@ void Weather::forecast_request_cb(void* optParm, AsyncHTTPRequest* request, int 
 #endif
 }
 #endif
+#if 0
 void Weather::update_forecast_temp(bool force) {
     // Check if it's time to update the weather based on the update interval
     //DBG_PTN("update forecast");
@@ -458,7 +460,7 @@ void Weather::forecast_temp_request_cb(void* optParm, AsyncHTTPRequest* request,
     }
 #endif
 }
-
+#endif
 Weather wea;
 
 

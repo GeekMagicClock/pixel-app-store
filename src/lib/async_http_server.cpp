@@ -343,8 +343,9 @@ int delay_wifi_time;
 extern String my_ntp_server;
 #include "../app/weather/weather_en.h"
 #include <TimeLib.h>
-int loop_interval;
-int enable_theme_loop;
+extern int loop_interval;
+//int enable_theme_loop = 2;
+extern int enable_theme_loop;
 int user_year;
 int user_month;
 int user_day;
@@ -504,14 +505,27 @@ void handleSet(AsyncWebServerRequest * request){
   }else if (request->hasArg("theme")) {
     tmp_theme_index = request->arg("theme").toInt();
     Serial.printf("theme:[%d]\r\n", theme_index);
-    //退出相册轮播
-    //if(theme_index != THEME_ALBUM) app_exit = 1;
+    if(tmp_theme_index >= 0 && tmp_theme_index <THEME_TOTAL-1){
+      theme_index = tmp_theme_index;
+      set_theme_config(theme_index);
+      //禁用主题自动切换
+      if(enable_theme_loop){
+        char theme_list[30] = "0,0,0,0,0,0";
+        //int ret = loadThemeList(theme_list, sizeof(theme_list), &enable_theme_loop, &loop_interval);
+        for(int j=0; j<THEME_TOTAL-1; j++){
+          theme_loop_list[j].loop_en = 0;
+        }
+        enable_theme_loop = 0;
+        saveThemeList(theme_list, 0, loop_interval);
+      }
+      force_time_display = 1;
+    }
   }else if (request->hasArg("theme_list") && request->hasArg("sw_en")&& request->hasArg("theme_interval")) {
     //Serial.printf("theme:[%d]\r\n", theme_index);
     char theme_list[20];
     request->arg("theme_list").toCharArray(theme_list, sizeof(theme_list));
     //DBG_PTN(theme_list);
-    for(int i=0, j=0; j<THEME_TOTAL; i=i+2,j++){
+    for(int i=0, j=0; j<THEME_TOTAL-1; i=i+2,j++){
       if(theme_list[i] == '1'){
         theme_loop_list[j].loop_en = 1;
       }else{
@@ -522,8 +536,9 @@ void handleSet(AsyncWebServerRequest * request){
     DBG_PTN(enable_theme_loop);
     loop_interval = request->arg("theme_interval").toInt();
     //限制下切换频率
-    if(loop_interval < 11) loop_interval = 10;
+    if(loop_interval < 60) loop_interval = 60;
     saveThemeList(theme_list, enable_theme_loop, loop_interval);
+    force_time_display = 1;
   }else if (request->hasArg("yr") && request->hasArg("mth") && request->hasArg("day")) {
     user_year = request->arg("yr").toInt();
     user_month = request->arg("mth").toInt();

@@ -160,20 +160,21 @@ function getData(data) {
 	if(res.c_ani == "1") coin_ani.checked = true;
 	
 	//主题
-	//if(res.theme) theme.value = res.theme;
-	if(res.list){
-		if(res.list[0] == "1"){getE("th1").checked = true;}
-		if(res.list[2] == "1"){getE("th2").checked = true;}
-		if(res.list[4] == "1"){getE("th3").checked = true;}
-		if(res.list[6] == "1"){getE("th4").checked = true;}
-		if(res.list[8] == "1"){getE("th5").checked = true;}
-		if(res.list[10] == "1"){getE("th6").checked = true;}
-		if(res.list[12] == "1"){getE("th7").checked = true;}
-		if(res.list[14] == "1"){getE("th8").checked = true;}
-		if(res.list[16] == "1"){getE("th9").checked = true;}
-		if(res.sw_en == "1") {getE("sw_en").checked = true;}
-		if(res.sw_i) {getE("theme_interval").value = res.sw_i;}
-	} 
+	//主题
+	if(res.sw_i) {getE("theme_interval").value = res.sw_i;}
+
+	if (res.list && res.sw_en == 1) {
+		 const listArray = res.list.split(',');
+		 listArray.forEach((value, index) => {
+			if (value === "1") {
+				getE(`th${index+1}`).checked = true;
+			}
+		});
+		if (res.sw_i) {
+			getE("theme_interval").value = res.sw_i;
+		}
+	}
+
 });
 }
 function send_http(url){
@@ -181,16 +182,16 @@ function send_http(url){
 		//var err = getE("error");
 		if (responseText == "OK") {
 			//err.style.background="#5ecb4a";
-			showPopup("Saved successfully!", 1000, "#02a601");
+			showPopup("Saved successfully!", 1500, "#02a601");
 		} else{
 			//err.style.background="#af3535";
-			showPopup("Saved failed.", 1000, "#dc0d04");
+			showPopup("Saved failed.", 2000, "#dc0d04");
 		} 
 	});
 }
 function set_c(){
 	var copyright = getE("copyright");
-	if(copyright != null) copyright.innerHTML = '<br />Copyright (c) 2024 GeekMagic® All rights reserved, bug report or need help or new feature requests please mail:<a href=\"\" target=\"_blank\"> GeekMagic@163.com</a>';
+	if(copyright != null) copyright.innerHTML = '<br />Copyright (c) 2025 GeekMagic® All rights reserved, bug report or need help or new feature requests please mail:<a href=\"\" target=\"_blank\"> GeekMagic@163.com</a>';
 }
 set_c();
 function getE(name){
@@ -215,6 +216,24 @@ function getNav(){
 		link.textContent = navLinks[i].text;
 		dynamicNav.appendChild(link);
 	}
+
+	var themeContainer = document.createElement("div");
+	themeContainer.className = "container";
+	themeContainer.innerHTML = `
+		<div class="row">
+			<div id="popup" class="popup"></div>
+			<div class="col-12">
+					<input class="button-primary left btn-theme" type="button"  onclick="setTheme(0)" value="Market Ticker I"/>
+					<input class="button-primary left btn-theme" type="button"  onclick="setTheme(1)" value="Market Ticker II"/>
+					<input class="button-primary left btn-theme" type="button"  onclick="setTheme(2)" value="Image Display"/>
+					<input class="button-primary left btn-theme" type="button"  onclick="setTheme(3)" value="Tetris Clock"/>
+					<input class="button-primary left btn-theme" type="button"  onclick="setTheme(4)" value="Morphing Clock"/>
+					<input class="button-primary left btn-theme" type="button"  onclick="setTheme(5)" value="Weather Clock"/>
+			</div>
+		</div>
+	`;
+
+	dynamicNav.parentNode.insertBefore(themeContainer, dynamicNav.nextSibling);
 }
 function escapeHTML(str) {
 	if(str==undefined) return;
@@ -261,3 +280,14 @@ function getResponse(adr, callback, timeoutCallback, timeout, method){
 	xmlhttp.timeout = timeout;
 	xmlhttp.ontimeout = timeoutCallback;
 }
+
+let hasPrompted = false;
+function setTheme(th){
+	if (!hasPrompted) {
+		showPopup("Click will disable auto loop themes.", 1000, "#dc0d04");
+		hasPrompted = true; // 将标志变量设置为 true，表示已经提示过
+	}
+	var url = "/set?theme="+th;
+	send_http(url);
+}			
+	
