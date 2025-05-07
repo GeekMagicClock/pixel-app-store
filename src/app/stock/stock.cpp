@@ -64,7 +64,7 @@ static void read_config(B_Config *cfg) {
         cfg->stock_id[8] = String(c8);  // 股票代码
         cfg->stock_id[9] = String(c9);  // 股票代码
         //cfg->stock_scale = 5;//5min
-        if(cfg->updateInterval <10) cfg->updateInterval = 10;
+        if(cfg->updateInterval <30) cfg->updateInterval = 30;
         //cfg->updateInterval = 5;
     }
 
@@ -272,7 +272,9 @@ bool getCookieFromYahoo() {
     //http.addHeader("User-Agent", "Mozilla/5.0 (compatible; yahoo-finance2/0.0.1)");
     http.setTimeout(8000);
     http.begin(url);
-    http.setUserAgent(F("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"));
+    //http.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36");
+    http.setUserAgent( "Mozilla/5.0 (X11; Linux x86_64)");
+    //http.setUserAgent(F("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"));
     DBG_PTN(url);
     // 定义我们感兴趣的HTTP头文件的键
     const char* headerKeys[] = {"Set-Cookie"};
@@ -300,7 +302,7 @@ bool getCookieFromYahoo() {
         if (header.length() > 0) {
           //cookie = header.substring(0, header.indexOf(';'));
           run_data->cookie = header;
-          //Serial.println("Cookie: " + run_data->cookie);
+          //Serial.println("rsp Cookie: " + run_data->cookie);
           http.end();
           set_yahoo_cookie(run_data->cookie);
           return true;
@@ -324,22 +326,26 @@ bool getCrumbFromYahoo() {
     String url = ("https://query2.finance.yahoo.com/v1/test/getcrumb");
     DBG_PTN(url);
     http.begin(url);
-    DBG_PTN(run_data->cookie);
+    //DBG_PTN(run_data->cookie);
     http.addHeader("Cookie", run_data->cookie);
-    http.setUserAgent(F("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"));
+    http.setReuse(true);
+    //http.setUserAgent(("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"));
+    http.setUserAgent( "Mozilla/5.0 (X11; Linux x86_64)");
     DBG_PTN(http.header("Cookie"));
     int httpCode = http.GET();
     if (httpCode > 0) {
       if (httpCode == HTTP_CODE_OK) 
       {
         run_data->crumb = http.getString();
-        //Serial.println("Crumb: " + run_data->crumb);
+        //Serial.println("rsp Crumb: " + run_data->crumb);
         http.end();
         set_yahoo_crumb(run_data->crumb);
         return true;
       }
       DBG_PTN(httpCode);
       DBG_PTN(http.getString());
+      //run_data->cookie = "";
+      //set_yahoo_cookie("");
     } else {
       DBG_PTN("Error on HTTP request: ");
       DBG_PTN(httpCode);
@@ -356,8 +362,9 @@ bool get_today_price_from_yahoo() {
     String url = ("https://query1.finance.yahoo.com/v7/finance/quote?&symbols="+run_data->stock_id+"&fields=currency,regularMarketChange,regularMarketChangePercent,regularMarketPrice&crumb="+run_data->crumb);
     DBG_PTN(url);
     http.begin(url);
-    http.addHeader("Cookie", run_data->cookie);
-    http.setUserAgent(F("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"));
+    http.addHeader("Cookie", run_data->cookie);//http.begin 必须在前，添加的header 才生效 20250507
+    //http.setUserAgent(F("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"));
+    http.setUserAgent( "Mozilla/5.0 (X11; Linux x86_64)");
 
     int httpCode = http.GET();
     if (httpCode > 0) {
@@ -385,10 +392,18 @@ bool get_today_price_from_yahoo() {
       }else{
         DBG_PTN("Error on HTTP request: ");
         DBG_PTN(httpCode);
-        run_data->cookie="";//清空 cookie，重新获取 crumb
-        run_data->crumb="";
-        set_yahoo_cookie("");
-        set_yahoo_crumb("");
+        if(httpCode == 401 || httpCode == 403){
+          run_data->cookie="";//清空 cookie，重新获取 crumb
+          run_data->crumb="";
+          set_yahoo_cookie("");
+          set_yahoo_crumb("");
+        }
+        if(httpCode == 429)
+          cfg_data.updateInterval = 60;
+        //run_data->cookie="";//清空 cookie，重新获取 crumb
+        //run_data->crumb="";
+        //set_yahoo_cookie("");
+        //set_yahoo_crumb("");
       }
     } else {
       DBG_PTN("Error on HTTP request: ");
@@ -401,7 +416,7 @@ bool get_today_price_from_yahoo() {
 
 void async_http_get_stock() {
   // Step 1: Get Set-Cookie from Yahoo
-  if(run_data->cookie == "" ||run_data->crumb ==""){
+  if(run_data->cookie == "" || run_data->crumb ==""){
     if (getCookieFromYahoo()) {
       // Step 2: Use the cookie to get the crumb
       if (getCrumbFromYahoo()) {
