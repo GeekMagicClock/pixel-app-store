@@ -273,7 +273,13 @@ bool getCookieFromYahoo() {
     http.setTimeout(8000);
     http.begin(url);
     //http.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36");
-    http.setUserAgent( "Mozilla/5.0 (X11; Linux x86_64)");
+    // 创建随机数（6位）
+    long randomNum = random(100000, 1000000); // [100000, 999999]
+    // 构造 User-Agent 字符串
+    String userAgent = "Mozilla/5.0 (" + String(randomNum) + ")";
+    http.setUserAgent(userAgent);
+ 
+    //http.setUserAgent( "Mozilla/5.0 (X11; Linux x86_64)");
     //http.setUserAgent(F("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"));
     DBG_PTN(url);
     // 定义我们感兴趣的HTTP头文件的键
@@ -364,7 +370,12 @@ bool get_today_price_from_yahoo() {
     http.begin(url);
     http.addHeader("Cookie", run_data->cookie);//http.begin 必须在前，添加的header 才生效 20250507
     //http.setUserAgent(F("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"));
-    http.setUserAgent( "Mozilla/5.0 (X11; Linux x86_64)");
+    // 创建随机数（6位）
+    long randomNum = random(100000, 1000000); // [100000, 999999]
+    // 构造 User-Agent 字符串
+    String userAgent = "Mozilla/5.0 (" + String(randomNum) + ")";
+    http.setUserAgent(userAgent);
+    //http.setUserAgent(USER_AGENT);
 
     int httpCode = http.GET();
     if (httpCode > 0) {
@@ -471,7 +482,13 @@ void get_kline_data_yahoo(){
   http.setTimeout(8000);
   http.setConnectTimeout(5000);
   http.begin(url);
-  http.setUserAgent(F("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"));
+  // 创建随机数（6位）
+  long randomNum = random(100000, 1000000); // [100000, 999999]
+  // 构造 User-Agent 字符串
+  String userAgent = "Mozilla/5.0 (" + String(randomNum) + ")";
+  http.setUserAgent(userAgent);
+ 
+  //http.setUserAgent(F("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"));
   //http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
   DBG_PTN(http.headers());
 #ifndef DEBUG_STOCK

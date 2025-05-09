@@ -1,3 +1,6 @@
+V1.0.14 #UPDATES:
+1) BUG: Fix possible percent display 0.0% problem.
+
 V1.0.13 #UPDATES:
 1) BUG: Fix a 5 minutes sync time error.
 2) BUG: Fixed an issue where some user settings did not reload after restarting..

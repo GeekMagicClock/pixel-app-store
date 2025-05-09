@@ -94,6 +94,7 @@ void setup() {
   }
   pinMode(32,INPUT_PULLUP);
   if(WiFi.status() != WL_CONNECTED || digitalRead(32) == LOW){
+  //if(WiFi.status() != WL_CONNECTED){
     mdisplay.clearScreen();
     mdisplay.setCursor(0, 1);
     mdisplay.println("WiFi");

@@ -238,6 +238,14 @@
 				console.log(url);
 				send_http(url);
 			});
+			$('#dst').change(function() {
+				var dst = getE('dst').checked;
+				if(dst == true) dst=1;
+				else dst=0;
+				var url = "/set?dst="+dst;
+				console.log(url);
+				send_http(url);
+			});
 			function set_timezone(){
 				var tz = $('#timezone').val();
 				var mtz = $('#mtimezone').val();
@@ -288,14 +296,6 @@
 			function set_interval(){
 				var interval = getE('time_interval').value;
 				var url = "/set?time_interval="+interval.replace(/ /g,"");
-				console.log(url);
-				send_http(url);				
-			}
-			function set_dst(){				
-				var dst = getE('dst').checked;
-				if(dst == true) dst=1;
-				else dst=0;
-				var url = "/set?dst="+dst;
 				console.log(url);
 				send_http(url);				
 			}
