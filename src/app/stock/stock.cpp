@@ -64,7 +64,7 @@ static void read_config(B_Config *cfg) {
         cfg->stock_id[8] = String(c8);  // 股票代码
         cfg->stock_id[9] = String(c9);  // 股票代码
         //cfg->stock_scale = 5;//5min
-        if(cfg->updateInterval <30) cfg->updateInterval = 30;
+        if(cfg->updateInterval <5) cfg->updateInterval = 5;
         //cfg->updateInterval = 5;
     }
 
