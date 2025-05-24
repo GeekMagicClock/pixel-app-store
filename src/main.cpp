@@ -43,6 +43,48 @@ void updateDataTask(void *pvParameters) {
   }
 }
 
+void connectToStrongestSSID(const char* ssid, const char* password) {
+  int strongestRSSI = -100; // 初始化为一个很低的信号强度
+  int strongestChannel = 0; // 用于存储信号最强的信道
+  uint8_t strongestBSSID[6] = {0}; // 用于存储信号最强的 BSSID
+
+  // 扫描网络
+  // 等待扫描完成
+  while (WiFi.scanComplete() == WIFI_SCAN_RUNNING) {
+    delay(100); // 等待扫描完成
+    Serial.print(".");
+  }
+  int n = WiFi.scanComplete();
+  // 遍历扫描结果
+  for (int i = 0; i < n; ++i) {
+    //Serial.println("ssid:"+ String(i));
+    //Serial.println(WiFi.SSID(i)); // 打印所有 SSID
+
+    if (WiFi.SSID(i).equals(ssid)) { // 使用 equals 比较 SSID
+      int rssi = WiFi.RSSI(i);
+      if (rssi > strongestRSSI) {
+        strongestRSSI = rssi;
+        memcpy(strongestBSSID, WiFi.BSSID(i), 6); // 复制 BSSID
+        strongestChannel = WiFi.channel(i);
+      }
+    }
+  }
+
+  // 如果找到信号最强的 SSID，连接到它
+  if (strongestRSSI > -100) {
+    #if 0
+    Serial.printf("Connecting to SSID: %s, BSSID: %02X:%02X:%02X:%02X:%02X:%02X, Channel: %d\n",
+                  ssid,
+                  strongestBSSID[0], strongestBSSID[1], strongestBSSID[2],
+                  strongestBSSID[3], strongestBSSID[4], strongestBSSID[5],
+                  strongestChannel);
+    #endif
+    WiFi.begin(ssid, password, strongestChannel, strongestBSSID);
+  } else {
+    Serial.println("Target SSID not found or signal too weak");
+  }
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -76,7 +118,8 @@ void setup() {
   init_display();
 
   WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
+  //WiFi.begin(ssid, password);
+  connectToStrongestSSID(ssid, password);
   WiFi.setAutoReconnect(true);
   //virtualDisp = new VirtualMatrixPanel(mdisplay, NUM_ROWS, NUM_COLS, PANEL_RES_X, PANEL_RES_Y);
   unsigned long timeout = millis();
