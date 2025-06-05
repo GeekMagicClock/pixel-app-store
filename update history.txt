@@ -1,3 +1,8 @@
+V1.0.17 #UPDATES:
+1) Feature: Faster update interval for stocks.
+2) Optimize: Connect to the strongest wifi signal when start.
+3) BUG: Fix stock request stability.
+
 V1.0.14 #UPDATES:
 1) BUG: Fix possible percent display 0.0% problem.
 
