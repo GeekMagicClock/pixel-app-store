@@ -117,6 +117,19 @@ void setup() {
   //delay(1000);
   init_display();
 
+  pinMode(32,INPUT_PULLUP);
+  if(digitalRead(32) == LOW){
+  //if(WiFi.status() != WL_CONNECTED){
+    mdisplay.clearScreen();
+    mdisplay.setCursor(0, 1);
+    mdisplay.println("WiFi");
+    mdisplay.setCursor(0, 9);
+    mdisplay.println("START:");
+    mdisplay.setCursor(0, 18);
+    mdisplay.print(ap_ssid);
+    startPortal(ap_ssid, "");
+  }
+
   WiFi.mode(WIFI_STA);
   //WiFi.begin(ssid, password);
   connectToStrongestSSID(ssid, password);
@@ -135,9 +148,12 @@ void setup() {
     Serial.print(".");
     //delay(500);
   }
-  pinMode(32,INPUT_PULLUP);
-  if(WiFi.status() != WL_CONNECTED || digitalRead(32) == LOW){
-  //if(WiFi.status() != WL_CONNECTED){
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+ 
+  if(WiFi.status() != WL_CONNECTED){
     mdisplay.clearScreen();
     mdisplay.setCursor(0, 1);
     mdisplay.println("WiFi");
@@ -148,11 +164,6 @@ void setup() {
     startPortal(ap_ssid, "");
   }
 
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
- 
   init_http_server();
   init_btn();
 
