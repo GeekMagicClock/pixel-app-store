@@ -433,7 +433,7 @@ void sync_http_time(bool force){
     if(!http_time_fail && millis() - http_update_start_time < 1000*3600) return;//http 同步成功后每隔60m同步一次
   }
   
-  getUnixTime();
+  //getUnixTime();
   http_update_start_time = millis();
 }
 #endif

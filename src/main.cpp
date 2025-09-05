@@ -85,12 +85,11 @@ void connectToStrongestSSID(const char* ssid, const char* password) {
   }
 }
 
+long update_theme_time = -9000000;
 void setup() {
   Serial.begin(115200);
 
   // Attempt to connect to Wifi network:
-  Serial.print("Connecting Wifi: ");
-  Serial.println(ssid);
   // Start filesystem
   Serial.println(" * Loading SPIFFS");
   if(!LittleFS.begin()){
@@ -101,6 +100,9 @@ void setup() {
   }
   read_wifi_config(ssid, sizeof(ssid), password, sizeof(password)); 
   read_theme_config(&theme_index);
+  Serial.print("Connecting Wifi: ");
+  Serial.println(ssid);
+  Serial.println(password);
   tmp_theme_index = theme_index;//解决异步切换主题的问题
   read_hour12_config(&hour12);
   //提取时区
@@ -108,7 +110,7 @@ void setup() {
   init_config();
 
   WiFi.scanNetworks(true);
-  delay(500);
+  //delay(500);
   // Set WiFi to station mode and disconnect from an AP if it was Previously
   // connected
  // Display Setup
@@ -131,9 +133,11 @@ void setup() {
   }
 
   WiFi.mode(WIFI_STA);
-  //WiFi.begin(ssid, password);
-  connectToStrongestSSID(ssid, password);
+  WiFi.begin(ssid, password);
+  //connectToStrongestSSID(ssid, password);
   WiFi.setAutoReconnect(true);
+
+  mdisplay.setBrightness8(50); //0-255
   //virtualDisp = new VirtualMatrixPanel(mdisplay, NUM_ROWS, NUM_COLS, PANEL_RES_X, PANEL_RES_Y);
   unsigned long timeout = millis();
   while ((millis()-timeout) < 15*1000) {
@@ -193,6 +197,7 @@ void setup() {
       1               // 分配给第二个内核的内核编号（1表示第二个内核）
   );
   #endif
+  update_theme_time = millis();
 }
 unsigned long lastConnectionAttempt = 0;
 const int connectionInterval = 5 * 60 * 1000; // 5分钟，以毫秒为单位
@@ -210,11 +215,11 @@ void check_wifi(){
 }
 int sys_update_status = 0;
 unsigned int loop_interval= 30;
-long update_theme_time = -9000000;
 int enable_theme_loop = 0;
 void loop() {
     //scroll_text(0, 20, "This is a long text stringgggggggggggggggggggggg.");
     //return;
+    Serial.printf("theme = %d", theme_index);
     //virtualDisp->flipDMABuffer();
     //sync_http_time(false);
     if(sys_update_status == 1){

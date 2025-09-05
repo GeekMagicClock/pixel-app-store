@@ -1278,8 +1278,8 @@ int init_config(){
   }
   #endif
   read_theme_config(&theme_index);
-  if(theme_index <= 0) theme_index = 1;
-  if(theme_index > THEME_TOTAL) theme_index = 1;
+  if(theme_index <= 0) theme_index = 0;
+  if(theme_index > THEME_TOTAL) theme_index = 0;
   //read_time_color_config(&h_color, &m1_color, &s1_color);
  
   update_time_colors();

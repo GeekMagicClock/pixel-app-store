@@ -82,9 +82,9 @@ void init_display(){
   
   //解决一个bug，消除了红点噪声。出处 https://github.com/mrcodetastic/ESP32-HUB75-MatrixPanel-DMA/issues/145
   mxconfig.latch_blanking = 2;
-  mxconfig.i2sspeed = HUB75_I2S_CFG::HZ_20M;
+  mxconfig.i2sspeed = HUB75_I2S_CFG::HZ_10M;
   mxconfig.clkphase = false;
-  mxconfig.min_refresh_rate = 240;//闪屏问题
+  mxconfig.min_refresh_rate = 60;//闪屏问题
 
   if(PANEL_TYPE == P64X64) {
     mxconfig.mx_width = 64;
@@ -92,9 +92,10 @@ void init_display(){
     mxconfig.gpio.e = 18;//64x64 必须配置E line
     mxconfig.driver = HUB75_I2S_CFG::FM6124;
   }
+  mdisplay.setBrightness8(0); //0-255
+  mdisplay.clearScreen();  // 第一次清帧缓冲
   mdisplay.begin(mxconfig);
-  mdisplay.setBrightness8(80); //0-255
-  mdisplay.clearScreen();
+  mdisplay.clearScreen();  // 第一次清帧缓冲
 }
 
 int is_in_night_time(){

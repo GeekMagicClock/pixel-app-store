@@ -247,7 +247,7 @@ void init_stock(){
     mdisplay.setFont();
     mdisplay.setCursor(0,12);
     mdisplay.setTextColor(mdisplay.color565(173, 216, 230));
-    mdisplay.print("UPDATING..");
+    mdisplay.print("LOADING..");
 }
 
 void init_stock2(){

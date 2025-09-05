@@ -126,7 +126,7 @@ void display_weather(){
         mdisplay.setFont();
         mdisplay.setCursor(0,12);
         mdisplay.setTextColor(mdisplay.color565(173, 216, 230));
-        mdisplay.print("UPDATING..");
+        mdisplay.print("LOADING..");
     }else{
         String cur_temp;  
         String feels_like;
@@ -157,7 +157,7 @@ void display_weather(){
           mdisplay.setTextColor(mdisplay.color565(173, 216, 230));
           mdisplay.setCursor(42,8);
           mdisplay.print(String(wea.humidity) + "%");
-          //wea.weather_changed = false;
+          wea.weather_changed = false;
         }
         String weather_gif = "/wea/" + wea.weather_code + ".gif";
         drawGif(weather_gif.c_str(), 0, 0);

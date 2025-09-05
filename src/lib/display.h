@@ -38,7 +38,7 @@ struct ScrollText {
     int textHeight = 9; // 字高为 9 个像素
     float speed = 1; // 每毫秒移动像素数
 
-    if (currentMillis - prevMillis >= 25) { // 控制移动速度
+    if (currentMillis - prevMillis >= 100) { // 控制移动速度
       prevMillis = currentMillis;
 
       // 在 x 位置绘制字符串之前清空文本区域
