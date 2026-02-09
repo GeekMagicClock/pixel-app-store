@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>64x32 LED 字体预览工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 10px;
+            font-size: 2em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: rgba(255,255,255,0.9);
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        .control-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .control-group input[type="text"],
+        .control-group input[type="number"],
+        .control-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .control-group input:focus,
+        .control-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .control-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+        }
+        
+        #fontUpload {
+            display: block;
+            margin-top: 10px;
+            padding: 10px;
+            background: #667eea;
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            text-align: center;
+            transition: background 0.3s;
+        }
+        
+        #fontUpload:hover {
+            background: #5568d3;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+        
+        .font-card {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .font-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+        }
+        
+        .font-name {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .font-size-badge {
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        
+        .font-size-badge.large {
+            background: #ffebee;
+            color: #c62828;
+        }
+        
+        .preview-container {
+            background: #000;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 10px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .preview-canvas {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            image-rendering: -moz-crisp-edges;
+            -ms-interpolation-mode: nearest-neighbor;
+            border: 1px solid #333;
+        }
+        
+        .zoom-info {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .stat-item {
+            background: #f5f5f5;
+            padding: 6px;
+            border-radius: 4px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: white;
+            font-size: 1.2em;
+        }
+        
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 10px;
+        }
+        
+        @media (max-width: 768px) {
+            .control-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 64×32 LED 字体预览工具</h1>
+        <p class="subtitle">实时预览字体在小尺寸 LED 屏幕上的显示效果</p>
+        
+        <div class="controls">
+            <div class="control-row">
+                <div class="control-group">
+                    <label for="testText">测试文本:</label>
+                    <input type="text" id="testText" value="ABCDE&#10;abcde&#10;01234" placeholder="支持 \n 换行">
+                </div>
+                
+                <div class="control-group">
+                    <label for="fontSize">字体大小 (px):</label>
+                    <input type="number" id="fontSize" value="8" min="6" max="16">
+                </div>
+                
+                <div class="control-group">
+                    <label for="zoomLevel">预览缩放:</label>
+                    <select id="zoomLevel">
+                        <option value="2">2x</option>
+                        <option value="3">3x</option>
+                        <option value="4" selected>4x</option>
+                        <option value="6">6x</option>
+                        <option value="8">8x</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <label>上传字体文件 (.ttf):</label>
+                <label for="fontFileInput" id="fontUpload">
+                    📁 选择字体文件（可多选）
+                </label>
+                <input type="file" id="fontFileInput" accept=".ttf" multiple style="display: none;">
+            </div>
+        </div>
+        
+        <div id="fontGrid" class="grid">
+            <div class="loading">⏳ 等待加载字体...</div>
+        </div>
+    </div>
+
+    <script>
+        const SCREEN_WIDTH = 64;
+        const SCREEN_HEIGHT = 32;
+        
+        let loadedFonts = [];
+        
+        // 监听控制变化
+        document.getElementById('testText').addEventListener('input', updateAllPreviews);
+        document.getElementById('fontSize').addEventListener('input', updateAllPreviews);
+        document.getElementById('zoomLevel').addEventListener('change', updateAllPreviews);
+        
+        // 文件上传
+        document.getElementById('fontFileInput').addEventListener('change', handleFontUpload);
+        
+        async function handleFontUpload(event) {
+            const files = event.target.files;
+            
+            for (const file of files) {
+                if (!file.name.endsWith('.ttf')) {
+                    continue;
+                }
+                
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const fontFace = new FontFace(file.name.replace('.ttf', ''), arrayBuffer);
+                    await fontFace.load();
+                    document.fonts.add(fontFace);
+                    
+                    loadedFonts.push({
+                        name: file.name.replace('.ttf', ''),
+                        size: file.size,
+                        file: file
+                    });
+                } catch (error) {
+                    console.error(`加载字体失败: ${file.name}`, error);
+                }
+            }
+            
+            renderFontGrid();
+        }
+        
+        function renderFontGrid() {
+            const grid = document.getElementById('fontGrid');
+            grid.innerHTML = '';
+            
+            if (loadedFonts.length === 0) {
+                grid.innerHTML = '<div class="loading">📤 请上传 TTF 字体文件</div>';
+                return;
+            }
+            
+            loadedFonts.forEach((font, index) => {
+                const card = createFontCard(font, index);
+                grid.appendChild(card);
+            });
+        }
+        
+        function createFontCard(font, index) {
+            const card = document.createElement('div');
+            card.className = 'font-card';
+            
+            const sizeKB = (font.size / 1024).toFixed(1);
+            const isLarge = font.size > 150 * 1024;
+            
+            card.innerHTML = `
+                <div class="font-name">
+                    <span>${font.name}</span>
+                    <span class="font-size-badge ${isLarge ? 'large' : ''}">${sizeKB} KB</span>
+                </div>
+                <div class="preview-container">
+                    <canvas class="preview-canvas" id="canvas-${index}"></canvas>
+                    <div class="zoom-info">${document.getElementById('zoomLevel').value}x</div>
+                </div>
+                <div class="stats">
+                    <div class="stat-item">屏幕: ${SCREEN_WIDTH}×${SCREEN_HEIGHT}px</div>
+                    <div class="stat-item">字号: ${document.getElementById('fontSize').value}px</div>
+                </div>
+            `;
+            
+            // 渲染预览
+            setTimeout(() => {
+                renderFontPreview(font, index);
+            }, 10);
+            
+            return card;
+        }
+        
+        function renderFontPreview(font, index) {
+            const canvas = document.getElementById(`canvas-${index}`);
+            if (!canvas) return;
+            
+            const zoom = parseInt(document.getElementById('zoomLevel').value);
+            
+            // Canvas 绘制尺寸固定为 64×32
+            canvas.width = SCREEN_WIDTH;
+            canvas.height = SCREEN_HEIGHT;
+            
+            // CSS 显示尺寸根据缩放设置
+            canvas.style.width = (SCREEN_WIDTH * zoom) + 'px';
+            canvas.style.height = (SCREEN_HEIGHT * zoom) + 'px';
+            
+            const ctx = canvas.getContext('2d');
+            
+            // 黑色背景
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+            
+            // 获取文本
+            let text = document.getElementById('testText').value;
+            text = text.replace(/\\n/g, '\n');
+            
+            // 设置字体 - 使用实际像素大小
+            const fontSize = parseInt(document.getElementById('fontSize').value);
+            ctx.font = `${fontSize}px "${font.name}"`;
+            ctx.fillStyle = '#fff';
+            ctx.textBaseline = 'top';
+            
+            // 绘制文本（支持换行）
+            const lines = text.split('\n');
+            const lineHeight = fontSize * 1.2;
+            
+            lines.forEach((line, i) => {
+                ctx.fillText(line, 2, 2 + i * lineHeight);
+            });
+        }
+        
+        function updateAllPreviews() {
+            loadedFonts.forEach((font, index) => {
+                renderFontPreview(font, index);
+            });
+            
+            // 更新缩放标签
+            document.querySelectorAll('.zoom-info').forEach(el => {
+                el.textContent = document.getElementById('zoomLevel').value + 'x';
+            });
+            
+            // 更新统计信息
+            document.querySelectorAll('.stats').forEach(stats => {
+                const items = stats.querySelectorAll('.stat-item');
+                items[1].textContent = `字号: ${document.getElementById('fontSize').value}px`;
+            });
+        }
+        
+        // 初始化提示
+        renderFontGrid();
+        
+        // 拖放支持
+        document.body.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+        
+        document.body.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const files = Array.from(e.dataTransfer.files).filter(f => f.name.endsWith('.ttf'));
+            
+            if (files.length === 0) return;
+            
+            const input = document.getElementById('fontFileInput');
+            const dataTransfer = new DataTransfer();
+            files.forEach(file => dataTransfer.items.add(file));
+            input.files = dataTransfer.files;
+            
+            input.dispatchEvent(new Event('change'));
+        });
+    </script>
+</body>
+</html>

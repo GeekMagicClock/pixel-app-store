@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 字体管理工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 10px;
+            font-size: 2.2em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: rgba(255,255,255,0.9);
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        .control-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .control-group input[type="text"],
+        .control-group input[type="number"],
+        .control-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .control-group input:focus,
+        .control-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .control-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .font-library {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+        
+        .font-library h3 {
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 1.1em;
+        }
+        
+        .font-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .font-item {
+            background: white;
+            padding: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .font-item:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+        
+        .font-item.downloading {
+            opacity: 0.6;
+            cursor: wait;
+        }
+        
+        .font-item.downloaded {
+            background: #e8f5e9;
+            border-color: #4caf50;
+        }
+        
+        .font-item-name {
+            font-weight: 500;
+            font-size: 13px;
+        }
+        
+        .font-item-size {
+            font-size: 11px;
+            color: #666;
+        }
+        
+        .download-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .download-btn:hover {
+            background: #5568d3;
+        }
+        
+        .upload-zone {
+            border: 2px dashed #667eea;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8f9fa;
+        }
+        
+        .upload-zone:hover {
+            background: #e8eaf6;
+            border-color: #5568d3;
+        }
+        
+        .upload-zone.dragover {
+            background: #c5cae9;
+            border-color: #3f51b5;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .font-card {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .font-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+        }
+        
+        .font-name {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+        }
+        
+        .font-size-badge {
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        
+        .font-size-badge.large {
+            background: #ffebee;
+            color: #c62828;
+        }
+        
+        .preview-container {
+            background: #000;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 10px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .preview-canvas {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            image-rendering: -moz-crisp-edges;
+            -ms-interpolation-mode: nearest-neighbor;
+            border: 1px solid #333;
+        }
+        
+        .zoom-info {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            font-size: 11px;
+            color: #666;
+        }
+        
+        .stat-item {
+            background: #f5f5f5;
+            padding: 6px;
+            border-radius: 4px;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        
+        .btn {
+            flex: 1;
+            padding: 8px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+        
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #d32f2f;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: white;
+            font-size: 1.2em;
+        }
+        
+        @media (max-width: 768px) {
+            .control-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 ESP32 字体管理工具</h1>
+        <p class="subtitle">64×32 LED 屏幕字体预览与管理 | data_littlefs/fonts</p>
+        
+        <div class="controls">
+            <div class="control-row">
+                <div class="control-group">
+                    <label for="testText">测试文本:</label>
+                    <input type="text" id="testText" value="ABCDE&#10;abcde&#10;01234" placeholder="支持 \n 换行">
+                </div>
+                
+                <div class="control-group">
+                    <label for="fontSize">字体大小:</label>
+                    <input type="number" id="fontSize" value="8" min="6" max="16">
+                </div>
+                
+                <div class="control-group">
+                    <label for="zoomLevel">预览缩放:</label>
+                    <select id="zoomLevel">
+                        <option value="2">2x</option>
+                        <option value="3">3x</option>
+                        <option value="4" selected>4x</option>
+                        <option value="6">6x</option>
+                        <option value="8">8x</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="font-library">
+                <h3>📚 推荐字体库（点击下载）</h3>
+                <div class="font-list" id="fontLibrary"></div>
+            </div>
+            
+            <div class="control-group" style="margin-top: 15px;">
+                <div class="upload-zone" id="uploadZone">
+                    <div style="font-size: 48px; margin-bottom: 10px;">📁</div>
+                    <div style="font-size: 16px; font-weight: 600; margin-bottom: 5px;">
+                        拖放 TTF 字体文件到这里
+                    </div>
+                    <div style="font-size: 12px; color: #666;">
+                        或点击选择文件（支持多选）
+                    </div>
+                    <input type="file" id="fontFileInput" accept=".ttf" multiple style="display: none;">
+                </div>
+            </div>
+        </div>
+        
+        <div id="fontGrid" class="grid">
+            <div class="loading">⏳ 拖放字体文件或点击上方下载...</div>
+        </div>
+    </div>
+
+    <script>
+        const SCREEN_WIDTH = 64;
+        const SCREEN_HEIGHT = 32;
+        
+        let loadedFonts = [];
+        
+        // 推荐字体库
+        const FONT_LIBRARY = [
+            { name: 'Silkscreen-Bold', url: 'https://github.com/google/fonts/raw/main/ofl/silkscreen/Silkscreen-Bold.ttf', size: '30KB' },
+            { name: 'Silkscreen-Regular', url: 'https://github.com/google/fonts/raw/main/ofl/silkscreen/Silkscreen-Regular.ttf', size: '31KB' },
+            { name: 'ShareTechMono', url: 'https://github.com/google/fonts/raw/main/ofl/sharetechmono/ShareTechMono-Regular.ttf', size: '42KB' },
+            { name: 'SpaceMono', url: 'https://github.com/google/fonts/raw/main/ofl/spacemono/SpaceMono-Regular.ttf', size: '97KB' },
+            { name: 'Inconsolata', url: 'https://github.com/google/fonts/raw/main/ofl/inconsolata/static/Inconsolata-Regular.ttf', size: '103KB' },
+            { name: 'PressStart2P', url: 'https://github.com/google/fonts/raw/main/ofl/pressstart2p/PressStart2P-Regular.ttf', size: '115KB' },
+            { name: 'IBMPlexMono', url: 'https://github.com/google/fonts/raw/main/ofl/ibmplexmono/IBMPlexMono-Regular.ttf', size: '132KB' },
+            { name: 'Play', url: 'https://github.com/google/fonts/raw/main/ofl/play/Play-Regular.ttf', size: '194KB' },
+        ];
+        
+        // 初始化字体库
+        function initFontLibrary() {
+            const library = document.getElementById('fontLibrary');
+            library.innerHTML = '';
+            
+            FONT_LIBRARY.forEach((font, index) => {
+                const item = document.createElement('div');
+                item.className = 'font-item';
+                item.innerHTML = `
+                    <div>
+                        <div class="font-item-name">${font.name}</div>
+                        <div class="font-item-size">${font.size}</div>
+                    </div>
+                    <button class="download-btn" onclick="downloadFont(${index})">⬇️</button>
+                `;
+                library.appendChild(item);
+            });
+        }
+        
+        // 下载字体
+        async function downloadFont(index) {
+            const font = FONT_LIBRARY[index];
+            const items = document.querySelectorAll('.font-item');
+            const item = items[index];
+            
+            item.classList.add('downloading');
+            
+            try {
+                const response = await fetch(font.url);
+                const blob = await response.blob();
+                const arrayBuffer = await blob.arrayBuffer();
+                
+                const fontFace = new FontFace(font.name, arrayBuffer);
+                await fontFace.load();
+                document.fonts.add(fontFace);
+                
+                loadedFonts.push({
+                    name: font.name,
+                    size: blob.size,
+                    file: new File([blob], font.name + '.ttf')
+                });
+                
+                item.classList.remove('downloading');
+                item.classList.add('downloaded');
+                
+                renderFontGrid();
+            } catch (error) {
+                alert(`下载失败: ${font.name}\n${error.message}`);
+                item.classList.remove('downloading');
+            }
+        }
+        
+        // 监听控制变化
+        document.getElementById('testText').addEventListener('input', updateAllPreviews);
+        document.getElementById('fontSize').addEventListener('input', updateAllPreviews);
+        document.getElementById('zoomLevel').addEventListener('change', updateAllPreviews);
+        
+        // 上传区域
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fontFileInput');
+        
+        uploadZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', handleFontUpload);
+        
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadZone.classList.add('dragover');
+        });
+        
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+        
+        uploadZone.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadZone.classList.remove('dragover');
+            
+            const files = Array.from(e.dataTransfer.files).filter(f => f.name.endsWith('.ttf'));
+            if (files.length > 0) {
+                const dataTransfer = new DataTransfer();
+                files.forEach(file => dataTransfer.items.add(file));
+                fileInput.files = dataTransfer.files;
+                fileInput.dispatchEvent(new Event('change'));
+            }
+        });
+        
+        async function handleFontUpload(event) {
+            const files = event.target.files;
+            
+            for (const file of files) {
+                if (!file.name.endsWith('.ttf')) continue;
+                
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const fontFace = new FontFace(file.name.replace('.ttf', ''), arrayBuffer);
+                    await fontFace.load();
+                    document.fonts.add(fontFace);
+                    
+                    loadedFonts.push({
+                        name: file.name.replace('.ttf', ''),
+                        size: file.size,
+                        file: file
+                    });
+                } catch (error) {
+                    console.error(`加载字体失败: ${file.name}`, error);
+                }
+            }
+            
+            renderFontGrid();
+        }
+        
+        function renderFontGrid() {
+            const grid = document.getElementById('fontGrid');
+            grid.innerHTML = '';
+            
+            if (loadedFonts.length === 0) {
+                grid.innerHTML = '<div class="loading">📤 拖放字体或点击上方推荐字体下载</div>';
+                return;
+            }
+            
+            loadedFonts.forEach((font, index) => {
+                const card = createFontCard(font, index);
+                grid.appendChild(card);
+            });
+        }
+        
+        function createFontCard(font, index) {
+            const card = document.createElement('div');
+            card.className = 'font-card';
+            
+            const sizeKB = (font.size / 1024).toFixed(1);
+            const isLarge = font.size > 150 * 1024;
+            
+            card.innerHTML = `
+                <div class="font-name">
+                    <span>${font.name}</span>
+                    <span class="font-size-badge ${isLarge ? 'large' : ''}">${sizeKB} KB</span>
+                </div>
+                <div class="preview-container">
+                    <canvas class="preview-canvas" id="canvas-${index}"></canvas>
+                    <div class="zoom-info">${document.getElementById('zoomLevel').value}x</div>
+                </div>
+                <div class="stats">
+                    <div class="stat-item">📺 ${SCREEN_WIDTH}×${SCREEN_HEIGHT}px</div>
+                    <div class="stat-item">🔤 ${document.getElementById('fontSize').value}px</div>
+                </div>
+                <div class="action-buttons">
+                    <button class="btn btn-primary" onclick="downloadFontFile(${index})">💾 保存</button>
+                    <button class="btn btn-danger" onclick="removeFont(${index})">🗑️ 删除</button>
+                </div>
+            `;
+            
+            setTimeout(() => renderFontPreview(font, index), 10);
+            return card;
+        }
+        
+        function renderFontPreview(font, index) {
+            const canvas = document.getElementById(`canvas-${index}`);
+            if (!canvas) return;
+            
+            const zoom = parseInt(document.getElementById('zoomLevel').value);
+            
+            canvas.width = SCREEN_WIDTH;
+            canvas.height = SCREEN_HEIGHT;
+            canvas.style.width = (SCREEN_WIDTH * zoom) + 'px';
+            canvas.style.height = (SCREEN_HEIGHT * zoom) + 'px';
+            
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+            
+            let text = document.getElementById('testText').value.replace(/\\n/g, '\n');
+            const fontSize = parseInt(document.getElementById('fontSize').value);
+            
+            ctx.font = `${fontSize}px "${font.name}"`;
+            ctx.fillStyle = '#fff';
+            ctx.textBaseline = 'top';
+            
+            const lines = text.split('\n');
+            const lineHeight = fontSize * 1.2;
+            
+            lines.forEach((line, i) => {
+                ctx.fillText(line, 2, 2 + i * lineHeight);
+            });
+        }
+        
+        function updateAllPreviews() {
+            loadedFonts.forEach((font, index) => {
+                renderFontPreview(font, index);
+            });
+            
+            document.querySelectorAll('.zoom-info').forEach(el => {
+                el.textContent = document.getElementById('zoomLevel').value + 'x';
+            });
+            
+            document.querySelectorAll('.stats').forEach(stats => {
+                const items = stats.querySelectorAll('.stat-item');
+                items[1].textContent = `🔤 ${document.getElementById('fontSize').value}px`;
+            });
+        }
+        
+        function downloadFontFile(index) {
+            const font = loadedFonts[index];
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(font.file);
+            link.download = font.name + '.ttf';
+            link.click();
+        }
+        
+        function removeFont(index) {
+            loadedFonts.splice(index, 1);
+            renderFontGrid();
+        }
+        
+        // 初始化
+        initFontLibrary();
+        renderFontGrid();
+    </script>
+</body>
+</html>

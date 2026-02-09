@@ -1,0 +1,130 @@
+����of partition table[0m
+[0;32mI (111) esp_image: segment 0: paddr=00010020 vaddr=3f400020 size=15224h ( 86564) map[0m
+[0;32mI (145) esp_image: segment 1: paddr=0002524c vaddr=3ffb0000 size=0223ch (  8764) load[0m
+[0;32mI (149) esp_image: segment 2: paddr=00027490 vaddr=40080000 size=08b88h ( 35720) load[0m
+[0;32mI (164) esp_image: segment 3: paddr=00030020 vaddr=400d0020 size=62de4h (404964) map[0m
+[0;32mI (287) esp_image: segment 4: paddr=00092e0c vaddr=40088b88 size=045bch ( 17852) load[0m
+[0;32mI (300) boot: Loaded app from partition at offset 0x10000[0m
+[0;32mI (300) boot: Disabling RNG early entropy source...[0m
+[0;32mI (312) cpu_start: Multicore app[0m
+[0;32mI (312) cpu_start: Pro cpu up.[0m
+[0;32mI (312) cpu_start: Starting app cpu, entry point is 0x40081798[0m
+[0;32mI (0) cpu_start: App cpu up.[0m
+[0;32mI (332) cpu_start: Pro cpu start user code[0m
+[0;32mI (332) cpu_start: cpu freq: 160000000 Hz[0m
+[0;32mI (332) cpu_start: Application information:[0m
+[0;32mI (337) cpu_start: Project name:     esp_idf_hub75_bringup[0m
+[0;32mI (343) cpu_start: App version:      6b47d8e-dirty[0m
+[0;32mI (348) cpu_start: Compile time:     Jan 21 2026 09:54:52[0m
+[0;32mI (354) cpu_start: ELF file SHA256:  3058a8302303eeb2...[0m
+[0;32mI (360) cpu_start: ESP-IDF:          5.1.2[0m
+[0;32mI (365) cpu_start: Min chip rev:     v0.0[0m
+[0;32mI (370) cpu_start: Max chip rev:     v3.99 [0m
+[0;32mI (375) cpu_start: Chip rev:         v3.1[0m
+[0;32mI (380) heap_init: Initializing. RAM available for dynamic allocation:[0m
+[0;32mI (387) heap_init: At 3FFAE6E0 len 00001920 (6 KiB): DRAM[0m
+[0;32mI (393) heap_init: At 3FFC4B50 len 0001B4B0 (109 KiB): DRAM[0m
+[0;32mI (399) heap_init: At 3FFE0440 len 00003AE0 (14 KiB): D/IRAM[0m
+[0;32mI (405) heap_init: At 3FFE4350 len 0001BCB0 (111 KiB): D/IRAM[0m
+[0;32mI (412) heap_init: At 4008D144 len 00012EBC (75 KiB): IRAM[0m
+[0;32mI (419) spi_flash: detected chip: winbond[0m
+[0;32mI (423) spi_flash: flash io: dio[0m
+[0;32mI (427) app_start: Starting scheduler on CPU0[0m
+[0;32mI (432) app_start: Starting scheduler on CPU1[0m
+[0;32mI (432) main_task: Started on CPU0[0m
+[0;32mI (442) main_task: Calling app_main()[0m
+[0;32mI (442) app: reset_reason=1[0m
+[0;32mI (442) begin(): Using GPIO 25 for R1_PIN[0m
+[0;32mI (452) begin(): Using GPIO 26 for G1_PIN[0m
+[0;32mI (452) begin(): Using GPIO 27 for B1_PIN[0m
+[0;32mI (462) begin(): Using GPIO 14 for R2_PIN[0m
+[0;32mI (462) begin(): Using GPIO 12 for G2_PIN[0m
+[0;32mI (472) begin(): Using GPIO 13 for B2_PIN[0m
+[0;32mI (472) begin(): Using GPIO 23 for A_PIN[0m
+[0;32mI (472) begin(): Using GPIO 19 for B_PIN[0m
+[0;32mI (482) begin(): Using GPIO 5 for C_PIN[0m
+[0;32mI (482) begin(): Using GPIO 17 for D_PIN[0m
+[0;32mI (492) begin(): Using GPIO -1 for E_PIN[0m
+[0;32mI (492) begin(): Using GPIO 4 for LAT_PIN[0m
+[0;32mI (502) begin(): Using GPIO 15 for OE_PIN[0m
+[0;32mI (502) begin(): Using GPIO 16 for CLK_PIN[0m
+[0;32mI (512) begin(): HUB75 effective display resolution of width: 64px height: 32px.[0m
+[0;32mI (522) I2S-DMA: Free heap: 303572[0m
+[0;32mI (522) I2S-DMA: Free SPIRAM: 0[0m
+[0;32mI (522) I2S-DMA: Allocating 16384 bytes memory for DMA BCM framebuffer(s).[0m
+[0;32mI (532) I2S-DMA: Minimum visual refresh rate (scan rate from panel top to bottom) requested: 60 Hz[0m
+[0;33mW (542) I2S-DMA: lsbMsbTransitionBit of 0 gives 57 Hz refresh rate.[0m
+[0;33mW (552) I2S-DMA: lsbMsbTransitionBit of 1 gives 110 Hz refresh rate.[0m
+[0;33mW (552) I2S-DMA: lsbMsbTransitionBit of 1 used to achieve refresh rate of 60 Hz. Percieved colour depth to the eye may be reduced.[0m
+[0;32mI (572) I2S-DMA: DMA frame buffer color depths: 8[0m
+[0;32mI (572) ESP32/S2: Allocating memory for 1024 DMA descriptors.[0m
+[0;33mW (582) ESP32/S2: Creating final DMA descriptor and linking back to 0.[0m
+[0;32mI (592) I2S-DMA: Created 1024 DMA descriptors for buffer 0.[0m
+[0;32mI (592) ESP32/S2: Performing config for ESP32 or ESP32-S2[0m
+[0;32mI (602) I2S-DMA: DMA setup completed[0m
+[0;32mI (612) ESP32/S2: Performing DMA bus init() for ESP32 or ESP32-S2[0m
+[0;32mI (782) app: LittleFS mounted: used=2818048, total=4915200[0m
+[0;32mI (782) app: dir: /littlefs[0m
+[0;32mI (792) app:   .gitkeep[0m
+[0;32mI (792) app:   fonts[0m
+[0;32mI (802) app: dir: /littlefs/fonts[0m
+[0;32mI (802) app:   PixelifySans[wght].ttf[0m
+[0;32mI (802) app:   PressStart2P-Regular.ttf[0m
+[0;32mI (802) app:   README.txt[0m
+[0;32mI (802) app:   ShareTechMono-Regular.ttf[0m
+[0;32mI (812) app:   Silkscreen-Regular.ttf[0m
+[0;32mI (822) app:   Tiny5-Regular.ttf[0m
+[0;32mI (822) app:   VT323-Regular.ttf[0m
+[0;32mI (822) app:   f01.ttf[0m
+[0;32mI (832) app:   f02.ttf[0m
+[0;32mI (832) app:   f03.ttf[0m
+[0;32mI (832) app:   f04.ttf[0m
+[0;32mI (832) app:   f05.ttf[0m
+[0;32mI (842) app:   f06.ttf[0m
+[0;32mI (842) app:   f07.ttf[0m
+[0;32mI (842) app:   f08.ttf[0m
+[0;32mI (852) app:   licenses[0m
+[0;32mI (852) app:   small.ttf[0m
+[0;32mI (852) app:   time.ttf[0m
+[0;32mI (852) lvgl: LVGL stdio FS registered (letter=S)[0m
+[0;32mI (862) lvgl: LVGL initialized (64x32)[0m
+[0;32mI (872) ttf_test: fs ready S=1[0m
+[0;32mI (902) ttf_test: fopen ok: /littlefs/fonts/small.ttf size=410820[0m
+[0;32mI (912) ttf_test: fopen ok: /littlefs/fonts/time.ttf size=410820[0m
+[0;32mI (922) ttf_test: listing /littlefs/fonts:[0m
+[0;32mI (922) ttf_test:   PixelifySans[wght].ttf[0m
+[0;32mI (922) ttf_test:   PressStart2P-Regular.ttf[0m
+[0;32mI (922) ttf_test:   README.txt[0m
+[0;32mI (932) ttf_test:   ShareTechMono-Regular.ttf[0m
+[0;32mI (932) ttf_test:   Silkscreen-Regular.ttf[0m
+[0;32mI (942) ttf_test:   Tiny5-Regular.ttf[0m
+[0;32mI (942) ttf_test:   VT323-Regular.ttf[0m
+[0;32mI (952) ttf_test:   f01.ttf[0m
+[0;32mI (952) ttf_test:   f02.ttf[0m
+[0;32mI (962) ttf_test:   f03.ttf[0m
+[0;32mI (962) ttf_test:   f04.ttf[0m
+[0;32mI (962) ttf_test:   f05.ttf[0m
+[0;32mI (962) ttf_test:   f06.ttf[0m
+[0;32mI (972) ttf_test:   f07.ttf[0m
+[0;32mI (972) ttf_test:   f08.ttf[0m
+[0;32mI (982) ttf_test:   licenses[0m
+[0;32mI (982) ttf_test:   small.ttf[0m
+[0;32mI (982) ttf_test:   time.ttf[0m
+[0;32mI (1032) ttf_test: found 16 .ttf in /littlefs/fonts[0m
+[0;32mI (1052) ttf_test: use TTF line_h=9[0m
+[0;32mI (1052) ttf_test: font 1/16: S:/littlefs/fonts/PixelifySans[wght].ttf[0m
+[0;32mI (1052) app: boot complete[0m
+[0;32mI (4912) ttf_test: use TTF line_h=8[0m
+[0;32mI (5052) ttf_test: font 2/16: S:/littlefs/fonts/PressStart2P-Regular.ttf[0m
+[0;32mI (8952) ttf_test: use TTF line_h=9[0m
+[0;32mI (9092) ttf_test: font 3/16: S:/littlefs/fonts/ShareTechMono-Regular.ttf[0m
+[0;32mI (12982) ttf_test: use TTF line_h=10[0m
+[0;32mI (13142) ttf_test: font 4/16: S:/littlefs/fonts/Silkscreen-Regular.ttf[0m
+[0;32mI (17032) ttf_test: use TTF line_h=9[0m
+[0;32mI (17202) ttf_test: font 5/16: S:/littlefs/fonts/Tiny5-Regular.ttf[0m
+[0;32mI (21052) ttf_test: use TTF line_h=8[0m
+[0;32mI (21282) ttf_test: font 6/16: S:/littlefs/fonts/VT323-Regular.ttf[0m
+[0;32mI (25092) ttf_test: use TTF line_h=9[0m
+[0;32mI (25242) ttf_test: font 7/16: S:/littlefs/fonts/f01.ttf[0m
+[0;32mI (29112) ttf_test: use TTF line_h=9[0m
+[0;32mI (29682) ttf_test: font 8/16: S:/littlefs/fonts/f02.ttf[0m

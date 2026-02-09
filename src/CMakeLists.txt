@@ -1,0 +1,27 @@
+idf_component_register(
+  SRCS
+    "main.cpp"
+    "app/hub75_config.cpp"
+    "app/user_button.cpp"
+    "app/wifi_manager.cpp"
+    "ui/lvgl_hub75_port.cpp"
+    "ui/lvgl_boot_wifi_screen.cpp"
+    "ui/lvgl_screen_carousel.cpp"
+    "ui/lvgl_stock_screen.cpp"
+    "ui/lvgl_stock_screen2.cpp"
+    "ui/lvgl_stock_screen3.cpp"
+    "ui/lvgl_stock_screen4.cpp"
+    "ui/lvgl_stock_screen5.cpp"
+    "ui/lvgl_stock_screen6.cpp"
+    "ui/lvgl_stock_screen7.cpp"
+    "third_party/animatedgif/AnimatedGIF.cpp"
+  INCLUDE_DIRS
+    "."
+  REQUIRES
+    hub75_dma
+    lvgl
+    esp_event
+    esp_netif
+    esp_wifi
+    nvs_flash
+)

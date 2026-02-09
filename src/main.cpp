@@ -1,289 +1,225 @@
-#include <WiFi.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#include "freertos/task.h"
 
-// Initialize Wifi connection to the router
-char ssid[33] = "1024";     // your network SSID (name)
-char password[65] = "2048@@@@"; // your network key
-//uint16_t myWHITE = mdisplay.color565(255, 255, 255);
-#include "LittleFS.h"
-#include "lib/web_server.h"
-#include "lib/btn.h"
-#include "lib/times.h"
-#include "lib/display.h"
-#include "my_debug.h"
+#include "esp_log.h"
+#include "esp_littlefs.h"
+#include "esp_system.h"
 
-//#define NUM_ROWS 1
-//#define NUM_COLS 1
-//#include <ESP32-VirtualMatrixPanel-I2S-DMA.h>
-//VirtualMatrixPanel *virtualDisp = nullptr;
-//VirtualMatrixPanel vdisplay(mdisplay, NUM_ROWS, NUM_COLS, PANEL_RES_X, PANEL_RES_Y);
-#include "lib/settings.h"
-#include "lib/gif.h"
-#include "theme.h"
-#include "lib/web_server.h"
-int theme_index = 0;
-int tmp_theme_index = 0;
-int last_theme_index = -1;
-extern int album_time;
-extern int autodisplay;
-extern int hour12;
-extern struct theme_loop theme_loop_list[THEME_TOTAL];
-char ap_ssid [] = "GeekMagic";
-
-extern int timeZone;
-extern int minutesTimeZone;
-extern int force_time_display;
-static int last_tz = 8;
-static int last_mtz = 0;
-void updateDataTask(void *pvParameters) {
-  while (1) {
-    //btn.tick();
-    //不延迟会造成整个系统卡顿
-    //esp_task_wdt_reset();
-    vTaskDelay(10 / portTICK_PERIOD_MS);
-  }
+extern "C" {
+#include "lvgl.h"
 }
 
-void connectToStrongestSSID(const char* ssid, const char* password) {
-  int strongestRSSI = -100; // 初始化为一个很低的信号强度
-  int strongestChannel = 0; // 用于存储信号最强的信道
-  uint8_t strongestBSSID[6] = {0}; // 用于存储信号最强的 BSSID
+#include "ESP32-HUB75-MatrixPanel-I2S-DMA.h"
 
-  // 扫描网络
-  // 等待扫描完成
-  while (WiFi.scanComplete() == WIFI_SCAN_RUNNING) {
-    delay(100); // 等待扫描完成
-    Serial.print(".");
+#include "app/hub75_config.h"
+#include "app/user_button.h"
+#include "app/wifi_manager.h"
+#include "ui/lvgl_boot_wifi_screen.h"
+#include "ui/lvgl_hub75_port.h"
+#include "ui/lvgl_screen_carousel.h"
+#include "ui/lvgl_stock_screen.h"
+#include "ui/lvgl_stock_screen2.h"
+#include "ui/lvgl_stock_screen3.h"
+#include "ui/lvgl_stock_screen4.h"
+#include "ui/lvgl_stock_screen5.h"
+#include "ui/lvgl_stock_screen6.h"
+#include "ui/lvgl_stock_screen7.h"
+
+static const char *kTag = "app";
+
+static TaskHandle_t g_lvgl_task_handle = nullptr;
+
+static void RunOnLvglThread(void (*fn)(void)) {
+  // lv_async_call 需要一个 void(*)(void*) 形式的回调
+  lv_async_call(
+      [](void *p) {
+        auto f = reinterpret_cast<void (*)(void)>(p);
+        if (f) f();
+      },
+      reinterpret_cast<void *>(fn));
+}
+
+namespace {
+
+static char g_boot_try_ssid[33] = {};
+static char g_boot_sta_ssid[33] = {};
+static char g_boot_sta_ip[16] = {};
+static char g_boot_ap_ssid[33] = {};
+static char g_boot_ap_ip[16] = {};
+
+static void LvglBootShowConnecting() { LvglShowBootWifiConnecting(g_boot_try_ssid, 20000); }
+static void LvglBootShowSuccess() { LvglShowBootWifiSuccess(g_boot_sta_ssid, g_boot_sta_ip); }
+static void LvglBootShowFailed() { LvglShowBootWifiFailed(g_boot_ap_ssid, g_boot_ap_ip); }
+
+static void BootWifiUiSimulation() {
+  // Simulate: 20s progress -> success for 5s -> exit boot screen.
+  snprintf(g_boot_try_ssid, sizeof(g_boot_try_ssid), "%s", "MyWiFi");
+  snprintf(g_boot_sta_ssid, sizeof(g_boot_sta_ssid), "%s", "MyWiFi");
+  snprintf(g_boot_sta_ip, sizeof(g_boot_sta_ip), "%s", "192.168.123.234");
+
+  RunOnLvglThread(LvglBootShowConnecting);
+  vTaskDelay(pdMS_TO_TICKS(20000));
+
+  RunOnLvglThread(LvglBootShowSuccess);
+  vTaskDelay(pdMS_TO_TICKS(5000));
+
+  RunOnLvglThread(LvglStopBootWifiScreen);
+}
+
+static bool BootWifiFlow() {
+  g_boot_try_ssid[0] = '\0';
+  g_boot_sta_ssid[0] = '\0';
+  g_boot_sta_ip[0] = '\0';
+  g_boot_ap_ssid[0] = '\0';
+  g_boot_ap_ip[0] = '\0';
+
+  (void)WifiManagerInit();
+
+  (void)WifiManagerGetSavedStaSsid(g_boot_try_ssid, sizeof(g_boot_try_ssid));
+  if (!g_boot_try_ssid[0]) snprintf(g_boot_try_ssid, sizeof(g_boot_try_ssid), "%s", "--");
+
+  RunOnLvglThread(LvglBootShowConnecting);
+
+  WifiStaInfo sta = {};
+  const bool ok = WifiManagerConnectSta(20000, &sta);
+  if (ok) {
+    snprintf(g_boot_sta_ssid, sizeof(g_boot_sta_ssid), "%s", sta.ssid);
+    snprintf(g_boot_sta_ip, sizeof(g_boot_sta_ip), "%s", sta.ip);
+    RunOnLvglThread(LvglBootShowSuccess);
+    vTaskDelay(pdMS_TO_TICKS(1500));
+    RunOnLvglThread(LvglStopBootWifiScreen);
+    return true;
   }
-  int n = WiFi.scanComplete();
-  // 遍历扫描结果
-  for (int i = 0; i < n; ++i) {
-    //Serial.println("ssid:"+ String(i));
-    //Serial.println(WiFi.SSID(i)); // 打印所有 SSID
 
-    if (WiFi.SSID(i).equals(ssid)) { // 使用 equals 比较 SSID
-      int rssi = WiFi.RSSI(i);
-      if (rssi > strongestRSSI) {
-        strongestRSSI = rssi;
-        memcpy(strongestBSSID, WiFi.BSSID(i), 6); // 复制 BSSID
-        strongestChannel = WiFi.channel(i);
-      }
-    }
-  }
-
-  // 如果找到信号最强的 SSID，连接到它
-  if (strongestRSSI > -100) {
-    #if 0
-    Serial.printf("Connecting to SSID: %s, BSSID: %02X:%02X:%02X:%02X:%02X:%02X, Channel: %d\n",
-                  ssid,
-                  strongestBSSID[0], strongestBSSID[1], strongestBSSID[2],
-                  strongestBSSID[3], strongestBSSID[4], strongestBSSID[5],
-                  strongestChannel);
-    #endif
-    WiFi.begin(ssid, password, strongestChannel, strongestBSSID);
+  WifiApInfo ap = {};
+  if (WifiManagerStartSetupAp(&ap)) {
+    snprintf(g_boot_ap_ssid, sizeof(g_boot_ap_ssid), "%s", ap.ssid);
+    snprintf(g_boot_ap_ip, sizeof(g_boot_ap_ip), "%s", ap.ip);
   } else {
-    Serial.println("Target SSID not found or signal too weak");
+    snprintf(g_boot_ap_ssid, sizeof(g_boot_ap_ssid), "%s", "PIXEL-SETUP");
+    snprintf(g_boot_ap_ip, sizeof(g_boot_ap_ip), "%s", "--");
+  }
+
+  RunOnLvglThread(LvglBootShowFailed);
+  return false;
+}
+
+}  // namespace
+
+static void LvglTask(void *arg) {
+  (void)arg;
+  uint32_t prev_tick = lv_tick_get();
+  while (true) {
+    const uint32_t now_tick = lv_tick_get();
+    const uint32_t dt = now_tick - prev_tick;
+    prev_tick = now_tick;
+
+    uint32_t wait_ms = lv_timer_handler();
+    if (wait_ms == LV_NO_TIMER_READY) wait_ms = 20;
+    if (wait_ms < 5) wait_ms = 5;
+    if (wait_ms > 20) wait_ms = 20;
+
+    // Debug: if LVGL is starved, animations degrade into "fade/flash".
+    if (dt > 50) {
+      ESP_LOGW(kTag, "lvgl_task jitter: dt=%lums handler_wait=%lums", (unsigned long)dt, (unsigned long)wait_ms);
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(wait_ms));
   }
 }
 
-long update_theme_time = -9000000;
-void setup() {
-  Serial.begin(115200);
+static void MountLittlefs() {
+  esp_vfs_littlefs_conf_t conf = {};
+  conf.base_path = "/littlefs";
+  conf.partition_label = "littlefs";
+  conf.format_if_mount_failed = false;
+  conf.dont_mount = false;
 
-  // Attempt to connect to Wifi network:
-  // Start filesystem
-  Serial.println(" * Loading SPIFFS");
-  if(!LittleFS.begin()){
-    Serial.println("SPIFFS Mount Failed");
-  }
-  if(!LittleFS.exists("/.sys")) {
-    LittleFS.mkdir("/.sys");
-  }
-  read_wifi_config(ssid, sizeof(ssid), password, sizeof(password)); 
-  read_theme_config(&theme_index);
-  Serial.print("Connecting Wifi: ");
-  Serial.println(ssid);
-  Serial.println(password);
-  tmp_theme_index = theme_index;//解决异步切换主题的问题
-  read_hour12_config(&hour12);
-  //提取时区
-  read_timezone_config(&timeZone, &minutesTimeZone);
-  init_config();
-
-  WiFi.scanNetworks(true);
-  //delay(500);
-  // Set WiFi to station mode and disconnect from an AP if it was Previously
-  // connected
- // Display Setup
-  //mxconfig.double_buff = true;
-  //mdisplay.print("Hello");
-  //delay(1000);
-  init_display();
-
-  pinMode(32,INPUT_PULLUP);
-  if(digitalRead(32) == LOW){
-  //if(WiFi.status() != WL_CONNECTED){
-    mdisplay.clearScreen();
-    mdisplay.setCursor(0, 1);
-    mdisplay.println("WiFi");
-    mdisplay.setCursor(0, 9);
-    mdisplay.println("START:");
-    mdisplay.setCursor(0, 18);
-    mdisplay.print(ap_ssid);
-    startPortal(ap_ssid, "");
+  const esp_err_t ret = esp_vfs_littlefs_register(&conf);
+  if (ret != ESP_OK) {
+    ESP_LOGW(kTag, "LittleFS mount failed: %s", esp_err_to_name(ret));
+    ESP_LOGW(kTag, "Hint: run `pio run -e hub75_idf -t uploadfs`");
+    return;
   }
 
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-  //connectToStrongestSSID(ssid, password);
-  WiFi.setAutoReconnect(true);
-
-  mdisplay.setBrightness8(50); //0-255
-  //virtualDisp = new VirtualMatrixPanel(mdisplay, NUM_ROWS, NUM_COLS, PANEL_RES_X, PANEL_RES_Y);
-  unsigned long timeout = millis();
-  while ((millis()-timeout) < 15*1000) {
-    if((millis()-timeout) < 4.3*1000)
-     drawGif("/w.gif",0,0); 
-    else if(WiFi.status() != WL_CONNECTED){
-     drawGif("/w.gif",0,0); 
-    }else if(WiFi.status() == WL_CONNECTED) {
-      break;
-    }
-
-    Serial.print(".");
-    //delay(500);
-  }
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
- 
-  if(WiFi.status() != WL_CONNECTED){
-    mdisplay.clearScreen();
-    mdisplay.setCursor(0, 1);
-    mdisplay.println("WiFi");
-    mdisplay.setCursor(0, 9);
-    mdisplay.println("START:");
-    mdisplay.setCursor(0, 18);
-    mdisplay.print(ap_ssid);
-    startPortal(ap_ssid, "");
-  }
-
-  init_http_server();
-  init_btn();
-
-  mdisplay.clearScreen();
-  mdisplay.setCursor(0, 4);
-  mdisplay.println("NEW IP:");
-  mdisplay.setCursor(0, 13);
-  mdisplay.setTextColor(parseRGBColor(C_GREEN));
-  mdisplay.print(WiFi.localIP().toString());
-  delay(3000);
- 
-  mdisplay.clearScreen();
-  mdisplay.setCursor(0, 12);
-  mdisplay.print("SYNC");
-  mdisplay.setCursor(25, 12);
-  mdisplay.print("TIME..");
-  init_time();
-  //init_ntp();
-  #if 0
-  xTaskCreatePinnedToCore(
-      updateDataTask,     // 任务函数
-      "dataTask",   // 任务名称
-      10000,          // 任务堆栈大小（字节）
-      NULL,           // 任务参数
-      1,              // 任务优先级
-      NULL,           // 任务句柄
-      1               // 分配给第二个内核的内核编号（1表示第二个内核）
-  );
-  #endif
-  update_theme_time = millis();
-}
-unsigned long lastConnectionAttempt = 0;
-const int connectionInterval = 5 * 60 * 1000; // 5分钟，以毫秒为单位
-
-void check_wifi(){
-    unsigned long currentMillis = millis();
-    if(!WiFi.isConnected()) {
-    if (currentMillis - lastConnectionAttempt >= connectionInterval) {
-      // 如果连接间隔超过5分钟，尝试重新连接
-      DBG_PTN("reconnect");
-      WiFi.begin(ssid, password);
-      lastConnectionAttempt = currentMillis;
-    }
+  size_t total = 0;
+  size_t used = 0;
+  if (esp_littlefs_info(conf.partition_label, &total, &used) == ESP_OK) {
+    ESP_LOGI(kTag, "LittleFS: used=%u, total=%u", static_cast<unsigned>(used), static_cast<unsigned>(total));
   }
 }
-int sys_update_status = 0;
-unsigned int loop_interval= 30;
-int enable_theme_loop = 0;
-void loop() {
-    //scroll_text(0, 20, "This is a long text stringgggggggggggggggggggggg.");
-    //return;
-    Serial.printf("theme = %d", theme_index);
-    //virtualDisp->flipDMABuffer();
-    //sync_http_time(false);
-    if(sys_update_status == 1){
-      display_update(sys_update_status); 
-    }else if(sys_update_status == -1){
-      display_update(sys_update_status); 
-    }else if(sys_update_status == 2){
-      display_update(sys_update_status); 
-    }
-    if(sys_update_status != 0) return;
 
-    check_wifi();
-  #if 1
-    if(last_tz != timeZone || last_mtz != minutesTimeZone){
-      sync_time(true);//
-      last_mtz = minutesTimeZone;
-      last_tz = timeZone;
-    } else
-      sync_time(false);//
-  #endif
-    update_btn();
-    update_http_server();
-    auto_adjust_brt();
+extern "C" void app_main(void) {
+  ESP_LOGI(kTag, "=== Font Test Start ===");
+  
+  MatrixPanel_I2S_DMA display(MakePanelConfig());
+  if (!display.begin()) {
+    ESP_LOGE(kTag, "Display init failed!");
+    while (true) vTaskDelay(pdMS_TO_TICKS(1000));
+  }
 
-    if(last_theme_index != theme_index || force_time_display){
-        if(last_theme_index >= 0)
-            theme_loop_list[last_theme_index].exit();
+  display.setBrightness8(64);
+  display.fillScreenRGB888(0, 0, 32);
+  auto display_mutex = xSemaphoreCreateMutex();
 
-        mdisplay.clearScreen();
-        last_theme_index = theme_index;
-        theme_loop_list[theme_index].init();
-        //if(last_theme_index != theme_index) return;//初始化阶段又被按下按键
+  MountLittlefs();
 
-        if(theme_loop_list[theme_index].update != NULL)
-          theme_loop_list[theme_index].update(true);
+  LvglHub75Start({
+      .display = &display,
+      .display_mutex = display_mutex,
+      .hor_res = display.width(),
+      .ver_res = display.height(),
+  });
 
-        if(force_time_display) force_time_display = 0;
-    }
-    
-    theme_loop_list[theme_index].display();
-    if(theme_loop_list[theme_index].update != NULL)
-      theme_loop_list[theme_index].update(false);
+  // 启动按键任务：当前逻辑为单击重启（见 app/user_button.cpp）
+  StartUserButtonTask(display, display_mutex, {
+    .request_aapl_ticker = nullptr,
+    .request_raw_benchmark = nullptr,
+  });
+  
+  ESP_LOGI(kTag, "=== Preloading fonts ===");
+  
+  // 预加载所有字体（在 LVGL 任务启动前，避免后续切换时阻塞）
+  LvglStockScreenPreloadFont();
+  LvglStockScreen2PreloadFont();
+  LvglStockScreen3PreloadFont();
+  LvglStockScreen4PreloadFont();
+  LvglStockScreen5PreloadFont();
+  LvglStockScreen6PreloadFont();
+  LvglStockScreen7PreloadFont();
+  LvglBootWifiScreenPreloadFont();
+  
+  ESP_LOGI(kTag, "=== Boot Complete ===");
 
-	  if(enable_theme_loop){
-	    if(millis()-update_theme_time > loop_interval*1000 || force_time_display){
-	      //找到下一个要切换的主题
-	      for(int i = 0; i< THEME_TOTAL-1; i++){
-	        tmp_theme_index ++;
-	        if(tmp_theme_index >= THEME_TOTAL -1) tmp_theme_index = 0;
-	        if(theme_loop_list[tmp_theme_index].loop_en){
-	          update_theme_time = millis();
-		        DBG_PTN("to theme index :");
-	    	    DBG_PTN(tmp_theme_index);
-	          break;
-	        }
-	      }
-	   }
-	  }
-   
-    if(tmp_theme_index != theme_index) {
-      //说明客户端修改了主题，需要切换。阻塞式改变theme_index的值
-      if(tmp_theme_index >= 0 && tmp_theme_index <THEME_TOTAL){
-        theme_index = tmp_theme_index;
-        set_theme_config(theme_index);
-      }
-    }
+  xTaskCreatePinnedToCore(LvglTask, "lvgl", 8192, nullptr, 5, &g_lvgl_task_handle, 1);
+
+  // Boot WiFi flow:
+  // - Try saved STA config (20s)
+  // - On failure, start setup AP and keep the setup screen
+  static constexpr bool kDebugSkipWifiFlow = false;
+  static constexpr bool kDebugSimulateWifiBootUi = true;
+  bool wifi_ok = true;
+  if (kDebugSimulateWifiBootUi) {
+    BootWifiUiSimulation();
+    wifi_ok = true;
+  } else {
+    wifi_ok = kDebugSkipWifiFlow ? true : BootWifiFlow();
+  }
+
+  // Screen cycling: screens, 15s each.
+  // Tip: set kDebugSingleScreen=true to lock to one screen while tuning UI.
+  static constexpr bool kDebugSingleScreen = true;
+  //static constexpr bool kDebugSingleScreen = false;
+  if (!wifi_ok) {
+    // Keep setup screen.
+  } else if (kDebugSingleScreen) {
+    RunOnLvglThread(LvglShowStockScreen7);
+  } else {
+    RunOnLvglThread([]() { LvglStartScreenCarousel(15000); });
+  }
+
+  while (true) {
+    vTaskDelay(pdMS_TO_TICKS(1000));
+  }
 }
