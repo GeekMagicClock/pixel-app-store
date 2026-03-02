@@ -1,96 +1,105 @@
 {
   "schema": 1,
-  "generated_at": "2026-03-02T09:15:59.362695+00:00",
+  "generated_at": "2026-03-02T09:59:11.589262+00:00",
   "apps": [
     {
       "id": "binance_chart",
       "name": "Binance Chart",
       "version": "1.0.0",
+      "category": "finance",
       "description": "",
       "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/binance_chart-1.0.0.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/thumbs/binance_chart.png",
-      "sha256": "47b8ef1db2292efd297a88bcc9de2be1ea4bb932ae33119f60835385e930c1cd",
-      "size": 5311
+      "sha256": "3556000ab2ee6866e5ed16e8edf4b59af65869b25a15a2b63c842f7596e9bd3f",
+      "size": 5303
     },
     {
       "id": "binance_ticker",
       "name": "Binance Ticker",
       "version": "1.0.0",
+      "category": "finance",
       "description": "",
       "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/binance_ticker-1.0.0.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/thumbs/binance_ticker.png",
-      "sha256": "1e1aca964f998ed8666b1c5293003bb9cec08f990fe9a933e303503d529c750d",
-      "size": 17708
+      "sha256": "d15a717d137cc1cf684bd2ec0e09439663c00a8f2319e5bb3b16461d7fc491c9",
+      "size": 17968
     },
     {
       "id": "coingecko_ticker",
       "name": "CoinGecko Ticker",
       "version": "1.0.0",
+      "category": "finance",
       "description": "",
       "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/coingecko_ticker-1.0.0.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/thumbs/coingecko_ticker.png",
-      "sha256": "9c060b3cb545cd78d83c9525ac77a7c2f5b254630582f4a74ab4a581b2b80777",
-      "size": 18102
+      "sha256": "cfd6c22ae44f16953ee18f18f4f9ed430997202b047034829e20eed722841c35",
+      "size": 18529
     },
     {
       "id": "fb_test",
       "name": "Stocks (Framebuffer)",
       "version": "1.0.0",
+      "category": "finance",
       "description": "",
       "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/fb_test-1.0.0.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/thumbs/fb_test.png",
-      "sha256": "cdefcad118c5205a7dc2f5467fa31a1d2ed9213da8f93f3aa3dd288da3a83c1c",
-      "size": 1541
+      "sha256": "b3dfacaa16cdee7a2b748b148ab20550a1fb290d43eaf4044e8ba0c384b2760b",
+      "size": 1800
     },
     {
       "id": "media_gallery",
       "name": "Media Gallery",
       "version": "1.0.0",
+      "category": "gallery",
       "description": "",
       "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/media_gallery-1.0.0.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/thumbs/media_gallery.png",
-      "sha256": "aa15bb5701786e98dc851be2d51c44bcdd09e2e074abf477c026ec761d829c82",
-      "size": 157074
+      "sha256": "63818eab215e6b3509750d2168c12c3ab5d391e928cef2f534dbf602474ecd15",
+      "size": 157663
     },
     {
       "id": "moon_phase_png",
       "name": "Moon Phase PNG",
       "version": "1.0.0",
+      "category": "astronomy",
       "description": "",
       "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/moon_phase_png-1.0.0.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/thumbs/moon_phase_png.png",
-      "sha256": "f6a86e5a9b619249e62b8aafb7e4d45132a6a2418d39f47be77a70a9d73baa32",
-      "size": 45515
+      "sha256": "c5bac3a4c96ec4554a9b1dac1d1f0e79bcd85b80152d8bdc2c7038962b8787a6",
+      "size": 46167
     },
     {
       "id": "openmeteo_3day",
       "name": "Open-Meteo 3 Day",
       "version": "1.0.0",
+      "category": "weather",
       "description": "",
       "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/openmeteo_3day-1.0.0.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/thumbs/openmeteo_3day.png",
-      "sha256": "c67d18f7acd17574ebb445fc86fa1b1f6a3662390b9873da815c87aa6e393263",
-      "size": 3427
+      "sha256": "cc10f95de31c6555dc8f0499b906a7e26418dd43dff5325034f5d93efa50ccd9",
+      "size": 3426
     },
     {
       "id": "sunrise_sunset_owm",
       "name": "Sunrise Sunset (OWM)",
       "version": "1.0.0",
+      "category": "weather",
       "description": "",
       "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/sunrise_sunset_owm-1.0.0.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/thumbs/sunrise_sunset_owm.png",
-      "sha256": "b6d427145eedc2fca2bac1f446ef445a8a3eee9b97a94daf5f1479b63b917417",
-      "size": 2944
+      "sha256": "00a1faef4ac71e06b87926166029004c87b378ef875f6dcaa64a38e33161648c",
+      "size": 2876
     },
     {
       "id": "weather_card_owm",
       "name": "Weather Card OWM",
       "version": "1.0.0",
+      "category": "weather",
       "description": "",
       "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/weather_card_owm-1.0.0.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/thumbs/weather_card_owm.png",
-      "sha256": "2f015b5614a42f3180f0e87fd8651b24d6eb78f365465520634e3c656ffd8b67",
-      "size": 10997
+      "sha256": "2029634bb2a6ffe9115ec233227ab799d88abb6b17c73a0ef782a06bd8ab4bc5",
+      "size": 11275
     }
   ]
 }
