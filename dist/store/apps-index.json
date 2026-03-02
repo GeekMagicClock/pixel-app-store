@@ -1,0 +1,87 @@
+{
+  "schema": 1,
+  "generated_at": "2026-03-02T08:48:43.060926+00:00",
+  "apps": [
+    {
+      "id": "binance_chart",
+      "name": "Binance Chart",
+      "version": "1.0.0",
+      "description": "",
+      "zip_url": "https://raw.githubusercontent.com/ifenghao/esp32-pixel-apps/main/dist/store/binance_chart-1.0.0.zip",
+      "sha256": "81163605b5d53d4dbf414983ece63dd33441f3dcd89870a32f2e490bce68df18",
+      "size": 4883
+    },
+    {
+      "id": "binance_ticker",
+      "name": "Binance Ticker",
+      "version": "1.0.0",
+      "description": "",
+      "zip_url": "https://raw.githubusercontent.com/ifenghao/esp32-pixel-apps/main/dist/store/binance_ticker-1.0.0.zip",
+      "sha256": "68a68cb4db42d19099e91a2d1f2d1948766db168795503c06308703f956e2a38",
+      "size": 17280
+    },
+    {
+      "id": "coingecko_ticker",
+      "name": "CoinGecko Ticker",
+      "version": "1.0.0",
+      "description": "",
+      "zip_url": "https://raw.githubusercontent.com/ifenghao/esp32-pixel-apps/main/dist/store/coingecko_ticker-1.0.0.zip",
+      "sha256": "2e9266b0e2b4534c97856eddfc5dcd79afbeca1fd3d78645b41ef00ee800c800",
+      "size": 17665
+    },
+    {
+      "id": "fb_test",
+      "name": "Stocks (Framebuffer)",
+      "version": "1.0.0",
+      "description": "",
+      "zip_url": "https://raw.githubusercontent.com/ifenghao/esp32-pixel-apps/main/dist/store/fb_test-1.0.0.zip",
+      "sha256": "fcc49d395659cc2377cf8e163b44d6f221a5a3cc96213b8c8864616558ccd98e",
+      "size": 1135
+    },
+    {
+      "id": "media_gallery",
+      "name": "Media Gallery",
+      "version": "1.0.0",
+      "description": "",
+      "zip_url": "https://raw.githubusercontent.com/ifenghao/esp32-pixel-apps/main/dist/store/media_gallery-1.0.0.zip",
+      "sha256": "27643cb930ff83bb988ad02df6e0fc2f48def1bc654c74bbaf48c2e3fd3f4469",
+      "size": 156627
+    },
+    {
+      "id": "moon_phase_png",
+      "name": "Moon Phase PNG",
+      "version": "1.0.0",
+      "description": "",
+      "zip_url": "https://raw.githubusercontent.com/ifenghao/esp32-pixel-apps/main/dist/store/moon_phase_png-1.0.0.zip",
+      "sha256": "a15ca04da1dfb18b8bf992f6e769d6363a01dd83383782fd6d59cd44aa1a4846",
+      "size": 45088
+    },
+    {
+      "id": "openmeteo_3day",
+      "name": "Open-Meteo 3 Day",
+      "version": "1.0.0",
+      "description": "",
+      "zip_url": "https://raw.githubusercontent.com/ifenghao/esp32-pixel-apps/main/dist/store/openmeteo_3day-1.0.0.zip",
+      "sha256": "a432a4b65757b053746df4cc4d7ce7e3c59f3c4f6cf7ff9ba5aa8650c4394da0",
+      "size": 2998
+    },
+    {
+      "id": "sunrise_sunset_owm",
+      "name": "Sunrise Sunset (OWM)",
+      "version": "1.0.0",
+      "description": "",
+      "zip_url": "https://raw.githubusercontent.com/ifenghao/esp32-pixel-apps/main/dist/store/sunrise_sunset_owm-1.0.0.zip",
+      "sha256": "d1bcfcd532f491748243b67147ca8187b3533737302da9fa9329275a940bb493",
+      "size": 2503
+    },
+    {
+      "id": "weather_card_owm",
+      "name": "Weather Card OWM",
+      "version": "1.0.0",
+      "description": "",
+      "zip_url": "https://raw.githubusercontent.com/ifenghao/esp32-pixel-apps/main/dist/store/weather_card_owm-1.0.0.zip",
+      "sha256": "74551a9b51fab33544816ae8bb6d3514f2a3b8f326aac2353c2fc0d97ccc883a",
+      "size": 10560
+    }
+  ]
+}
