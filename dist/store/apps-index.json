@@ -1,105 +1,114 @@
 {
   "schema": 1,
-  "generated_at": "2026-03-02T09:59:11.589262+00:00",
+  "generated_at": "2026-03-02T12:51:43.931659+00:00",
   "apps": [
     {
       "id": "binance_chart",
       "name": "Binance Chart",
       "version": "1.0.0",
-      "category": "finance",
+      "category": "other",
       "description": "",
       "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/binance_chart-1.0.0.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/thumbs/binance_chart.png",
-      "sha256": "3556000ab2ee6866e5ed16e8edf4b59af65869b25a15a2b63c842f7596e9bd3f",
-      "size": 5303
+      "sha256": "9387e916f200b2ae48b802a96d1892d6d4d88d9657152ee46e3c662e6a21ea40",
+      "size": 6292,
+      "lua_bytecode": true
     },
     {
       "id": "binance_ticker",
       "name": "Binance Ticker",
       "version": "1.0.0",
-      "category": "finance",
+      "category": "other",
       "description": "",
       "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/binance_ticker-1.0.0.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/thumbs/binance_ticker.png",
-      "sha256": "d15a717d137cc1cf684bd2ec0e09439663c00a8f2319e5bb3b16461d7fc491c9",
-      "size": 17968
+      "sha256": "74f759f1f20e97493f4f91a7f44be565a134a7b997223c5b084ebe7264ae87cb",
+      "size": 18231,
+      "lua_bytecode": true
     },
     {
       "id": "coingecko_ticker",
       "name": "CoinGecko Ticker",
       "version": "1.0.0",
-      "category": "finance",
+      "category": "other",
       "description": "",
       "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/coingecko_ticker-1.0.0.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/thumbs/coingecko_ticker.png",
-      "sha256": "cfd6c22ae44f16953ee18f18f4f9ed430997202b047034829e20eed722841c35",
-      "size": 18529
+      "sha256": "5ddc26ae97ced2344f3c3fdc1c2cf9a92f721eb35579b90c89acf8bf55da7da1",
+      "size": 18948,
+      "lua_bytecode": true
     },
     {
       "id": "fb_test",
       "name": "Stocks (Framebuffer)",
       "version": "1.0.0",
-      "category": "finance",
+      "category": "other",
       "description": "",
       "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/fb_test-1.0.0.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/thumbs/fb_test.png",
-      "sha256": "b3dfacaa16cdee7a2b748b148ab20550a1fb290d43eaf4044e8ba0c384b2760b",
-      "size": 1800
+      "sha256": "2c6cb35210446c6162339b9afff4ebb81863d1c3712c5b1b87f4186c5d2b9861",
+      "size": 1900,
+      "lua_bytecode": true
     },
     {
       "id": "media_gallery",
       "name": "Media Gallery",
       "version": "1.0.0",
-      "category": "gallery",
+      "category": "other",
       "description": "",
       "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/media_gallery-1.0.0.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/thumbs/media_gallery.png",
-      "sha256": "63818eab215e6b3509750d2168c12c3ab5d391e928cef2f534dbf602474ecd15",
-      "size": 157663
+      "sha256": "f1d44387e8a0f2884affbe071caa2fb913d8514bdbf2591ac7a69c1a3c69a40d",
+      "size": 157847,
+      "lua_bytecode": true
     },
     {
       "id": "moon_phase_png",
       "name": "Moon Phase PNG",
       "version": "1.0.0",
-      "category": "astronomy",
+      "category": "other",
       "description": "",
       "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/moon_phase_png-1.0.0.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/thumbs/moon_phase_png.png",
-      "sha256": "c5bac3a4c96ec4554a9b1dac1d1f0e79bcd85b80152d8bdc2c7038962b8787a6",
-      "size": 46167
+      "sha256": "38ea012e52672939a8956890e1f8d4ad99eef34825e4df18e2c02de9c1b6cca7",
+      "size": 46600,
+      "lua_bytecode": true
     },
     {
       "id": "openmeteo_3day",
       "name": "Open-Meteo 3 Day",
       "version": "1.0.0",
-      "category": "weather",
+      "category": "other",
       "description": "",
       "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/openmeteo_3day-1.0.0.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/thumbs/openmeteo_3day.png",
-      "sha256": "cc10f95de31c6555dc8f0499b906a7e26418dd43dff5325034f5d93efa50ccd9",
-      "size": 3426
+      "sha256": "c6bb4aaf0c6ece083bfaf14c235d2392ca2668dcb9e3a28584f5dcc5e453823d",
+      "size": 3974,
+      "lua_bytecode": true
     },
     {
       "id": "sunrise_sunset_owm",
       "name": "Sunrise Sunset (OWM)",
       "version": "1.0.0",
-      "category": "weather",
+      "category": "other",
       "description": "",
       "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/sunrise_sunset_owm-1.0.0.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/thumbs/sunrise_sunset_owm.png",
-      "sha256": "00a1faef4ac71e06b87926166029004c87b378ef875f6dcaa64a38e33161648c",
-      "size": 2876
+      "sha256": "83cf631b2214db0e99dea3aac047495ee14e615259da487319ba5ea3692256a7",
+      "size": 3135,
+      "lua_bytecode": true
     },
     {
       "id": "weather_card_owm",
       "name": "Weather Card OWM",
       "version": "1.0.0",
-      "category": "weather",
+      "category": "other",
       "description": "",
       "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/weather_card_owm-1.0.0.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/thumbs/weather_card_owm.png",
-      "sha256": "2029634bb2a6ffe9115ec233227ab799d88abb6b17c73a0ef782a06bd8ab4bc5",
-      "size": 11275
+      "sha256": "4deec0014f508c04721572e4c529afdd8c41a197fce47eeffc0729be6236d042",
+      "size": 11816,
+      "lua_bytecode": true
     }
   ]
 }
