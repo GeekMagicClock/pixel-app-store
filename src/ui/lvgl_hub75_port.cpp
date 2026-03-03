@@ -32,12 +32,17 @@ void FlushCb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map) {
     return;
   }
 
-  const int x1 = area->x1 < 0 ? 0 : area->x1;
-  const int y1 = area->y1 < 0 ? 0 : area->y1;
-  const int x2 = area->x2;
-  const int y2 = area->y2;
+  const int32_t hor_res = lv_display_get_horizontal_resolution(disp);
+  const int32_t ver_res = lv_display_get_vertical_resolution(disp);
 
-  if (x1 > x2 || y1 > y2) {
+  // Clip to display bounds, but keep correct indexing into px_map by using the
+  // original area's width as the source stride.
+  const int32_t clip_x1 = (area->x1 < 0) ? 0 : area->x1;
+  const int32_t clip_y1 = (area->y1 < 0) ? 0 : area->y1;
+  const int32_t clip_x2 = (area->x2 >= hor_res) ? (hor_res - 1) : area->x2;
+  const int32_t clip_y2 = (area->y2 >= ver_res) ? (ver_res - 1) : area->y2;
+
+  if (clip_x1 > clip_x2 || clip_y1 > clip_y2) {
     lv_display_flush_ready(disp);
     return;
   }
@@ -47,15 +52,16 @@ void FlushCb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map) {
   }
 
   auto *color_p = reinterpret_cast<uint16_t *>(px_map);
-  int idx = 0;
-  for (int y = y1; y <= y2; y++) {
-    for (int x = x1; x <= x2; x++) {
-      const uint16_t c565 = color_p[idx++];
-      ctx->display->drawPixel(x, y, c565);
+  const int32_t src_w = area->x2 - area->x1 + 1;
+  for (int32_t y = clip_y1; y <= clip_y2; y++) {
+    int32_t src_idx = (y - area->y1) * src_w + (clip_x1 - area->x1);
+    for (int32_t x = clip_x1; x <= clip_x2; x++) {
+      const uint16_t c565 = color_p[src_idx++];
+      ctx->display->drawPixel(static_cast<int16_t>(x), static_cast<int16_t>(y), c565);
     }
     // Break up long flushes so CPU0 IDLE can run (prevents task watchdog warnings).
-    if (((y - y1) & 0x03) == 0) {
-      vTaskDelay(pdMS_TO_TICKS(1));
+    if (((y - clip_y1) & 0x07) == 0) {
+      taskYIELD();
     }
   }
 

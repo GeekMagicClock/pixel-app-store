@@ -1,0 +1,10 @@
+{
+  "app_id": "binance_chart",
+  "name": "Binance Chart",
+  "version": "1.0.2",
+  "min_fw": "0.0.0",
+  "min_api": "1.0",
+  "entry": "main.lua",
+  "layout_id": "framebuffer_rgb565",
+  "capabilities": ["net", "crypto"]
+}

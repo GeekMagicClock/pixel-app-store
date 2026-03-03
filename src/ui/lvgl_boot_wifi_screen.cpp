@@ -12,6 +12,8 @@ extern "C" {
 #include "lvgl.h"
 }
 
+LV_FONT_DECLARE(lv_font_silkscreen_regular_8);
+
 static const char *kTag = "boot_wifi_ui";
 
 namespace {
@@ -304,6 +306,7 @@ static void EnsureScreen() {
   lv_canvas_set_draw_buf(g_canvas, g_canvas_buf);
   lv_obj_clear_flag(g_canvas, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_style_pad_all(g_canvas, 0, 0);
+  lv_obj_set_size(g_canvas, 64, 32);
   lv_obj_center(g_canvas);
 }
 
@@ -311,9 +314,9 @@ static void EnsureScreen() {
 
 void LvglBootWifiScreenPreloadFont() {
   if (g_font) return;
-  ESP_LOGI(kTag, "Preloading Silkscreen-Regular font...");
-  g_font = lv_tiny_ttf_create_file_ex("S:/littlefs/fonts/Silkscreen-Regular.ttf", 8, LV_FONT_KERNING_NONE, 64);
-  if (!g_font) ESP_LOGE(kTag, "Failed to preload Silkscreen-Regular.ttf");
+  // TinyTTF is disabled on this target to reduce heap/FD usage.
+  g_font = const_cast<lv_font_t*>(&lv_font_silkscreen_regular_8);
+  ESP_LOGI(kTag, "Using lv_font_silkscreen_regular_8");
 }
 
 void LvglShowBootWifiConnecting(const char *try_ssid, uint32_t timeout_ms) {
@@ -385,10 +388,7 @@ void LvglShowBootWifiFailed(const char *ap_ssid, const char *ap_ip) {
 void LvglStopBootWifiScreen() {
   StopTimer();
 
-  if (g_font) {
-    lv_tiny_ttf_destroy(g_font);
-    g_font = nullptr;
-  }
+  g_font = nullptr;
 
   if (g_canvas_buf) {
     lv_draw_buf_destroy(g_canvas_buf);

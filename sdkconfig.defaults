@@ -6,12 +6,12 @@ CONFIG_ESP32_HUB75_USE_GFX=n
 CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
 
 # LVGL (built from components/lvgl)
-CONFIG_LV_USE_DEMO_BENCHMARK=y
+CONFIG_LV_USE_DEMO_BENCHMARK=n
 CONFIG_LV_USE_DEMO_WIDGETS=n
 CONFIG_LV_USE_DEMO_STRESS=n
 CONFIG_LV_USE_DEMO_MUSIC=n
 CONFIG_LV_BUILD_EXAMPLES=n
-CONFIG_LV_MEM_SIZE_KILOBYTES=64
+CONFIG_LV_MEM_SIZE_KILOBYTES=48
 
 # Task watchdog - 延长超时时间以允许字体加载
 CONFIG_ESP_TASK_WDT_TIMEOUT_S=10
@@ -20,6 +20,10 @@ CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1=n
 # --- LVGL cache (improves stability for repeated PNG decode/draw) ---
 # Keep a small LRU cache for decoded images to avoid frequent malloc/free that can
 # fragment heap and eventually make PNG decode fail during long runs.
-CONFIG_LV_CACHE_DEF_SIZE=32768
+CONFIG_LV_CACHE_DEF_SIZE=8192
 # Cache a few image headers too (reduces file IO and decoder header parsing).
 CONFIG_LV_IMAGE_HEADER_CACHE_DEF_CNT=16
+
+# mbedTLS content buffers (reduce TLS handshake/runtime peak RAM)
+CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN=8192
+CONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN=2048

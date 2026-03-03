@@ -1,7 +1,7 @@
 #include <WiFi.h>
 
 // Initialize Wifi connection to the router
-char ssid[33] = "1024";     // your network SSID (name)
+char ssid[33] = "10242";     // your network SSID (name)
 char password[65] = "2048@@@@"; // your network key
 //uint16_t myWHITE = mdisplay.color565(255, 255, 255);
 #include "LittleFS.h"

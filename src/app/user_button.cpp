@@ -6,7 +6,7 @@
 
 #include "ESP32-HUB75-MatrixPanel-I2S-DMA.h"
 
-#include "ui/lvgl_screen_carousel.h"
+#include "ui/lvgl_lua_app_carousel.h"
 
 static const char *kTag = "app";
 
@@ -101,7 +101,7 @@ static void ButtonTask(void *arg) {
         } else if (!long_handled) {
           // Short press: next screen.
           ESP_LOGI(kTag, "button: click -> next screen");
-          LvglRequestScreenCarouselNext();
+          LvglLuaAppCarouselRequestNext();
         }
       }
     }

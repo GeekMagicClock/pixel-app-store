@@ -28,6 +28,8 @@ static esp_event_handler_instance_t g_wifi_any_id = nullptr;
 static esp_event_handler_instance_t g_ip_got = nullptr;
 
 static constexpr EventBits_t kBitGotIp = (1 << 0);
+//static constexpr const char *kDefaultStaSsid = "google";
+static constexpr const char *kDefaultStaSsid = "10242";
 
 static void WifiEventHandler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
   (void)arg;
@@ -125,9 +127,13 @@ bool WifiManagerGetSavedStaSsid(char *out_ssid, uint32_t out_ssid_sz) {
 
   wifi_config_t cfg = {};
   if (esp_wifi_get_config(WIFI_IF_STA, &cfg) != ESP_OK) return false;
-  if (!cfg.sta.ssid[0]) return false;
+  if (!cfg.sta.ssid[0]) {
+    // Show the default target SSID even when STA config is empty.
+    snprintf(out_ssid, out_ssid_sz, "%s", kDefaultStaSsid);
+    return true;
+  }
 
-  snprintf(out_ssid, out_ssid_sz, "%s", reinterpret_cast<const char *>(cfg.sta.ssid));
+  snprintf(out_ssid, out_ssid_sz, "%s", kDefaultStaSsid);
   return true;
 }
 
@@ -144,10 +150,10 @@ bool WifiManagerConnectSta(uint32_t timeout_ms, WifiStaInfo *sta_out) {
     ESP_LOGW(kTag, "no saved sta config");
     return false;
   }
-  if (!sta_cfg.sta.ssid[0]) {
-    ESP_LOGW(kTag, "saved sta ssid empty");
-    return false;
-  }
+
+  // Force default STA SSID to "10242", while keeping password bytes unchanged.
+  memset(sta_cfg.sta.ssid, 0, sizeof(sta_cfg.sta.ssid));
+  snprintf(reinterpret_cast<char *>(sta_cfg.sta.ssid), sizeof(sta_cfg.sta.ssid), "%s", kDefaultStaSsid);
 
   xEventGroupClearBits(g_evt, kBitGotIp);
 
