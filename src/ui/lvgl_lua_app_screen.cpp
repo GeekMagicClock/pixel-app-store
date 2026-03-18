@@ -1,15 +1,22 @@
 #include "ui/lvgl_lua_app_screen.h"
 
+#include "ui/lvgl_hub75_port.h"
+#include "ui/lvgl_mem_utils.h"
+
+#include <atomic>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <memory>
 #include <string>
 #include <vector>
 
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "esp_log.h"
 #include "esp_heap_caps.h"
+#include "esp_timer.h"
 #include "esp_system.h"
 
 extern "C" {
@@ -56,22 +63,50 @@ struct WidgetSpec {
 
 struct ScreenState {
   lv_obj_t* scr = nullptr;
+  lv_obj_t* root = nullptr;
   lv_obj_t* canvas = nullptr;
+  lv_obj_t* ota_overlay = nullptr;
+  lv_obj_t* ota_title = nullptr;
+  lv_obj_t* ota_percent = nullptr;
+  lv_obj_t* ota_bar = nullptr;
   lv_draw_buf_t* canvas_buf = nullptr;
   lv_timer_t* timer = nullptr;
+  TaskHandle_t fb_task = nullptr;
+  SemaphoreHandle_t fb_mutex = nullptr;
   std::unique_ptr<LuaAppRuntime> app;
   std::vector<std::string> lines;
   std::string app_dir;
   uint32_t last_ms = 0;
   bool first_frame_drawn = false;
   bool fb_mode = false;
+  bool fb_request_pending = false;
+  bool fb_buffer_ready = false;
+  bool fb_faulted = false;
+  uint32_t fb_request_dt_ms = 0;
+  std::string fb_error;
   std::vector<WidgetSpec> widgets;
 
   std::vector<std::string> bind_keys;
   std::vector<std::string> bind_values;
+  uint8_t* fb_front = nullptr;
+  uint8_t* fb_back = nullptr;
+  size_t fb_bytes = 0;
+  uint32_t fb_stride = 0;
 };
 
 static ScreenState g_state;
+static constexpr BaseType_t kLuaFbTaskCore = 1;
+
+enum class OtaOverlayPhase : uint8_t {
+  kIdle = 0,
+  kUploading = 1,
+  kFinalizing = 2,
+  kFailed = 3,
+};
+
+static std::atomic<uint8_t> g_ota_phase{static_cast<uint8_t>(OtaOverlayPhase::kIdle)};
+static std::atomic<uint32_t> g_ota_written_bytes{0};
+static std::atomic<uint32_t> g_ota_total_bytes{0};
 
 static const lv_font_t* FontOrFallback() {
   if (g_font) return g_font;
@@ -99,26 +134,281 @@ static void EnsureFontLoaded() {
   (void)g_font;
 }
 
+static void FreeFrameBuffers() {
+  if (g_state.fb_front) {
+    LvglFreePreferPsram(g_state.fb_front);
+    g_state.fb_front = nullptr;
+  }
+  if (g_state.fb_back) {
+    LvglFreePreferPsram(g_state.fb_back);
+    g_state.fb_back = nullptr;
+  }
+  g_state.fb_bytes = 0;
+  g_state.fb_stride = 0;
+  g_state.fb_buffer_ready = false;
+}
+
+static bool EnsureFrameBuffers() {
+  constexpr uint32_t kStride = 64 * 2;
+  constexpr size_t kBytes = static_cast<size_t>(kStride) * 32u;
+  if (g_state.fb_front && g_state.fb_back && g_state.fb_bytes == kBytes && g_state.fb_stride == kStride) return true;
+
+  FreeFrameBuffers();
+  g_state.fb_front = static_cast<uint8_t*>(LvglAllocPreferPsram(kBytes));
+  g_state.fb_back = static_cast<uint8_t*>(LvglAllocPreferPsram(kBytes));
+  if (!g_state.fb_front || !g_state.fb_back) {
+    FreeFrameBuffers();
+    return false;
+  }
+
+  memset(g_state.fb_front, 0, kBytes);
+  memset(g_state.fb_back, 0, kBytes);
+  g_state.fb_bytes = kBytes;
+  g_state.fb_stride = kStride;
+  return true;
+}
+
+static void StopFbTask() {
+  if (g_state.fb_task) {
+    TaskHandle_t task = g_state.fb_task;
+    g_state.fb_task = nullptr;
+    vTaskDelete(task);
+  }
+  if (g_state.fb_mutex) {
+    vSemaphoreDelete(g_state.fb_mutex);
+    g_state.fb_mutex = nullptr;
+  }
+  g_state.fb_request_pending = false;
+  g_state.fb_buffer_ready = false;
+  g_state.fb_faulted = false;
+  g_state.fb_request_dt_ms = 0;
+  g_state.fb_error.clear();
+  FreeFrameBuffers();
+}
+
+static void FbRenderTask(void* arg) {
+  (void)arg;
+  while (true) {
+    if (!g_state.fb_mode || !g_state.app) {
+      vTaskDelay(pdMS_TO_TICKS(20));
+      continue;
+    }
+
+    if (!g_state.fb_request_pending) {
+      vTaskDelay(pdMS_TO_TICKS(5));
+      continue;
+    }
+
+    if (!g_state.fb_back || g_state.fb_stride == 0 || g_state.fb_bytes == 0) {
+      g_state.fb_faulted = true;
+      g_state.fb_error = "fb buffers missing";
+      g_state.fb_request_pending = false;
+      vTaskDelay(pdMS_TO_TICKS(20));
+      continue;
+    }
+
+    const uint32_t dt_ms = g_state.fb_request_dt_ms;
+    g_state.fb_request_pending = false;
+
+    const int64_t t0_us = esp_timer_get_time();
+    if (g_state.fb_mutex) xSemaphoreTake(g_state.fb_mutex, portMAX_DELAY);
+    g_state.app->Tick(dt_ms);
+    memset(g_state.fb_back, 0, g_state.fb_bytes);
+    const bool ok = g_state.app->RenderFrameBufferTo(64, 32, g_state.fb_back, g_state.fb_stride, nullptr, FontOrFallback());
+    g_state.app->ClearFrameBufferTemps();
+    if (ok) {
+      std::swap(g_state.fb_front, g_state.fb_back);
+      g_state.fb_buffer_ready = true;
+      g_state.fb_faulted = false;
+      g_state.fb_error.clear();
+    } else {
+      g_state.fb_faulted = true;
+      const char* err = g_state.app->last_error();
+      g_state.fb_error = err ? err : "render_fb failed";
+    }
+    if (g_state.fb_mutex) xSemaphoreGive(g_state.fb_mutex);
+    const uint32_t render_ms = static_cast<uint32_t>((esp_timer_get_time() - t0_us) / 1000);
+    if (render_ms > 100) {
+      ESP_LOGW(kTag, "lua_fb render slow: %lu ms app=%s", static_cast<unsigned long>(render_ms),
+               g_state.app_dir.c_str());
+    }
+    taskYIELD();
+  }
+}
+
+static bool StartFbTaskIfNeeded() {
+  if (!g_state.fb_mode) return true;
+  if (!EnsureFrameBuffers()) {
+    g_state.fb_faulted = true;
+    g_state.fb_error = "alloc fb buffers failed";
+    return false;
+  }
+  if (!g_state.fb_mutex) {
+    g_state.fb_mutex = xSemaphoreCreateMutex();
+    if (!g_state.fb_mutex) {
+      g_state.fb_faulted = true;
+      g_state.fb_error = "fb mutex failed";
+      return false;
+    }
+  }
+  if (g_state.fb_task) return true;
+
+  BaseType_t rc = xTaskCreatePinnedToCore(FbRenderTask, "lua_fb", 8192, nullptr, 4, &g_state.fb_task, kLuaFbTaskCore);
+  if (rc != pdPASS) {
+    g_state.fb_task = nullptr;
+    g_state.fb_faulted = true;
+    g_state.fb_error = "fb task create failed";
+    return false;
+  }
+  ESP_LOGI(kTag, "lua_fb task started on core %ld", static_cast<long>(kLuaFbTaskCore));
+  return true;
+}
+
 static void StopTimer() {
   if (!g_state.timer) return;
   lv_timer_del(g_state.timer);
   g_state.timer = nullptr;
 }
 
+static void EnsureRootContainer() {
+  g_state.scr = lv_screen_active();
+  if (!g_state.scr || !lv_obj_is_valid(g_state.scr)) return;
+  if (g_state.root && lv_obj_is_valid(g_state.root)) return;
+
+  g_state.root = lv_obj_create(g_state.scr);
+  ESP_LOGI(kTag, "root container created raw=%p parent=%p", static_cast<void*>(g_state.root), static_cast<void*>(g_state.scr));
+  lv_obj_remove_style_all(g_state.root);
+  lv_obj_clear_flag(g_state.root, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_style_pad_all(g_state.root, 0, 0);
+  lv_obj_set_style_border_width(g_state.root, 0, 0);
+  lv_obj_set_style_bg_opa(g_state.root, LV_OPA_TRANSP, 0);
+  lv_obj_set_size(g_state.root, 64, 32);
+  lv_obj_center(g_state.root);
+  ESP_LOGI(kTag, "root container ready");
+}
+
+static void ClearRootChildren() {
+  if (!g_state.root || !lv_obj_is_valid(g_state.root)) return;
+
+  while (true) {
+    lv_obj_t* child = lv_obj_get_child(g_state.root, 0);
+    if (!child) break;
+    lv_obj_delete(child);
+  }
+  g_state.ota_overlay = nullptr;
+  g_state.ota_title = nullptr;
+  g_state.ota_percent = nullptr;
+  g_state.ota_bar = nullptr;
+}
+
+static uint32_t OtaProgressPercent(uint32_t written, uint32_t total) {
+  if (total == 0) return 0;
+  if (written >= total) return 100;
+  return static_cast<uint32_t>((static_cast<uint64_t>(written) * 100u) / total);
+}
+
+static void EnsureOtaOverlay() {
+  if (!g_state.root || !lv_obj_is_valid(g_state.root)) return;
+  if (g_state.ota_overlay && lv_obj_is_valid(g_state.ota_overlay)) return;
+
+  g_state.ota_overlay = lv_obj_create(g_state.root);
+  lv_obj_remove_style_all(g_state.ota_overlay);
+  lv_obj_clear_flag(g_state.ota_overlay, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_style_pad_all(g_state.ota_overlay, 0, 0);
+  lv_obj_set_style_radius(g_state.ota_overlay, 0, 0);
+  lv_obj_set_style_border_width(g_state.ota_overlay, 0, 0);
+  lv_obj_set_style_bg_color(g_state.ota_overlay, lv_color_black(), 0);
+  lv_obj_set_style_bg_opa(g_state.ota_overlay, LV_OPA_COVER, 0);
+  lv_obj_set_size(g_state.ota_overlay, 64, 32);
+  lv_obj_center(g_state.ota_overlay);
+  lv_obj_add_flag(g_state.ota_overlay, LV_OBJ_FLAG_HIDDEN);
+
+  g_state.ota_title = lv_label_create(g_state.ota_overlay);
+  lv_obj_set_style_text_font(g_state.ota_title, FontOrFallback(), 0);
+  lv_obj_set_style_text_color(g_state.ota_title, lv_color_white(), 0);
+  lv_label_set_text(g_state.ota_title, "UPGRADING");
+  lv_obj_align(g_state.ota_title, LV_ALIGN_TOP_MID, 0, 1);
+
+  g_state.ota_percent = lv_label_create(g_state.ota_overlay);
+  lv_obj_set_style_text_font(g_state.ota_percent, FontOrFallback(), 0);
+  lv_obj_set_style_text_color(g_state.ota_percent, lv_color_white(), 0);
+  lv_label_set_text(g_state.ota_percent, "0%");
+  lv_obj_align(g_state.ota_percent, LV_ALIGN_CENTER, 0, 1);
+
+  g_state.ota_bar = lv_bar_create(g_state.ota_overlay);
+  lv_obj_remove_style_all(g_state.ota_bar);
+  lv_obj_set_size(g_state.ota_bar, 56, 4);
+  lv_obj_align(g_state.ota_bar, LV_ALIGN_BOTTOM_MID, 0, -3);
+  lv_bar_set_range(g_state.ota_bar, 0, 100);
+  lv_obj_set_style_bg_color(g_state.ota_bar, lv_color_hex(0x202020), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(g_state.ota_bar, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_radius(g_state.ota_bar, 0, LV_PART_MAIN);
+  lv_obj_set_style_bg_color(g_state.ota_bar, lv_color_white(), LV_PART_INDICATOR);
+  lv_obj_set_style_bg_opa(g_state.ota_bar, LV_OPA_COVER, LV_PART_INDICATOR);
+  lv_obj_set_style_radius(g_state.ota_bar, 0, LV_PART_INDICATOR);
+}
+
+static void SyncOtaOverlay() {
+  if (!g_state.root || !lv_obj_is_valid(g_state.root)) return;
+  EnsureOtaOverlay();
+  if (!g_state.ota_overlay || !lv_obj_is_valid(g_state.ota_overlay)) return;
+
+  const OtaOverlayPhase phase = static_cast<OtaOverlayPhase>(g_ota_phase.load(std::memory_order_relaxed));
+  if (phase == OtaOverlayPhase::kIdle) {
+    lv_obj_add_flag(g_state.ota_overlay, LV_OBJ_FLAG_HIDDEN);
+    return;
+  }
+
+  const uint32_t total = g_ota_total_bytes.load(std::memory_order_relaxed);
+  const uint32_t written = g_ota_written_bytes.load(std::memory_order_relaxed);
+  uint32_t percent = OtaProgressPercent(written, total);
+  const char* title = "UPGRADING";
+  const char* percent_text = nullptr;
+  char percent_buf[16] = {};
+
+  if (phase == OtaOverlayPhase::kFinalizing) {
+    title = "UPGRADING";
+    percent = 100;
+  } else if (phase == OtaOverlayPhase::kFailed) {
+    title = "OTA FAILED";
+    percent = 100;
+    percent_text = "FAILED";
+  }
+
+  if (!percent_text) {
+    snprintf(percent_buf, sizeof(percent_buf), "%lu%%", static_cast<unsigned long>(percent));
+    percent_text = percent_buf;
+  }
+
+  lv_obj_clear_flag(g_state.ota_overlay, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_move_foreground(g_state.ota_overlay);
+  lv_label_set_text(g_state.ota_title, title);
+  lv_label_set_text(g_state.ota_percent, percent_text);
+  lv_bar_set_value(g_state.ota_bar, static_cast<int32_t>(percent), LV_ANIM_OFF);
+  lv_obj_invalidate(g_state.ota_overlay);
+}
+
 static void StopScreen() {
   StopTimer();
+  StopFbTask();
+
+  if (g_state.canvas && lv_obj_is_valid(g_state.canvas)) {
+    lv_obj_delete(g_state.canvas);
+  }
+  g_state.canvas = nullptr;
+  g_state.ota_overlay = nullptr;
+  g_state.ota_title = nullptr;
+  g_state.ota_percent = nullptr;
+  g_state.ota_bar = nullptr;
 
   if (g_state.canvas_buf) {
     lv_draw_buf_destroy(g_state.canvas_buf);
     g_state.canvas_buf = nullptr;
   }
 
-  if (g_state.scr && lv_obj_is_valid(g_state.scr)) {
-    lv_obj_delete(g_state.scr);
-  }
-
-  g_state.scr = nullptr;
-  g_state.canvas = nullptr;
+  ClearRootChildren();
+  g_state.root = (g_state.root && lv_obj_is_valid(g_state.root)) ? g_state.root : nullptr;
+  g_state.scr = lv_screen_active();
   g_state.lines.clear();
   g_state.app_dir.clear();
   g_state.last_ms = 0;
@@ -369,37 +659,43 @@ static void RenderFrame(uint32_t dt_ms) {
   if (!g_state.app) {
     g_state.lines = {"Lua error", "runtime missing", "", ""};
   } else {
-    g_state.app->Tick(dt_ms);
     if (g_state.fb_mode) {
       if (!g_state.canvas_buf->data || g_state.canvas_buf->header.w != 64 || g_state.canvas_buf->header.h != 32 ||
           g_state.canvas_buf->header.cf != LV_COLOR_FORMAT_RGB565 || g_state.canvas_buf->header.stride < 64 * 2) {
         g_state.lines = {"Lua error", "bad draw buf", "", ""};
       } else {
+        // Framebuffer apps may call fb.text()/fb.image(), which require a real LVGL layer.
+        // Keep this path on the LVGL task so text and PNG rendering remain valid.
+        const size_t canvas_bytes =
+            static_cast<size_t>(g_state.canvas_buf->header.stride) * static_cast<size_t>(g_state.canvas_buf->header.h);
+        memset(g_state.canvas_buf->data, 0, canvas_bytes);
+        g_state.app->Tick(dt_ms);
+
         lv_layer_t layer;
         lv_canvas_init_layer(g_state.canvas, &layer);
         const bool ok = g_state.app->RenderFrameBufferTo(
-            64,
-            32,
-            g_state.canvas_buf->data,
-            g_state.canvas_buf->header.stride,
-            &layer,
+            64, 32, static_cast<uint8_t*>(g_state.canvas_buf->data), g_state.canvas_buf->header.stride, &layer,
             FontOrFallback());
         lv_canvas_finish_layer(g_state.canvas, &layer);
         g_state.app->ClearFrameBufferTemps();
 
-        if (!ok) {
-          g_state.lines = {"Lua error", g_state.app->last_error(), "", ""};
-        } else {
+        if (ok) {
           lv_obj_invalidate(g_state.canvas);
+          g_state.first_frame_drawn = true;
+          SyncOtaOverlay();
           return;
         }
+
+        g_state.lines = {"Lua error", g_state.app->last_error(), "", ""};
       }
     } else if (!g_state.widgets.empty()) {
+      g_state.app->Tick(dt_ms);
       g_state.bind_values.clear();
       if (!g_state.app->RenderBinds(g_state.bind_keys, &g_state.bind_values)) {
         g_state.lines = {"Lua error", g_state.app->last_error(), "", ""};
       }
     } else {
+      g_state.app->Tick(dt_ms);
       g_state.lines.clear();
       if (!g_state.app->Render(&g_state.lines)) {
         g_state.lines = {"Lua error", g_state.app->last_error(), "", ""};
@@ -469,12 +765,13 @@ static void RenderFrame(uint32_t dt_ms) {
 
   // Ensure LVGL refreshes this object even though we're drawing to the buffer directly.
   lv_obj_invalidate(g_state.canvas);
+  SyncOtaOverlay();
 }
 
 static void TickCb(lv_timer_t* t) {
   (void)t;
-  if (!g_state.scr || !g_state.canvas || !g_state.canvas_buf) return;
-  if (!lv_obj_is_valid(g_state.scr) || !lv_obj_is_valid(g_state.canvas)) return;
+  if (!g_state.scr || !g_state.root || !g_state.canvas || !g_state.canvas_buf) return;
+  if (!lv_obj_is_valid(g_state.scr) || !lv_obj_is_valid(g_state.root) || !lv_obj_is_valid(g_state.canvas)) return;
   if (lv_screen_active() != g_state.scr) return;
 
   const uint32_t now = lv_tick_get();
@@ -482,11 +779,18 @@ static void TickCb(lv_timer_t* t) {
   g_state.last_ms = now;
 
   RenderFrame(dt);
+  SyncOtaOverlay();
+  if (g_state.fb_mode) vTaskDelay(pdMS_TO_TICKS(1));
 }
 
 static void ShowApp(const std::string& app_dir) {
+  ESP_LOGI(kTag, "ShowApp begin (%s)", app_dir.c_str());
   StopScreen();
+  ESP_LOGI(kTag, "ShowApp after StopScreen");
   if (!EnsureAppLoaded(app_dir)) return;
+  ESP_LOGI(kTag, "ShowApp after EnsureAppLoaded fb_mode=%d", g_state.fb_mode ? 1 : 0);
+  LvglHub75SetFlushEnabled(false);
+  ESP_LOGI(kTag, "ShowApp flush gated");
   EnsureFontLoaded();
   if (!g_state.fb_mode) {
     LoadWidgetsFromUiJson(app_dir);
@@ -497,34 +801,49 @@ static void ShowApp(const std::string& app_dir) {
     g_state.bind_values.clear();
   }
 
-  g_state.scr = lv_obj_create(nullptr);
-  lv_obj_clear_flag(g_state.scr, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_style_pad_all(g_state.scr, 0, 0);
-  lv_obj_set_style_border_width(g_state.scr, 0, 0);
-  lv_obj_set_style_bg_color(g_state.scr, lv_color_black(), 0);
-  lv_obj_set_style_bg_opa(g_state.scr, LV_OPA_COVER, 0);
+  EnsureRootContainer();
+  if (!g_state.scr || !g_state.root) {
+    ESP_LOGE(kTag, "ShowApp root container unavailable");
+    LvglHub75SetFlushEnabled(true);
+    return;
+  }
+  ESP_LOGI(kTag, "ShowApp using active screen=%p root=%p", static_cast<void*>(g_state.scr), static_cast<void*>(g_state.root));
 
-  g_state.canvas_buf = lv_draw_buf_create(64, 32, LV_COLOR_FORMAT_RGB565, LV_STRIDE_AUTO);
+  g_state.canvas_buf = LvglCreateDrawBufferPreferPsram(64, 32, LV_COLOR_FORMAT_RGB565, LV_STRIDE_AUTO);
   if (!g_state.canvas_buf) {
     ESP_LOGE(kTag, "Failed to create canvas buffer");
     StopScreen();
     return;
   }
+  ESP_LOGI(kTag, "ShowApp canvas buffer ready stride=%u", static_cast<unsigned>(g_state.canvas_buf->header.stride));
 
-  g_state.canvas = lv_canvas_create(g_state.scr);
+  g_state.canvas = lv_canvas_create(g_state.root);
+  ESP_LOGI(kTag, "ShowApp canvas object created");
   lv_canvas_set_draw_buf(g_state.canvas, g_state.canvas_buf);
   lv_obj_clear_flag(g_state.canvas, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_style_pad_all(g_state.canvas, 0, 0);
   lv_obj_set_size(g_state.canvas, 64, 32);
   lv_obj_center(g_state.canvas);
+  EnsureOtaOverlay();
+  SyncOtaOverlay();
 
   g_state.last_ms = 0;
+  if (g_state.fb_mode) {
+    g_state.fb_request_dt_ms = 0;
+    g_state.fb_request_pending = true;
+  }
   // Draw a frame BEFORE loading the screen, to avoid a "garbage flash" from an uninitialized draw buffer.
+  ESP_LOGI(kTag, "ShowApp before initial RenderFrame");
   RenderFrame(0);
+  ESP_LOGI(kTag, "ShowApp after initial RenderFrame");
   g_state.first_frame_drawn = true;
   g_state.timer = lv_timer_create(TickCb, g_state.fb_mode ? kTickMsFb : kTickMsText, nullptr);
+  ESP_LOGI(kTag, "ShowApp timer created period=%u", static_cast<unsigned>(g_state.fb_mode ? kTickMsFb : kTickMsText));
 
-  lv_screen_load(g_state.scr);
+  LvglHub75SetFlushEnabled(true);
+  ESP_LOGI(kTag, "ShowApp flush ungated");
+  lv_obj_invalidate(g_state.root);
+  ESP_LOGI(kTag, "ShowApp root container invalidated");
   ESP_LOGI(kTag, "screen shown (%s)", app_dir.c_str());
 }
 
@@ -557,6 +876,10 @@ void LvglShowLuaAppDirScreen(const char* app_dir) {
 
 void LvglStopLuaAppDirScreen() { StopScreen(); }
 
+void LvglLuaAppScreenPrewarm() {
+  g_state.scr = lv_screen_active();
+}
+
 bool LvglCaptureLuaAppFrameRgb565(uint16_t* out_pixels, size_t pixel_count, size_t* out_width, size_t* out_height) {
   if (out_width) *out_width = 64;
   if (out_height) *out_height = 32;
@@ -573,4 +896,35 @@ bool LvglCaptureLuaAppFrameRgb565(uint16_t* out_pixels, size_t pixel_count, size
     memcpy(out_pixels + (y * 64), row, 64 * sizeof(uint16_t));
   }
   return true;
+}
+
+void LvglOtaOverlayBegin(size_t total_bytes) {
+  g_ota_total_bytes.store(static_cast<uint32_t>(total_bytes > UINT32_MAX ? UINT32_MAX : total_bytes),
+                          std::memory_order_relaxed);
+  g_ota_written_bytes.store(0, std::memory_order_relaxed);
+  g_ota_phase.store(static_cast<uint8_t>(OtaOverlayPhase::kUploading), std::memory_order_relaxed);
+}
+
+void LvglOtaOverlayUpdate(size_t written_bytes, size_t total_bytes) {
+  g_ota_total_bytes.store(static_cast<uint32_t>(total_bytes > UINT32_MAX ? UINT32_MAX : total_bytes),
+                          std::memory_order_relaxed);
+  g_ota_written_bytes.store(static_cast<uint32_t>(written_bytes > UINT32_MAX ? UINT32_MAX : written_bytes),
+                            std::memory_order_relaxed);
+  g_ota_phase.store(static_cast<uint8_t>(OtaOverlayPhase::kUploading), std::memory_order_relaxed);
+}
+
+void LvglOtaOverlayFinalizing() {
+  const uint32_t total = g_ota_total_bytes.load(std::memory_order_relaxed);
+  if (total > 0) g_ota_written_bytes.store(total, std::memory_order_relaxed);
+  g_ota_phase.store(static_cast<uint8_t>(OtaOverlayPhase::kFinalizing), std::memory_order_relaxed);
+}
+
+void LvglOtaOverlayFail() {
+  g_ota_phase.store(static_cast<uint8_t>(OtaOverlayPhase::kFailed), std::memory_order_relaxed);
+}
+
+void LvglOtaOverlayClear() {
+  g_ota_phase.store(static_cast<uint8_t>(OtaOverlayPhase::kIdle), std::memory_order_relaxed);
+  g_ota_written_bytes.store(0, std::memory_order_relaxed);
+  g_ota_total_bytes.store(0, std::memory_order_relaxed);
 }

@@ -5,6 +5,7 @@
 #include <cstring>
 #include <cstdint>
 #include <climits>
+#include <cerrno>
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -23,8 +24,10 @@
 #include "esp_netif.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/idf_additions.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "lwip/netdb.h"
 
 #ifndef LUA_USE_C89
 #define LUA_USE_C89 1
@@ -43,6 +46,7 @@ extern "C" {
 }
 
 #include "third_party/animatedgif/AnimatedGIF.h"
+#include "ui/lvgl_mem_utils.h"
 
 static const char* kTag = "lua_app";
 
@@ -100,12 +104,84 @@ struct HttpReq {
 
 static int64_t NowMs() { return esp_timer_get_time() / 1000; }
 
+class HttpClientMgr;
+static HttpClientMgr& HttpMgr();
+
+static std::string UrlHost(const std::string& url) {
+  const size_t scheme = url.find("://");
+  const size_t host_start = (scheme == std::string::npos) ? 0 : (scheme + 3);
+  if (host_start >= url.size()) return {};
+  size_t host_end = url.find('/', host_start);
+  if (host_end == std::string::npos) host_end = url.size();
+  const size_t at = url.find('@', host_start);
+  const size_t authority_start = (at != std::string::npos && at < host_end) ? (at + 1) : host_start;
+  size_t port = url.find(':', authority_start);
+  if (port == std::string::npos || port > host_end) port = host_end;
+  return url.substr(authority_start, port - authority_start);
+}
+
+static std::string PrintablePreview(const char* data, size_t len) {
+  if (!data || len == 0) return {};
+  const size_t n = std::min<size_t>(len, 96);
+  std::string out;
+  out.reserve(n);
+  for (size_t i = 0; i < n; ++i) {
+    const unsigned char ch = static_cast<unsigned char>(data[i]);
+    out.push_back(std::isprint(ch) ? static_cast<char>(ch) : ' ');
+  }
+  return out;
+}
+
+static void LogHttpResolve(const HttpReq* req) {
+  if (!req) return;
+  const std::string host = UrlHost(req->url);
+  if (host.empty()) return;
+
+  struct addrinfo hints = {};
+  hints.ai_socktype = SOCK_STREAM;
+  struct addrinfo* result = nullptr;
+  const int rc = getaddrinfo(host.c_str(), nullptr, &hints, &result);
+  if (rc != 0 || !result) {
+    ESP_LOGW(kTag, "http req dns failed id=%d host=%s rc=%d", req->id, host.c_str(), rc);
+    if (result) freeaddrinfo(result);
+    return;
+  }
+
+  char addr_buf[64] = {};
+  bool logged = false;
+  for (struct addrinfo* it = result; it; it = it->ai_next) {
+    void* src = nullptr;
+    if (it->ai_family == AF_INET) {
+      src = &reinterpret_cast<struct sockaddr_in*>(it->ai_addr)->sin_addr;
+    } else if (it->ai_family == AF_INET6) {
+      src = &reinterpret_cast<struct sockaddr_in6*>(it->ai_addr)->sin6_addr;
+    } else {
+      continue;
+    }
+    if (inet_ntop(it->ai_family, src, addr_buf, sizeof(addr_buf))) {
+      ESP_LOGI(kTag, "http req dns id=%d host=%s addr=%s", req->id, host.c_str(), addr_buf);
+      logged = true;
+      break;
+    }
+  }
+  if (!logged) {
+    ESP_LOGW(kTag, "http req dns unresolved id=%d host=%s", req->id, host.c_str());
+  }
+  freeaddrinfo(result);
+}
+
 class HttpClientMgr {
  public:
-  HttpClientMgr() { mu_ = xSemaphoreCreateMutex(); }
+  HttpClientMgr() {
+    mu_ = xSemaphoreCreateMutex();
+    run_mu_ = xSemaphoreCreateBinary();
+    if (run_mu_) (void)xSemaphoreGive(run_mu_);
+  }
   ~HttpClientMgr() {
     if (mu_) vSemaphoreDelete(mu_);
     mu_ = nullptr;
+    if (run_mu_) vSemaphoreDelete(run_mu_);
+    run_mu_ = nullptr;
   }
 
   int StartGet(const std::string& url,
@@ -135,8 +211,13 @@ class HttpClientMgr {
     reqs_[req->id] = req;
     Unlock();
 
-    const BaseType_t ok =
-        xTaskCreate(&HttpTaskTrampoline, "lua_http", 4096, req, tskIDLE_PRIORITY + 1, nullptr);
+    const BaseType_t ok = xTaskCreateWithCaps(&HttpTaskTrampoline,
+                                              "lua_http",
+                                              8192,
+                                              req,
+                                              tskIDLE_PRIORITY + 1,
+                                              nullptr,
+                                              MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (ok != pdPASS) {
       Lock();
       reqs_.erase(req->id);
@@ -226,6 +307,40 @@ class HttpClientMgr {
   void Lock() { (void)xSemaphoreTake(mu_, portMAX_DELAY); }
   void Unlock() { (void)xSemaphoreGive(mu_); }
 
+  bool TakeRunSlot(HttpReq* req, int64_t* out_wait_ms) {
+    if (out_wait_ms) *out_wait_ms = 0;
+    if (!run_mu_) return true;
+    const int64_t wait_start_ms = NowMs();
+    while (true) {
+      if (xSemaphoreTake(run_mu_, pdMS_TO_TICKS(50)) == pdTRUE) {
+        if (out_wait_ms) *out_wait_ms = NowMs() - wait_start_ms;
+        return true;
+      }
+      if (req && req->abandoned) {
+        if (out_wait_ms) *out_wait_ms = NowMs() - wait_start_ms;
+        return false;
+      }
+    }
+  }
+
+  void ReleaseRunSlot() {
+    if (run_mu_) (void)xSemaphoreGive(run_mu_);
+  }
+
+  void FinishById(int id, int status, std::string body_or_err) {
+    if (!mu_ || id <= 0) return;
+    Lock();
+    auto it = reqs_.find(id);
+    if (it != reqs_.end() && it->second) {
+      HttpReq* req = it->second;
+      req->status = status;
+      req->body_or_err = std::move(body_or_err);
+      req->done_ms = NowMs();
+      req->done = true;
+    }
+    Unlock();
+  }
+
   void ReapDoneLocked(int64_t now_ms) {
     static constexpr int64_t kDoneRetainMs = 10 * 1000;
     for (auto it = reqs_.begin(); it != reqs_.end();) {
@@ -250,25 +365,54 @@ class HttpClientMgr {
   static void HttpTaskTrampoline(void* arg) {
     HttpReq* req = static_cast<HttpReq*>(arg);
     DoHttp(req);
-    vTaskDelete(nullptr);
+    vTaskDeleteWithCaps(nullptr);
   }
 
   static void DoHttp(HttpReq* req) {
     if (!req) return;
+    const int req_id = req->id;
+    const std::string url = req->url;
+    const int timeout_ms = req->timeout_ms;
+    const int max_body_bytes = req->max_body_bytes;
+    const int64_t request_start_ms = NowMs();
     auto mem_snapshot = []() {
       const uint32_t free8 = static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_8BIT));
       const uint32_t min8 = static_cast<uint32_t>(heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
       const uint32_t largest8 = static_cast<uint32_t>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+      const uint32_t free_internal =
+          static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+      const uint32_t min_internal =
+          static_cast<uint32_t>(heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+      const uint32_t largest_internal =
+          static_cast<uint32_t>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
       const uint32_t free32 = static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_32BIT));
       const uint32_t largest32 = static_cast<uint32_t>(heap_caps_get_largest_free_block(MALLOC_CAP_32BIT));
       ESP_LOGI(kTag,
-               "http mem free8=%u min8=%u largest8=%u free32=%u largest32=%u",
+               "http mem free8=%u min8=%u largest8=%u free_internal=%u min_internal=%u largest_internal=%u free32=%u largest32=%u",
                static_cast<unsigned>(free8),
                static_cast<unsigned>(min8),
                static_cast<unsigned>(largest8),
+               static_cast<unsigned>(free_internal),
+               static_cast<unsigned>(min_internal),
+               static_cast<unsigned>(largest_internal),
                static_cast<unsigned>(free32),
                static_cast<unsigned>(largest32));
     };
+
+    struct RunSlotGuard {
+      HttpClientMgr& mgr;
+      bool held = false;
+      ~RunSlotGuard() {
+        if (held) mgr.ReleaseRunSlot();
+      }
+    } run_slot{HttpMgr(), false};
+
+    int64_t queue_wait_ms = 0;
+    if (!HttpMgr().TakeRunSlot(req, &queue_wait_ms)) {
+      HttpMgr().FinishById(req_id, 0, "abandoned");
+      return;
+    }
+    run_slot.held = true;
 
     // Make HTTP safe even if WiFi boot flow is skipped (e.g. debug UI simulation).
     // If WiFi isn't started/connected, the request will still fail, but should not crash.
@@ -280,94 +424,153 @@ class HttpClientMgr {
       }
     }
 
+    ESP_LOGI(kTag,
+             "http req start id=%d timeout=%d max_body=%d queue_wait_ms=%lld url=%s",
+             req_id,
+             timeout_ms,
+             max_body_bytes,
+             static_cast<long long>(queue_wait_ms),
+             url.c_str());
+    LogHttpResolve(req);
+
     esp_http_client_config_t cfg = {};
-    cfg.url = req->url.c_str();
-    cfg.timeout_ms = req->timeout_ms;
+    cfg.url = url.c_str();
+    cfg.timeout_ms = timeout_ms;
     cfg.method = HTTP_METHOD_GET;
     cfg.crt_bundle_attach = esp_crt_bundle_attach;
     cfg.disable_auto_redirect = false;
+    cfg.user_agent = "esp32-pixel/1.0";
+    cfg.keep_alive_enable = false;
+    cfg.buffer_size = 4096;
+    cfg.buffer_size_tx = 2048;
 
     esp_http_client_handle_t client = esp_http_client_init(&cfg);
     if (!client) {
-      ESP_LOGW(kTag, "http init failed url=%s timeout=%d max_body=%d", req->url.c_str(), req->timeout_ms, req->max_body_bytes);
+      ESP_LOGW(kTag, "http init failed url=%s timeout=%d max_body=%d", url.c_str(), timeout_ms, max_body_bytes);
       mem_snapshot();
-      req->done = true;
-      req->done_ms = NowMs();
-      req->status = 0;
-      req->body_or_err = "http init failed";
+      HttpMgr().FinishById(req_id, 0, "http init failed");
       return;
     }
+
+    esp_http_client_set_header(client, "Accept", "application/json");
+    esp_http_client_set_header(client, "Cache-Control", "no-cache");
+    esp_http_client_set_header(client, "Connection", "close");
 
     esp_err_t err = esp_http_client_open(client, 0);
     if (err != ESP_OK) {
+      const int saved_errno = errno;
       ESP_LOGW(kTag,
-               "http open failed err=%s(0x%x) url=%s timeout=%d max_body=%d",
+               "http open failed err=%s(0x%x) errno=%d(%s) url=%s timeout=%d max_body=%d total_elapsed_ms=%lld",
                esp_err_to_name(err),
                static_cast<unsigned>(err),
-               req->url.c_str(),
-               req->timeout_ms,
-               req->max_body_bytes);
+               saved_errno,
+               strerror(saved_errno),
+               url.c_str(),
+               timeout_ms,
+               max_body_bytes,
+               static_cast<long long>(NowMs() - request_start_ms));
       mem_snapshot();
-      req->done = true;
-      req->done_ms = NowMs();
-      req->status = 0;
-      req->body_or_err = esp_err_to_name(err);
       esp_http_client_cleanup(client);
+      HttpMgr().FinishById(req_id, 0, esp_err_to_name(err));
       return;
     }
 
-    (void)esp_http_client_fetch_headers(client);
-    req->status = esp_http_client_get_status_code(client);
+    const int fetch_ret = esp_http_client_fetch_headers(client);
+    const int http_status = esp_http_client_get_status_code(client);
+    const int64_t content_len = esp_http_client_get_content_length(client);
+    const bool chunked = esp_http_client_is_chunked_response(client);
+    ESP_LOGI(kTag,
+             "http req headers id=%d fetch_ret=%d status=%d content_len=%lld chunked=%d elapsed_ms=%lld",
+             req_id,
+             fetch_ret,
+             http_status,
+             static_cast<long long>(content_len),
+             chunked ? 1 : 0,
+             static_cast<long long>(NowMs() - request_start_ms));
+    if (fetch_ret < 0 && http_status <= 0) {
+      ESP_LOGW(kTag,
+               "http fetch headers failed id=%d err=%s(%d) url=%s",
+               req_id,
+               esp_err_to_name(static_cast<esp_err_t>(fetch_ret)),
+               fetch_ret,
+               url.c_str());
+      mem_snapshot();
+      (void)esp_http_client_close(client);
+      esp_http_client_cleanup(client);
+      HttpMgr().FinishById(req_id, 0, esp_err_to_name(static_cast<esp_err_t>(fetch_ret)));
+      return;
+    }
 
-    const int cap = (req->max_body_bytes > 0) ? req->max_body_bytes : 256;
-    // Single-buffer path: read directly into request string storage to avoid
-    // a second large allocation/copy (malloc buffer -> std::string assign).
-    req->body_or_err.clear();
-    req->body_or_err.resize(static_cast<size_t>(cap));
-    char* body = req->body_or_err.data();
+    const int cap = (max_body_bytes > 0) ? max_body_bytes : 256;
+    char* body = static_cast<char*>(LvglAllocPreferPsram(static_cast<size_t>(cap) + 1));
+    if (!body) {
+      ESP_LOGW(kTag, "http body alloc failed cap=%d url=%s", cap, url.c_str());
+      mem_snapshot();
+      (void)esp_http_client_close(client);
+      esp_http_client_cleanup(client);
+      HttpMgr().FinishById(req_id, 0, "body alloc failed");
+      return;
+    }
+    body[0] = '\0';
 
-    char buf[512];
+    char buf[1024];
     int total = 0;
     while (true) {
       const int r = esp_http_client_read(client, buf, sizeof(buf));
       if (r < 0) {
-        ESP_LOGW(kTag, "http read failed url=%s", req->url.c_str());
+        ESP_LOGW(kTag, "http read failed id=%d url=%s", req_id, url.c_str());
         mem_snapshot();
-        req->done = true;
-        req->done_ms = NowMs();
-        req->status = 0;
-        req->body_or_err = "http read failed";
+        LvglFreePreferPsram(body);
         (void)esp_http_client_close(client);
         esp_http_client_cleanup(client);
+        HttpMgr().FinishById(req_id, 0, "http read failed");
         return;
       }
       if (r == 0) break;
 
       if (total + r > cap) {
-        ESP_LOGW(kTag, "http body too large cap=%d need=%d url=%s", cap, total + r, req->url.c_str());
+        ESP_LOGW(kTag, "http body too large cap=%d need=%d url=%s", cap, total + r, url.c_str());
         mem_snapshot();
-        req->done = true;
-        req->done_ms = NowMs();
-        req->status = 0;
-        req->body_or_err = "body too large";
+        LvglFreePreferPsram(body);
         (void)esp_http_client_close(client);
         esp_http_client_cleanup(client);
+        HttpMgr().FinishById(req_id, 0, "body too large");
         return;
       }
 
       memcpy(body + total, buf, static_cast<size_t>(r));
       total += r;
     }
+    body[total] = '\0';
 
     (void)esp_http_client_close(client);
     esp_http_client_cleanup(client);
 
-    req->done = true;
-    req->done_ms = NowMs();
-    req->body_or_err.resize(static_cast<size_t>(total));
+    static constexpr int kLogFullBodyBytes = 1024;
+    if (total <= kLogFullBodyBytes) {
+      ESP_LOGI(kTag,
+               "http req done id=%d status=%d body_len=%d elapsed_ms=%lld body=%s",
+               req_id,
+               http_status,
+               total,
+               static_cast<long long>(NowMs() - request_start_ms),
+               (total > 0) ? body : "<empty>");
+    } else {
+      const std::string body_truncated = PrintablePreview(body, static_cast<size_t>(kLogFullBodyBytes));
+      ESP_LOGI(kTag,
+               "http req done id=%d status=%d body_len=%d elapsed_ms=%lld body_truncated=%s",
+               req_id,
+               http_status,
+               total,
+               static_cast<long long>(NowMs() - request_start_ms),
+               body_truncated.empty() ? "<empty>" : body_truncated.c_str());
+    }
+    HttpMgr().FinishById(req_id, http_status, std::string(body, static_cast<size_t>(total)));
+    LvglFreePreferPsram(body);
   }
 
   SemaphoreHandle_t mu_ = nullptr;
+  SemaphoreHandle_t run_mu_ = nullptr;
   int next_id_ = 0;
   std::unordered_map<int, HttpReq*> reqs_;
 };
@@ -725,7 +928,7 @@ static int LuaNetHttpGet(lua_State* L) {
   if (lua_gettop(L) >= 3 && lua_isnumber(L, 3)) max_body = static_cast<int>(lua_tointeger(L, 3));
   if (timeout_ms < 500) timeout_ms = 500;
   if (max_body < 256) max_body = 256;
-  if (max_body > 16 * 1024) max_body = 16 * 1024;
+  if (max_body > 64 * 1024) max_body = 64 * 1024;
 
   std::string err;
   const int id =
@@ -770,7 +973,7 @@ static int LuaNetCachedGet(lua_State* L) {
   if (ttl_ms < 0) ttl_ms = 0;
   if (timeout_ms < 500) timeout_ms = 500;
   if (max_body < 256) max_body = 256;
-  if (max_body > 16 * 1024) max_body = 16 * 1024;
+  if (max_body > 64 * 1024) max_body = 64 * 1024;
 
   int req_id = 0;
   std::string body;
@@ -933,12 +1136,33 @@ LuaAppRuntime::LuaAppRuntime() = default;
 
 LuaAppRuntime::~LuaAppRuntime() { DestroyState(); }
 
+void* LuaAppRuntime::LuaAllocPreferPsram(void* ud, void* ptr, size_t osize, size_t nsize) {
+  (void)ud;
+  (void)osize;
+
+  if (nsize == 0) {
+    if (ptr) heap_caps_free(ptr);
+    return nullptr;
+  }
+
+  void* next = nullptr;
+  if (!ptr) {
+    next = heap_caps_malloc(nsize, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!next) next = heap_caps_malloc(nsize, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    return next;
+  }
+
+  next = heap_caps_realloc(ptr, nsize, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!next) next = heap_caps_realloc(ptr, nsize, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  return next;
+}
+
 bool LuaAppRuntime::CreateState() {
   DestroyState();
 
-  L_ = luaL_newstate();
+  L_ = lua_newstate(&LuaAllocPreferPsram, nullptr);
   if (!L_) {
-    last_error_ = "luaL_newstate failed";
+    last_error_ = "lua_newstate failed";
     return false;
   }
 
@@ -950,6 +1174,7 @@ bool LuaAppRuntime::CreateState() {
              LUA_RELEASE,
              static_cast<unsigned>(sizeof(lua_Integer)),
              static_cast<unsigned>(sizeof(lua_Number)));
+    ESP_LOGI(kTag, "lua allocator: PSRAM preferred, internal fallback");
   }
 
   // Store runtime pointer for C callbacks (framebuffer helpers).
@@ -1071,7 +1296,9 @@ bool LuaAppRuntime::LoadMain(const std::string& main_path) {
     return r->buf;
   };
 
+  ESP_LOGI(kTag, "LoadMain: before lua_load (%s)", main_path.c_str());
   const int load_ret = lua_load(L_, read_fn, &reader, main_path.c_str(), nullptr);
+  ESP_LOGI(kTag, "LoadMain: after lua_load ret=%d", load_ret);
   fclose(f);
   if (load_ret != LUA_OK) {
     SetErrorFromTop();
@@ -1083,7 +1310,9 @@ bool LuaAppRuntime::LoadMain(const std::string& main_path) {
     return false;
   }
 
+  ESP_LOGI(kTag, "LoadMain: before pcall");
   const int call_ret = lua_pcall(L_, 0, 1, 0);
+  ESP_LOGI(kTag, "LoadMain: after pcall ret=%d", call_ret);
   if (call_ret != LUA_OK) {
     SetErrorFromTop();
     ESP_LOGE(kTag, "pcall failed: %s", last_error_.c_str());
@@ -1469,7 +1698,6 @@ bool LuaAppRuntime::RenderBinds(const std::vector<std::string>& keys, std::vecto
 
 bool LuaAppRuntime::SupportsFrameBuffer() {
   if (!L_ || !loaded_) return false;
-  EnsureInited();
 
   std::string err;
   if (!PushAppTable(&err)) {
@@ -1517,7 +1745,7 @@ static GifPlayer* g_gif_player = nullptr;
 static lua_State* g_gif_player_owner = nullptr;
 
 static GifPlayer* AllocGifPlayer() {
-  void* mem = malloc(sizeof(GifPlayer));
+  void* mem = LvglAllocPreferPsram(sizeof(GifPlayer));
   if (!mem) return nullptr;
   // Placement new: avoid C++ heap operator new throw path on low memory.
   return new (mem) GifPlayer();
@@ -1526,7 +1754,7 @@ static GifPlayer* AllocGifPlayer() {
 static void FreeGifPlayer(GifPlayer* p) {
   if (!p) return;
   p->~GifPlayer();
-  free(p);
+  LvglFreePreferPsram(p);
 }
 
 static void* GifOpenFile(const char* filename, int32_t* file_size) {

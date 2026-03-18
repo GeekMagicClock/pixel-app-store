@@ -8,11 +8,22 @@ from os.path import join
 # limited filesystem partition.
 env["PROJECT_DATA_DIR"] = join(env["PROJECT_DIR"], "data_littlefs")
 
-# Ensure ESP-IDF CMake toolchain can find xtensa-esp32-elf-gcc by name.
+# Ensure ESP-IDF CMake toolchain binaries are on PATH for the active target.
 platform = env.PioPlatform()
-toolchain_dir = platform.get_package_dir("toolchain-xtensa-esp32")
-if toolchain_dir:
-    env.PrependENVPath("PATH", join(toolchain_dir, "bin"))
+mcu = env.BoardConfig().get("build.mcu", "")
+toolchains_by_mcu = {
+    "esp32": ["toolchain-xtensa-esp32"],
+    "esp32s2": ["toolchain-xtensa-esp32s2"],
+    "esp32s3": ["toolchain-xtensa-esp32s3", "toolchain-riscv32-esp"],
+    "esp32c3": ["toolchain-riscv32-esp"],
+    "esp32c6": ["toolchain-riscv32-esp"],
+    "esp32h2": ["toolchain-riscv32-esp"],
+}
+
+for pkg in toolchains_by_mcu.get(mcu, ["toolchain-xtensa-esp32"]):
+    toolchain_dir = platform.get_package_dir(pkg)
+    if toolchain_dir:
+        env.PrependENVPath("PATH", join(toolchain_dir, "bin"))
 
 
 def _auto_pick_serial_port():

@@ -9,8 +9,14 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "cJSON.h"
+#include "app/display_control.h"
+#include "app/wifi_manager.h"
+#include "esp_ota_ops.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
+#include "esp_system.h"
+#include "f_html_gz.h"
 #include "ui/lvgl_lua_app_screen.h"
 
 static const char* kTag = "app_update";
@@ -21,7 +27,7 @@ static httpd_handle_t g_httpd = nullptr;
 static AppUpdateReloadCallback g_reload_cb = nullptr;
 static AppUpdateSwitchCallback g_switch_cb = nullptr;
 static const char* kDefaultStoreIndexUrl =
-    "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/apps-index.json";
+    "http://111.229.177.3:8001/fw/pixel64x32V2/apps/apps-index.json";
 
 static bool EnsureDir(const char* path) {
   if (!path || !*path) return false;
@@ -180,6 +186,25 @@ static bool WriteRequestBodyToFile(httpd_req_t* req, const char* path, int* out_
   return true;
 }
 
+static bool ReadRequestBodyToString(httpd_req_t* req, size_t max_bytes, std::string* out) {
+  if (out) out->clear();
+  if (!req || !out || max_bytes == 0) return false;
+  if (static_cast<size_t>(req->content_len) > max_bytes) return false;
+
+  out->reserve(static_cast<size_t>(req->content_len));
+  int remaining = req->content_len;
+  char buf[256];
+  while (remaining > 0) {
+    const int to_read = remaining < static_cast<int>(sizeof(buf)) ? remaining : static_cast<int>(sizeof(buf));
+    const int r = httpd_req_recv(req, buf, to_read);
+    if (r == HTTPD_SOCK_ERR_TIMEOUT) continue;
+    if (r <= 0) return false;
+    out->append(buf, static_cast<size_t>(r));
+    remaining -= r;
+  }
+  return true;
+}
+
 static bool RemoveTree(const std::string& path) {
   DIR* dir = opendir(path.c_str());
   if (!dir) return false;
@@ -287,6 +312,50 @@ static bool ExtractJsonString(const std::string& json, const char* key, std::str
   return !out->empty();
 }
 
+static void AppendJsonEscaped(std::string* out, const std::string& value) {
+  if (!out) return;
+  for (char ch : value) {
+    switch (ch) {
+      case '\\':
+        out->append("\\\\");
+        break;
+      case '"':
+        out->append("\\\"");
+        break;
+      case '\n':
+        out->append("\\n");
+        break;
+      case '\r':
+        out->append("\\r");
+        break;
+      case '\t':
+        out->append("\\t");
+        break;
+      default:
+        if (static_cast<unsigned char>(ch) < 0x20) {
+          char buf[7];
+          snprintf(buf, sizeof(buf), "\\u%04x", static_cast<unsigned>(static_cast<unsigned char>(ch)));
+          out->append(buf);
+        } else {
+          out->push_back(ch);
+        }
+        break;
+    }
+  }
+}
+
+static bool ReadAppManifestString(const std::string& app_id, const char* key, std::string* out_value) {
+  if (out_value) out_value->clear();
+  if (!out_value || !key || !*key || !IsValidAppId(app_id)) return false;
+  const std::string app_dir = std::string("/littlefs/apps/") + app_id;
+  std::string manifest;
+  if (!ReadSmallFile(app_dir + "/manifest.json", 2048, &manifest)) return false;
+  std::string value;
+  if (!ExtractJsonString(manifest, key, &value)) return false;
+  *out_value = Trim(value);
+  return !out_value->empty();
+}
+
 static bool ReadAppVersion(const std::string& app_id, std::string* out_version) {
   if (out_version) out_version->clear();
   if (!out_version || !IsValidAppId(app_id)) return false;
@@ -313,6 +382,13 @@ static bool ReadAppVersion(const std::string& app_id, std::string* out_version) 
     }
   }
   return false;
+}
+
+static bool ReadAppName(const std::string& app_id, std::string* out_name) {
+  if (out_name) out_name->clear();
+  if (!out_name || !IsValidAppId(app_id)) return false;
+  if (!ReadAppManifestString(app_id, "name", out_name)) return false;
+  return !out_name->empty();
 }
 
 static bool AppHasThumbnail(const std::string& app_id) {
@@ -357,8 +433,106 @@ static bool ParseAppIdFromPrefix(const char* uri, const char* prefix, std::strin
   return true;
 }
 
+static esp_err_t SendCompressedHtml(httpd_req_t* req, const unsigned char* data, size_t len) {
+  httpd_resp_set_status(req, "200 OK");
+  httpd_resp_set_type(req, "text/html; charset=utf-8");
+  httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
+  httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+  httpd_resp_set_hdr(req, "X-Content-Type-Options", "nosniff");
+  return httpd_resp_send(req, reinterpret_cast<const char*>(data), static_cast<ssize_t>(len));
+}
+
 static void NotifyReloadRequested() {
   if (g_reload_cb) g_reload_cb();
+}
+
+static esp_err_t HandleFirmwareStatus(httpd_req_t* req) {
+  const esp_partition_t* running = esp_ota_get_running_partition();
+  const esp_app_desc_t* desc = esp_app_get_description();
+  char json[256];
+  snprintf(json, sizeof(json),
+           "{\"ok\":true,\"service\":\"firmware_ota\",\"project\":\"%s\",\"version\":\"%s\",\"partition\":\"%s\"}",
+           desc ? desc->project_name : "unknown", desc ? desc->version : "unknown", running ? running->label : "?");
+  SendJson(req, "200 OK", json);
+  return ESP_OK;
+}
+
+static esp_err_t HandleFirmwareOta(httpd_req_t* req) {
+  if (!req || req->content_len <= 0) {
+    SendJson(req, "400 Bad Request", "{\"ok\":false,\"error\":\"empty body\"}");
+    return ESP_OK;
+  }
+
+  const esp_partition_t* update_partition = esp_ota_get_next_update_partition(nullptr);
+  if (!update_partition) {
+    SendJson(req, "500 Internal Server Error", "{\"ok\":false,\"error\":\"no update partition\"}");
+    return ESP_OK;
+  }
+
+  esp_ota_handle_t ota_handle = 0;
+  esp_err_t err = esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &ota_handle);
+  if (err != ESP_OK) {
+    ESP_LOGE(kTag, "esp_ota_begin failed: %s", esp_err_to_name(err));
+    SendJson(req, "500 Internal Server Error", "{\"ok\":false,\"error\":\"ota begin failed\"}");
+    return ESP_OK;
+  }
+
+  LvglOtaOverlayBegin(static_cast<size_t>(req->content_len));
+  int remaining = req->content_len;
+  int total = 0;
+  char buf[1024];
+  while (remaining > 0) {
+    const int want = remaining < static_cast<int>(sizeof(buf)) ? remaining : static_cast<int>(sizeof(buf));
+    const int r = httpd_req_recv(req, buf, want);
+    if (r == HTTPD_SOCK_ERR_TIMEOUT) continue;
+    if (r <= 0) {
+      LvglOtaOverlayFail();
+      esp_ota_abort(ota_handle);
+      SendJson(req, "500 Internal Server Error", "{\"ok\":false,\"error\":\"recv failed\"}");
+      return ESP_OK;
+    }
+    err = esp_ota_write(ota_handle, buf, static_cast<size_t>(r));
+    if (err != ESP_OK) {
+      ESP_LOGE(kTag, "esp_ota_write failed: %s", esp_err_to_name(err));
+      LvglOtaOverlayFail();
+      esp_ota_abort(ota_handle);
+      SendJson(req, "500 Internal Server Error", "{\"ok\":false,\"error\":\"ota write failed\"}");
+      return ESP_OK;
+    }
+    remaining -= r;
+    total += r;
+    LvglOtaOverlayUpdate(static_cast<size_t>(total), static_cast<size_t>(req->content_len));
+  }
+
+  err = esp_ota_end(ota_handle);
+  if (err != ESP_OK) {
+    ESP_LOGE(kTag, "esp_ota_end failed: %s", esp_err_to_name(err));
+    LvglOtaOverlayFail();
+    SendJson(req, "500 Internal Server Error", "{\"ok\":false,\"error\":\"ota end failed\"}");
+    return ESP_OK;
+  }
+
+  err = esp_ota_set_boot_partition(update_partition);
+  if (err != ESP_OK) {
+    ESP_LOGE(kTag, "esp_ota_set_boot_partition failed: %s", esp_err_to_name(err));
+    LvglOtaOverlayFail();
+    SendJson(req, "500 Internal Server Error", "{\"ok\":false,\"error\":\"set boot partition failed\"}");
+    return ESP_OK;
+  }
+
+  ESP_LOGI(kTag, "firmware OTA uploaded: %d bytes to %s", total, update_partition->label);
+  LvglOtaOverlayFinalizing();
+  SendJson(req, "200 OK", "{\"ok\":true,\"ota\":true,\"rebooting\":true}");
+  vTaskDelay(pdMS_TO_TICKS(400));
+  esp_restart();
+  return ESP_OK;
+}
+
+static esp_err_t HandleSystemReboot(httpd_req_t* req) {
+  SendJson(req, "200 OK", "{\"ok\":true,\"rebooting\":true}");
+  vTaskDelay(pdMS_TO_TICKS(200));
+  esp_restart();
+  return ESP_OK;
 }
 
 static esp_err_t HandlePutAppFile(httpd_req_t* req) {
@@ -525,16 +699,26 @@ static esp_err_t HandleInstalledApps(httpd_req_t* req) {
 
     std::string version;
     (void)ReadAppVersion(app_id, &version);
+    std::string display_name;
+    if (!ReadAppName(app_id, &display_name)) display_name = app_id;
     const bool has_thumb = AppHasThumbnail(app_id);
 
     if (!first) body += ",";
     first = false;
     body += "{\"id\":\"";
-    body += app_id;
+    AppendJsonEscaped(&body, app_id);
+    body += "\",\"name\":\"";
+    AppendJsonEscaped(&body, display_name);
     body += "\",\"version\":\"";
-    body += version;
+    AppendJsonEscaped(&body, version);
     body += "\",\"has_thumbnail\":";
     body += has_thumb ? "true" : "false";
+    body += ",\"thumbnail_url\":\"";
+    if (has_thumb) {
+      body += "/api/apps/thumbnail/";
+      AppendJsonEscaped(&body, app_id);
+    }
+    body += "\"";
     body += "}";
   }
   closedir(dir);
@@ -568,6 +752,144 @@ static esp_err_t HandleAppThumbnail(httpd_req_t* req) {
   return ESP_OK;
 }
 
+static esp_err_t HandleSystemStatus(httpd_req_t* req) {
+  WifiStatusInfo wifi = {};
+  (void)WifiManagerGetStatus(&wifi);
+
+  const esp_partition_t* running = esp_ota_get_running_partition();
+  const esp_app_desc_t* desc = esp_app_get_description();
+
+  std::string body = "{\"ok\":true,\"firmware\":{\"project\":\"";
+  AppendJsonEscaped(&body, desc ? desc->project_name : "unknown");
+  body += "\",\"version\":\"";
+  AppendJsonEscaped(&body, desc ? desc->version : "unknown");
+  body += "\",\"partition\":\"";
+  AppendJsonEscaped(&body, running ? running->label : "?");
+  body += "\"},\"display\":{\"brightness\":";
+  body += std::to_string(static_cast<unsigned>(DisplayControlGetBrightness()));
+  body += "},\"wifi\":{\"mode\":\"";
+  AppendJsonEscaped(&body, wifi.mode);
+  body += "\",\"saved_ssid\":\"";
+  AppendJsonEscaped(&body, wifi.saved_ssid);
+  body += "\",\"sta_ssid\":\"";
+  AppendJsonEscaped(&body, wifi.sta_ssid);
+  body += "\",\"sta_ip\":\"";
+  AppendJsonEscaped(&body, wifi.sta_ip);
+  body += "\",\"ap_ssid\":\"";
+  AppendJsonEscaped(&body, wifi.ap_ssid);
+  body += "\",\"ap_ip\":\"";
+  AppendJsonEscaped(&body, wifi.ap_ip);
+  body += "\",\"sta_connected\":";
+  body += wifi.sta_connected ? "true" : "false";
+  body += ",\"ap_active\":";
+  body += wifi.ap_active ? "true" : "false";
+  body += "}}";
+  SendJson(req, "200 OK", body.c_str());
+  return ESP_OK;
+}
+
+static esp_err_t HandleSystemWifiScan(httpd_req_t* req) {
+  static constexpr int kMaxScanResults = 24;
+  WifiScanResult results[kMaxScanResults] = {};
+  const int count = WifiManagerScanNetworks(results, kMaxScanResults, 8000);
+
+  std::string body = "{\"ok\":true,\"aps\":[";
+  for (int i = 0; i < count; ++i) {
+    if (i > 0) body += ",";
+    body += "{\"ssid\":\"";
+    AppendJsonEscaped(&body, results[i].ssid);
+    body += "\",\"auth\":\"";
+    AppendJsonEscaped(&body, results[i].auth);
+    body += "\",\"rssi\":";
+    body += std::to_string(static_cast<int>(results[i].rssi));
+    body += ",\"strength\":";
+    body += std::to_string(static_cast<unsigned>(results[i].strength));
+    body += "}";
+  }
+  body += "]}";
+  SendJson(req, "200 OK", body.c_str());
+  return ESP_OK;
+}
+
+static esp_err_t HandleSystemWifiConfig(httpd_req_t* req) {
+  std::string body;
+  if (!ReadRequestBodyToString(req, 1024, &body)) {
+    SendJson(req, "400 Bad Request", "{\"ok\":false,\"error\":\"invalid body\"}");
+    return ESP_OK;
+  }
+
+  cJSON* root = cJSON_ParseWithLength(body.c_str(), body.size());
+  if (!root) {
+    SendJson(req, "400 Bad Request", "{\"ok\":false,\"error\":\"invalid json\"}");
+    return ESP_OK;
+  }
+
+  const cJSON* ssid = cJSON_GetObjectItemCaseSensitive(root, "ssid");
+  const cJSON* password = cJSON_GetObjectItemCaseSensitive(root, "password");
+  const cJSON* reboot = cJSON_GetObjectItemCaseSensitive(root, "reboot");
+  const char* ssid_str = cJSON_IsString(ssid) && ssid->valuestring ? ssid->valuestring : nullptr;
+  const char* password_str = cJSON_IsString(password) && password->valuestring ? password->valuestring : "";
+  const bool reboot_now = cJSON_IsBool(reboot) && cJSON_IsTrue(reboot);
+
+  if (!ssid_str || !ssid_str[0]) {
+    cJSON_Delete(root);
+    SendJson(req, "400 Bad Request", "{\"ok\":false,\"error\":\"ssid required\"}");
+    return ESP_OK;
+  }
+
+  const bool ok = WifiManagerSaveStaCredentials(ssid_str, password_str);
+  cJSON_Delete(root);
+  if (!ok) {
+    SendJson(req, "500 Internal Server Error", "{\"ok\":false,\"error\":\"save wifi failed\"}");
+    return ESP_OK;
+  }
+
+  SendJson(req, "200 OK", reboot_now ? "{\"ok\":true,\"saved\":true,\"rebooting\":true}"
+                                     : "{\"ok\":true,\"saved\":true,\"rebooting\":false}");
+  if (reboot_now) {
+    vTaskDelay(pdMS_TO_TICKS(200));
+    esp_restart();
+  }
+  return ESP_OK;
+}
+
+static esp_err_t HandleSystemBrightness(httpd_req_t* req) {
+  std::string body;
+  if (!ReadRequestBodyToString(req, 256, &body)) {
+    SendJson(req, "400 Bad Request", "{\"ok\":false,\"error\":\"invalid body\"}");
+    return ESP_OK;
+  }
+
+  cJSON* root = cJSON_ParseWithLength(body.c_str(), body.size());
+  if (!root) {
+    SendJson(req, "400 Bad Request", "{\"ok\":false,\"error\":\"invalid json\"}");
+    return ESP_OK;
+  }
+
+  const cJSON* value = cJSON_GetObjectItemCaseSensitive(root, "brightness");
+  if (!cJSON_IsNumber(value)) {
+    cJSON_Delete(root);
+    SendJson(req, "400 Bad Request", "{\"ok\":false,\"error\":\"brightness required\"}");
+    return ESP_OK;
+  }
+
+  int brightness = value->valueint;
+  if (brightness < 0) brightness = 0;
+  if (brightness > 255) brightness = 255;
+
+  const bool ok = DisplayControlSetBrightness(static_cast<uint8_t>(brightness));
+  cJSON_Delete(root);
+  if (!ok) {
+    SendJson(req, "503 Service Unavailable", "{\"ok\":false,\"error\":\"display unavailable\"}");
+    return ESP_OK;
+  }
+
+  char resp[64];
+  snprintf(resp, sizeof(resp), "{\"ok\":true,\"brightness\":%d}", brightness);
+  SendJson(req, "200 OK", resp);
+  return ESP_OK;
+}
+
 static esp_err_t HandleStoreIndex(httpd_req_t* req) {
   std::string body = "{\"ok\":true,\"default_index_url\":\"";
   body += kDefaultStoreIndexUrl;
@@ -577,378 +899,7 @@ static esp_err_t HandleStoreIndex(httpd_req_t* req) {
 }
 
 static esp_err_t HandleStoreUi(httpd_req_t* req) {
-  static const char kHtml[] = R"HTML(
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>ESP32 App Store</title>
-  <style>
-    :root {
-      --bg:#0f1115; --panel:#171a21; --panel2:#1f2430; --border:#2c3342;
-      --text:#edf0f7; --muted:#a9b1c5; --ok:#3ecf8e; --warn:#ffb020; --bad:#ff6b6b;
-    }
-    * { box-sizing:border-box; }
-    body { margin:0; padding:16px; background:var(--bg); color:var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-    .toolbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
-    input[type=text] { width:min(760px,100%); padding:8px; color:var(--text); background:#11151c; border:1px solid var(--border); border-radius:8px; }
-    button { border:1px solid var(--border); color:var(--text); background:var(--panel2); border-radius:8px; padding:7px 10px; cursor:pointer; }
-    button:hover { filter:brightness(1.1); }
-    button:disabled { opacity:.5; cursor:not-allowed; }
-    .muted { color:var(--muted); }
-    .ok { color:var(--ok); }
-    .err { color:var(--bad); }
-    .warn { color:var(--warn); }
-    #apps { display:flex; flex-direction:column; gap:14px; }
-    .sec { border:1px solid var(--border); border-radius:10px; background:#131821; padding:8px; }
-    .sec-hd { font-size:12px; color:#cfd7ea; margin:0 0 8px; }
-    .sec-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:8px; }
-    .card { border:1px solid var(--border); background:var(--panel); border-radius:12px; overflow:hidden; }
-    .thumb { height:116px; background:#0a0d12; display:flex; align-items:center; justify-content:center; position:relative; }
-    .thumb img { width:100%; height:100%; object-fit:contain; image-rendering:pixelated; image-rendering:crisp-edges; }
-    .placeholder { width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-size:30px; color:#9da7c0; background:linear-gradient(135deg,#20283a,#121722); }
-    .content { padding:8px; }
-    .title { font-size:13px; font-weight:700; line-height:1.2; }
-    .id { font-size:11px; color:var(--muted); margin-top:2px; }
-    .desc { margin-top:4px; min-height:16px; font-size:11px; color:#ced5e5; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .status { margin-top:5px; font-size:11px; color:var(--muted); }
-    .actions { margin-top:6px; display:flex; gap:4px; flex-wrap:wrap; }
-    .actions button { padding:4px 7px; font-size:11px; }
-    #log { margin-top:12px; min-height:100px; border:1px solid var(--border); border-radius:10px; background:#0a0d12; padding:8px; font-size:12px; }
-  </style>
-  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-</head>
-<body>
-  <h3 style="margin:0 0 10px;">ESP32 App Store</h3>
-  <div class="toolbar">
-    <input id="indexUrl" />
-    <button id="loadBtn">Load</button>
-    <button id="refreshBtn">Refresh Installed</button>
-    <label class="muted"><input id="switchAfter" type="checkbox" checked /> Switch after install</label>
-  </div>
-  <div id="meta" class="muted"></div>
-  <div id="apps"></div>
-  <h4 style="margin:14px 0 8px;">Log</h4>
-  <div id="log"></div>
-
-<script>
-const logEl = document.getElementById('log');
-const indexInput = document.getElementById('indexUrl');
-const appsEl = document.getElementById('apps');
-const metaEl = document.getElementById('meta');
-const switchAfterEl = document.getElementById('switchAfter');
-const LS_KEY = 'esp32_store_index_url';
-let storeApps = [];
-let installed = {};
-let storeCategoryOrder = [];
-let storeCategoryLabels = {};
-
-function log(msg, cls) {
-  const line = document.createElement('div');
-  if (cls) line.className = cls;
-  line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-  logEl.prepend(line);
-}
-
-function encPath(path) {
-  return String(path || '').split('/').map(encodeURIComponent).join('/');
-}
-
-function normalizeApps(json) {
-  if (Array.isArray(json)) return json;
-  if (json && Array.isArray(json.apps)) return json.apps;
-  return [];
-}
-
-function toMap(arr) {
-  const m = {};
-  for (const it of arr || []) {
-    const id = String(it.id || '').trim();
-    if (!id) continue;
-    m[id] = { version: String(it.version || '').trim(), has_thumbnail: !!it.has_thumbnail };
-  }
-  return m;
-}
-
-function semverCmp(a, b) {
-  const pa = String(a || '').split('.').map(x => parseInt(x, 10) || 0);
-  const pb = String(b || '').split('.').map(x => parseInt(x, 10) || 0);
-  const n = Math.max(pa.length, pb.length);
-  for (let i = 0; i < n; i++) {
-    const da = pa[i] || 0, db = pb[i] || 0;
-    if (da > db) return 1;
-    if (da < db) return -1;
-  }
-  return 0;
-}
-
-function detectStripPrefix(paths) {
-  if (!paths.length) return '';
-  const first = paths[0].split('/');
-  if (first.length < 2) return '';
-  const prefix = first[0];
-  if (!prefix || prefix.startsWith('.')) return '';
-  for (const p of paths) {
-    const parts = p.split('/');
-    if (parts.length < 2 || parts[0] !== prefix) return '';
-  }
-  return prefix + '/';
-}
-
-async function api(method, path, body, contentType) {
-  const h = {};
-  if (contentType) h['Content-Type'] = contentType;
-  const r = await fetch(path, { method, headers: h, body, cache: 'no-store' });
-  if (!r.ok) throw new Error(`${method} ${path} -> HTTP ${r.status}`);
-  return r;
-}
-
-async function installApp(item) {
-  const id = String(item.id || item.app_id || '').trim();
-  const zipUrl = String(item.zip_url || item.url || '').trim();
-  if (!id || !zipUrl) throw new Error('invalid app item: missing id/zip_url');
-
-  const zipFetchUrl = zipUrl + (zipUrl.includes('?') ? '&' : '?') + '_ts=' + Date.now();
-  log(`install ${id} from ${zipFetchUrl}`);
-  const resp = await fetch(zipFetchUrl, { cache: 'no-store' });
-  if (!resp.ok) throw new Error(`download zip failed: HTTP ${resp.status}`);
-  const zipBuf = await resp.arrayBuffer();
-
-  const zip = await JSZip.loadAsync(zipBuf);
-  const entries = Object.values(zip.files).filter(f => !f.dir);
-  if (!entries.length) throw new Error('zip has no files');
-
-  const rawPaths = entries.map(f => f.name).filter(n => !n.startsWith('__MACOSX/'));
-  const strip = detectStripPrefix(rawPaths);
-  const files = [];
-  for (const e of entries) {
-    if (e.name.startsWith('__MACOSX/')) continue;
-    let rel = e.name;
-    if (strip && rel.startsWith(strip)) rel = rel.substring(strip.length);
-    if (!rel || rel.endsWith('/')) continue;
-    files.push({ rel, entry: e });
-  }
-  if (!files.length) throw new Error('zip has no usable files');
-
-  for (const f of files) {
-    const bytes = await f.entry.async('uint8array');
-    const path = `/api/apps/${encodeURIComponent(id)}/${encPath(f.rel)}`;
-    await api('PUT', path, bytes);
-    log(`uploaded ${id}/${f.rel}`);
-  }
-
-  const v = String(item.version || '').trim();
-  if (v) {
-    await api('PUT', `/api/apps/${encodeURIComponent(id)}/.store_version`, new TextEncoder().encode(v));
-    log(`saved ${id}/.store_version=${v}`);
-  }
-
-  await api('POST', '/api/apps/reload');
-  log(`reloaded apps`, 'ok');
-  if (switchAfterEl.checked) {
-    await api('POST', `/api/apps/switch/${encodeURIComponent(id)}`);
-    log(`switched to ${id}`, 'ok');
-  }
-  log(`install done: ${id}`, 'ok');
-  await refreshInstalled();
-  renderApps(storeApps);
-}
-
-async function uninstallApp(id) {
-  if (!confirm(`Uninstall ${id}?`)) return;
-  await api('DELETE', `/api/apps/${encodeURIComponent(id)}`);
-  await api('POST', '/api/apps/reload');
-  log(`uninstalled ${id}`, 'ok');
-  await refreshInstalled();
-  renderApps(storeApps);
-}
-
-async function switchApp(id) {
-  await api('POST', `/api/apps/switch/${encodeURIComponent(id)}`);
-  log(`switched to ${id}`, 'ok');
-}
-
-function pickThumbUrl(item, id) {
-  const cands = [
-    item.thumbnail_url, item.thumb_url, item.icon_url,
-    `/api/apps/thumbnail/${encodeURIComponent(id)}`
-  ].filter(Boolean);
-  return cands[0] || '';
-}
-
-function appStatus(item) {
-  const id = String(item.id || item.app_id || '');
-  const local = installed[id];
-  const sv = String(item.version || '');
-  if (!local) return '<span class="warn">Not installed</span>';
-  if (!local.version) return `<span class="ok">Installed</span> <span class="muted">(store ${sv || '?'})</span>`;
-  if (sv && semverCmp(sv, local.version) > 0) {
-    return `<span class="warn">Update available</span> ${local.version} → ${sv}`;
-  }
-  return `<span class="ok">Up to date</span> ${local.version}`;
-}
-
-function categoryKey(raw) {
-  const s = String(raw || '').trim().toLowerCase();
-  return s || 'other';
-}
-
-function categoryLabel(key) {
-  const k = String(key || 'other');
-  if (storeCategoryLabels && typeof storeCategoryLabels === 'object' && storeCategoryLabels[k]) {
-    return String(storeCategoryLabels[k]);
-  }
-  return k
-    .replace(/[_-]+/g, ' ')
-    .replace(/\b[a-z]/g, m => m.toUpperCase());
-}
-
-function renderApps(apps) {
-  appsEl.innerHTML = '';
-  if (!apps.length) {
-    appsEl.innerHTML = '<div class="muted">No apps in index</div>';
-    return;
-  }
-  const groups = {};
-  const seen = new Set();
-  const discovered = [];
-  for (const it of apps) {
-    const c = categoryKey(it.category);
-    if (!groups[c]) groups[c] = [];
-    groups[c].push(it);
-    if (!seen.has(c)) {
-      seen.add(c);
-      discovered.push(c);
-    }
-  }
-
-  const order = [];
-  for (const c of (Array.isArray(storeCategoryOrder) ? storeCategoryOrder : [])) {
-    const k = categoryKey(c);
-    if (groups[k] && !order.includes(k)) order.push(k);
-  }
-  for (const c of discovered) {
-    if (!order.includes(c)) order.push(c);
-  }
-
-  for (const c of order) {
-    const arr = groups[c] || [];
-    if (!arr.length) continue;
-    const sec = document.createElement('section');
-    sec.className = 'sec';
-    const hd = document.createElement('h4');
-    hd.className = 'sec-hd';
-    hd.textContent = `${categoryLabel(c)} (${arr.length})`;
-    const grid = document.createElement('div');
-    grid.className = 'sec-grid';
-    sec.appendChild(hd);
-    sec.appendChild(grid);
-    for (const it of arr) {
-      const id = String(it.id || it.app_id || '');
-      const title = String(it.name || id || 'Unknown');
-      const desc = String(it.description || '');
-      const ver = String(it.version || '');
-      const thumb = pickThumbUrl(it, id);
-      const card = document.createElement('div');
-      card.className = 'card';
-      card.innerHTML = `
-        <div class="thumb">${thumb ? `<img loading="lazy" src="${thumb}" alt="${title}" />` : `<div class="placeholder">${(id[0] || '?').toUpperCase()}</div>`}</div>
-        <div class="content">
-          <div class="title">${title}</div>
-          <div class="id">${id} · v${ver || '?'}</div>
-          <div class="desc">${desc}</div>
-          <div class="status">${appStatus(it)}</div>
-          <div class="actions">
-            <button data-a="install">Install</button>
-            <button data-a="switch">Switch</button>
-            <button data-a="uninstall">Uninstall</button>
-          </div>
-        </div>`;
-      const installBtn = card.querySelector('[data-a="install"]');
-      const switchBtn = card.querySelector('[data-a="switch"]');
-      const uninstallBtn = card.querySelector('[data-a="uninstall"]');
-
-      installBtn.onclick = async () => {
-        installBtn.disabled = true;
-        try { await installApp(it); }
-        catch (e) { log(String(e && e.message || e), 'err'); }
-        finally { installBtn.disabled = false; }
-      };
-      switchBtn.onclick = async () => {
-        switchBtn.disabled = true;
-        try { await switchApp(id); }
-        catch (e) { log(String(e && e.message || e), 'err'); }
-        finally { switchBtn.disabled = false; }
-      };
-      uninstallBtn.onclick = async () => {
-        uninstallBtn.disabled = true;
-        try { await uninstallApp(id); }
-        catch (e) { log(String(e && e.message || e), 'err'); }
-        finally { uninstallBtn.disabled = false; }
-      };
-      grid.appendChild(card);
-    }
-    appsEl.appendChild(sec);
-  }
-}
-
-async function refreshInstalled() {
-  try {
-    const j = await fetch('/api/apps/list', { cache: 'no-store' }).then(r => r.json());
-    installed = toMap(j.apps || []);
-    log(`installed apps: ${Object.keys(installed).length}`, 'ok');
-  } catch (e) {
-    installed = {};
-    log(`load installed failed: ${String(e && e.message || e)}`, 'err');
-  }
-}
-
-async function loadIndex() {
-  const url = indexInput.value.trim();
-  if (!url) return;
-  localStorage.setItem(LS_KEY, url);
-  log(`loading ${url}`);
-  const loadUrl = url + (url.includes('?') ? '&' : '?') + '_ts=' + Date.now();
-  const r = await fetch(loadUrl, { cache: 'no-store' });
-  if (!r.ok) throw new Error(`index fetch failed: HTTP ${r.status}`);
-  const json = await r.json();
-  storeApps = normalizeApps(json);
-  storeCategoryOrder = (json && Array.isArray(json.category_order)) ? json.category_order.slice() : [];
-  storeCategoryLabels = (json && json.category_labels && typeof json.category_labels === 'object') ? json.category_labels : {};
-  await refreshInstalled();
-  renderApps(storeApps);
-  const count = storeApps.length;
-  metaEl.textContent = `Loaded ${count} app(s) from ${url}`;
-  log(`loaded ${count} app(s)`, 'ok');
-}
-
-document.getElementById('loadBtn').onclick = async () => {
-  try { await loadIndex(); } catch (e) { log(String(e && e.message || e), 'err'); }
-};
-document.getElementById('refreshBtn').onclick = async () => {
-  await refreshInstalled();
-  renderApps(storeApps);
-};
-
-(async function init() {
-  try {
-    const conf = await fetch('/api/store/index', { cache: 'no-store' }).then(r => r.json()).catch(() => ({}));
-    indexInput.value = localStorage.getItem(LS_KEY) || conf.default_index_url || '';
-    if (indexInput.value) await loadIndex();
-  } catch (e) {
-    log(String(e && e.message || e), 'err');
-  }
-})();
-</script>
-</body>
-</html>
-)HTML";
-
-  httpd_resp_set_type(req, "text/html; charset=utf-8");
-  httpd_resp_set_status(req, "200 OK");
-  httpd_resp_send(req, kHtml, HTTPD_RESP_USE_STRLEN);
-  return ESP_OK;
+  return SendCompressedHtml(req, f_html_gz, f_html_gz_len);
 }
 
 static inline uint8_t Expand5(uint16_t v) { return static_cast<uint8_t>((v << 3) | (v >> 2)); }
@@ -1002,7 +953,7 @@ bool AppUpdateServerStart(AppUpdateReloadCallback reload_cb, AppUpdateSwitchCall
 
   httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
   cfg.uri_match_fn = httpd_uri_match_wildcard;
-  cfg.max_uri_handlers = 15;
+  cfg.max_uri_handlers = 24;
   cfg.stack_size = 8192;
 
   const esp_err_t start_ret = httpd_start(&g_httpd, &cfg);
@@ -1067,6 +1018,83 @@ bool AppUpdateServerStart(AppUpdateReloadCallback reload_cb, AppUpdateSwitchCall
     return false;
   }
 
+  httpd_uri_t fw_status = {};
+  fw_status.uri = "/api/firmware";
+  fw_status.method = HTTP_GET;
+  fw_status.handler = HandleFirmwareStatus;
+  if (httpd_register_uri_handler(g_httpd, &fw_status) != ESP_OK) {
+    ESP_LOGE(kTag, "register firmware status failed");
+    httpd_stop(g_httpd);
+    g_httpd = nullptr;
+    return false;
+  }
+
+  httpd_uri_t fw_ota = {};
+  fw_ota.uri = "/api/firmware/ota";
+  fw_ota.method = HTTP_POST;
+  fw_ota.handler = HandleFirmwareOta;
+  if (httpd_register_uri_handler(g_httpd, &fw_ota) != ESP_OK) {
+    ESP_LOGE(kTag, "register firmware ota failed");
+    httpd_stop(g_httpd);
+    g_httpd = nullptr;
+    return false;
+  }
+
+  httpd_uri_t reboot = {};
+  reboot.uri = "/api/system/reboot";
+  reboot.method = HTTP_POST;
+  reboot.handler = HandleSystemReboot;
+  if (httpd_register_uri_handler(g_httpd, &reboot) != ESP_OK) {
+    ESP_LOGE(kTag, "register reboot failed");
+    httpd_stop(g_httpd);
+    g_httpd = nullptr;
+    return false;
+  }
+
+  httpd_uri_t system_status = {};
+  system_status.uri = "/api/system/status";
+  system_status.method = HTTP_GET;
+  system_status.handler = HandleSystemStatus;
+  if (httpd_register_uri_handler(g_httpd, &system_status) != ESP_OK) {
+    ESP_LOGE(kTag, "register system status failed");
+    httpd_stop(g_httpd);
+    g_httpd = nullptr;
+    return false;
+  }
+
+  httpd_uri_t wifi_scan = {};
+  wifi_scan.uri = "/api/system/wifi/scan";
+  wifi_scan.method = HTTP_GET;
+  wifi_scan.handler = HandleSystemWifiScan;
+  if (httpd_register_uri_handler(g_httpd, &wifi_scan) != ESP_OK) {
+    ESP_LOGE(kTag, "register wifi scan failed");
+    httpd_stop(g_httpd);
+    g_httpd = nullptr;
+    return false;
+  }
+
+  httpd_uri_t wifi_config = {};
+  wifi_config.uri = "/api/system/wifi/config";
+  wifi_config.method = HTTP_POST;
+  wifi_config.handler = HandleSystemWifiConfig;
+  if (httpd_register_uri_handler(g_httpd, &wifi_config) != ESP_OK) {
+    ESP_LOGE(kTag, "register wifi config failed");
+    httpd_stop(g_httpd);
+    g_httpd = nullptr;
+    return false;
+  }
+
+  httpd_uri_t brightness = {};
+  brightness.uri = "/api/system/display/brightness";
+  brightness.method = HTTP_POST;
+  brightness.handler = HandleSystemBrightness;
+  if (httpd_register_uri_handler(g_httpd, &brightness) != ESP_OK) {
+    ESP_LOGE(kTag, "register brightness failed");
+    httpd_stop(g_httpd);
+    g_httpd = nullptr;
+    return false;
+  }
+
   httpd_uri_t installed = {};
   installed.uri = "/api/apps/list";
   installed.method = HTTP_GET;
@@ -1095,6 +1123,28 @@ bool AppUpdateServerStart(AppUpdateReloadCallback reload_cb, AppUpdateSwitchCall
   store_index.handler = HandleStoreIndex;
   if (httpd_register_uri_handler(g_httpd, &store_index) != ESP_OK) {
     ESP_LOGE(kTag, "register store index failed");
+    httpd_stop(g_httpd);
+    g_httpd = nullptr;
+    return false;
+  }
+
+  httpd_uri_t f_html = {};
+  f_html.uri = "/f.html";
+  f_html.method = HTTP_GET;
+  f_html.handler = HandleStoreUi;
+  if (httpd_register_uri_handler(g_httpd, &f_html) != ESP_OK) {
+    ESP_LOGE(kTag, "register f html failed");
+    httpd_stop(g_httpd);
+    g_httpd = nullptr;
+    return false;
+  }
+
+  httpd_uri_t app_html = {};
+  app_html.uri = "/app.html";
+  app_html.method = HTTP_GET;
+  app_html.handler = HandleStoreUi;
+  if (httpd_register_uri_handler(g_httpd, &app_html) != ESP_OK) {
+    ESP_LOGE(kTag, "register app html failed");
     httpd_stop(g_httpd);
     g_httpd = nullptr;
     return false;

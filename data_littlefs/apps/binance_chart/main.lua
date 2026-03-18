@@ -15,7 +15,7 @@ local symbols = {
 
 local SYMBOL = tostring(data.get("binance_chart.symbol") or symbols[1])
 local INTERVAL = tostring(data.get("binance_chart.interval") or "1m")
-local KLIMIT = tonumber(data.get("binance_chart.limit") or 32) or 32
+local KLIMIT = tonumber(data.get("binance_chart.limit") or 64) or 64
 local CHART_TYPE = string.lower(tostring(data.get("binance_chart.chart_type") or "mountain"))
 if CHART_TYPE ~= "line" and CHART_TYPE ~= "mountain" then
   CHART_TYPE = "line"
@@ -34,7 +34,7 @@ local C_MTN = 0x0410
 local FONT = "builtin:silkscreen_regular_8"
 
 local HOSTS = {
-  "http://data-api.binance.vision",
+  "https://data-api.binance.vision",
 }
 
 local state = {
@@ -157,8 +157,8 @@ local function klines_url(sym, host_idx)
 end
 
 local function klines_buf_size(limit)
-  if limit >= 64 then return 16384 end
-  if limit >= 48 then return 8192 end
+  if limit >= 64 then return 24576 end
+  if limit >= 48 then return 16384 end
   if limit >= 32 then return 8192 end
   return 4096
 end
@@ -187,13 +187,24 @@ local function parse_ticker(sym, body)
   end
   if not obj then return false, (err or "JSON ERR") end
 
-  local s = tostring(obj.symbol or "")
-  local p_str = tostring(obj.lastPrice or obj.price or "")
-  local p_num = tonumber(obj.lastPrice or obj.price)
+  local raw_symbol = obj.symbol
+  local s = tostring(raw_symbol or sym or "")
+  local raw_price = obj.lastPrice
+  if raw_price == nil or raw_price == "" then raw_price = obj.price end
+  local p_str = tostring(raw_price or "")
+  local p_num = tonumber(raw_price)
   local pct = tonumber(obj.priceChangePercent)
 
-  if s ~= sym or p_str == "" or not p_num then
+  if p_str == "" or not p_num then
+    sys.log(string.format(
+      "binance_chart bad ticker expect=%s resp_sym=%s raw_price=%s pct=%s body=%s",
+      tostring(sym), tostring(s), tostring(raw_price), tostring(obj.priceChangePercent),
+      string.sub(tostring(body or ""), 1, 160)
+    ))
     return false, "BAD TICKER"
+  end
+  if raw_symbol ~= nil and s ~= sym then
+    sys.log(string.format("binance_chart ticker symbol mismatch expect=%s got=%s", tostring(sym), tostring(s)))
   end
 
   state.prices[sym] = p_num
@@ -337,11 +348,11 @@ local function start_next_request()
 
   if kind == "ticker" then
     url = ticker_url(sym, host_idx)
-    timeout_ms = 4000
-    max_body = 1024
+    timeout_ms = 8000
+    max_body = 8192
   else
     url = klines_url(sym, host_idx)
-    timeout_ms = 7000
+    timeout_ms = 9000
     max_body = klines_buf_size(state.active_klimit)
     local im = interval_ms(INTERVAL)
     if im < 30 * 1000 then
@@ -372,7 +383,7 @@ local function start_next_request()
   if id then
     state.req_id = id
     state.req_kind = kind
-    state.req_symbol = state.symbol
+    state.req_symbol = sym
   end
 
   if body then

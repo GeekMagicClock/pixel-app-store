@@ -1,0 +1,35 @@
+{
+  "configurations": [
+    {
+      "name": "PlatformIO",
+      "includePath": [
+        "${workspaceFolder}/include",
+        "${workspaceFolder}/src",
+        "${workspaceFolder}/components",
+        "${workspaceFolder}/components/**",
+        "${workspaceFolder}/lib/AsyncTCP",
+        "${workspaceFolder}/.pio/build/esp32-s3-n16r8/config"
+      ],
+      "browse": {
+        "limitSymbolsToIncludedHeaders": true,
+        "path": [
+          "${workspaceFolder}/include",
+          "${workspaceFolder}/src",
+          "${workspaceFolder}/components",
+          "${workspaceFolder}/components/**",
+          "${workspaceFolder}/lib/AsyncTCP",
+          "${workspaceFolder}/.pio/build/esp32-s3-n16r8/config"
+        ]
+      },
+      "defines": [
+        "PLATFORMIO=60116",
+        "ESP_PLATFORM=1"
+      ],
+      "compilerPath": "${env:HOME}/.platformio/packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-g++",
+      "cStandard": "c17",
+      "cppStandard": "c++17",
+      "intelliSenseMode": "linux-gcc-x64"
+    }
+  ],
+  "version": 4
+}

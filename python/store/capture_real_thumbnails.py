@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import json
 import pathlib
 import struct
 import time
@@ -117,7 +118,18 @@ def main():
 
     base = f"http://{args.device}"
     apps_root = pathlib.Path(args.apps_root)
-    app_dirs = sorted([p for p in apps_root.iterdir() if p.is_dir() and (p / "main.lua").exists()])
+    app_dirs = []
+    for p in sorted([it for it in apps_root.iterdir() if it.is_dir()]):
+        manifest = p / "manifest.json"
+        entry_name = "main.lua"
+        if manifest.exists():
+            try:
+                entry_name = str(json.loads(manifest.read_text(encoding="utf-8")).get("entry") or "main.lua")
+            except Exception:
+                entry_name = "main.lua"
+        entry_path = p / entry_name
+        if entry_path.exists() and entry_path.is_file():
+            app_dirs.append(p)
     if not app_dirs:
         raise SystemExit("no apps found")
 

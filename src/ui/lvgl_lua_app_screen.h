@@ -25,6 +25,16 @@ void LvglStopLuaOwmWeatherAppScreen();
 void LvglShowLuaAppDirScreen(const char* app_dir);
 void LvglStopLuaAppDirScreen();
 
+// Pre-create the persistent Lua app root screen early, before runtime app switching.
+void LvglLuaAppScreenPrewarm();
+
 // Capture current app canvas as RGB565 frame (64x32).
 // Returns false if no active Lua app canvas is available.
 bool LvglCaptureLuaAppFrameRgb565(uint16_t* out_pixels, size_t pixel_count, size_t* out_width, size_t* out_height);
+
+// OTA overlay shown on the pixel screen while firmware upload is in progress.
+void LvglOtaOverlayBegin(size_t total_bytes);
+void LvglOtaOverlayUpdate(size_t written_bytes, size_t total_bytes);
+void LvglOtaOverlayFinalizing();
+void LvglOtaOverlayFail();
+void LvglOtaOverlayClear();

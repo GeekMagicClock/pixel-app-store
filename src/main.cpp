@@ -2,16 +2,23 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 
+#include <dirent.h>
+#include <sys/stat.h>
+
+#include <algorithm>
 #include <ctime>
 #include <cstring>
 #include <string>
 #include <atomic>
+#include <vector>
 
 #include "esp_log.h"
 #include "esp_littlefs.h"
+#include "esp_private/esp_clk.h"
 #include "esp_system.h"
 #include "esp_heap_caps.h"
 #include "esp_sntp.h"
+#include "soc/rtc.h"
 
 extern "C" {
 #include "lvgl.h"
@@ -23,28 +30,41 @@ extern "C" {
 
 #include "app/hub75_config.h"
 #include "app/app_update_server.h"
+#include "app/display_control.h"
 #include "app/user_button.h"
 #include "app/wifi_manager.h"
 #include "ui/lvgl_boot_wifi_screen.h"
 #include "ui/lvgl_hub75_port.h"
 #include "ui/lvgl_lua_app_carousel.h"
 #include "ui/lvgl_lua_app_screen.h"
+#include "ui/lvgl_smoke_test.h"
 
 static const char *kTag = "app";
+static constexpr bool kEnableHeapLogTask = false;
+static constexpr bool kDebugBootLvglOnly = false;
+static constexpr bool kDebugDisableLuaStartup = false;
+static constexpr bool kDebugDisableOtaServer = false;
+static constexpr const char* kPreferredStartupAppId = "openmeteo_3day";
 
 static TaskHandle_t g_lvgl_task_handle = nullptr;
+static std::atomic_bool g_lvgl_ready{false};
 static char g_pending_switch_app_id[49] = {};
-static char g_active_app_id[49] = "sunrise_sunset_owm";
+static char g_active_app_id[49] = {};
 static std::atomic_bool g_active_app_shown{false};
 static std::atomic_uint32_t g_request_show_active_seq{0};
 static std::atomic_uint32_t g_done_show_active_seq{0};
 static std::atomic_uint32_t g_request_switch_app_seq{0};
 static std::atomic_uint32_t g_done_switch_app_seq{0};
-
+static std::atomic_bool g_boot_flow_done{false};
 static void ShowActiveLuaAppOnLvglThread();
 
 static bool RunOnLvglThread(void (*fn)(void), uint32_t retry_ms = 2000) {
   if (!fn) return false;
+
+  if (!g_lvgl_ready.load(std::memory_order_acquire) || !g_lvgl_task_handle) {
+    ESP_LOGW(kTag, "RunOnLvglThread ignored: LVGL not ready yet");
+    return false;
+  }
 
   // If already on LVGL task, execute directly to avoid async allocation failure.
   if (xTaskGetCurrentTaskHandle() == g_lvgl_task_handle) {
@@ -140,6 +160,94 @@ static void HeapLogTask(void *arg) {
 }
 
 namespace {
+
+static bool IsDir(const std::string& path) {
+  struct stat st = {};
+  if (stat(path.c_str(), &st) != 0) return false;
+  return S_ISDIR(st.st_mode);
+}
+
+static bool IsFile(const std::string& path) {
+  struct stat st = {};
+  if (stat(path.c_str(), &st) != 0) return false;
+  return S_ISREG(st.st_mode);
+}
+
+static bool SelectStartupLuaAppId(char* out_app_id, size_t out_app_id_sz) {
+  if (!out_app_id || out_app_id_sz == 0) return false;
+  out_app_id[0] = '\0';
+
+  std::vector<std::string> app_ids;
+  const char* root = "/littlefs/apps";
+  DIR* d = opendir(root);
+  if (!d) {
+    ESP_LOGW(kTag, "select startup app: opendir failed: %s", root);
+    return false;
+  }
+
+  while (true) {
+    struct dirent* e = readdir(d);
+    if (!e) break;
+    const char* name = e->d_name;
+    if (!name || !*name || name[0] == '.') continue;
+
+    const std::string app_id = name;
+    const std::string app_dir = std::string(root) + "/" + app_id;
+    if (!IsDir(app_dir)) continue;
+    if (!IsFile(app_dir + "/main.lua") && !IsFile(app_dir + "/manifest.json")) continue;
+    app_ids.push_back(app_id);
+  }
+
+  closedir(d);
+
+  if (app_ids.empty()) {
+    ESP_LOGW(kTag, "select startup app: no apps found under %s", root);
+    return false;
+  }
+
+  std::sort(app_ids.begin(), app_ids.end());
+  auto preferred = std::find(app_ids.begin(), app_ids.end(), kPreferredStartupAppId);
+  if (preferred != app_ids.end()) {
+    snprintf(out_app_id, out_app_id_sz, "%s", preferred->c_str());
+    ESP_LOGI(kTag, "select startup app: %s (preferred)", out_app_id);
+    return true;
+  }
+
+  snprintf(out_app_id, out_app_id_sz, "%s", app_ids.front().c_str());
+  ESP_LOGI(kTag, "select startup app: %s (fallback first app, preferred=%s missing)", out_app_id,
+           kPreferredStartupAppId);
+  return true;
+}
+
+static void LogInstalledLuaApps() {
+  const char* root = "/littlefs/apps";
+  DIR* d = opendir(root);
+  if (!d) {
+    ESP_LOGW(kTag, "installed apps: opendir failed: %s", root);
+    return;
+  }
+
+  std::vector<std::string> app_ids;
+  while (true) {
+    struct dirent* e = readdir(d);
+    if (!e) break;
+    const char* name = e->d_name;
+    if (!name || !*name || name[0] == '.') continue;
+
+    const std::string app_id = name;
+    const std::string app_dir = std::string(root) + "/" + app_id;
+    if (!IsDir(app_dir)) continue;
+    if (!IsFile(app_dir + "/main.lua") && !IsFile(app_dir + "/manifest.json")) continue;
+    app_ids.push_back(app_id);
+  }
+  closedir(d);
+
+  std::sort(app_ids.begin(), app_ids.end());
+  ESP_LOGI(kTag, "installed apps count=%u", static_cast<unsigned>(app_ids.size()));
+  for (size_t i = 0; i < app_ids.size(); ++i) {
+    ESP_LOGI(kTag, "installed app[%u]=%s", static_cast<unsigned>(i), app_ids[i].c_str());
+  }
+}
 
 static bool ReadFileToString(const char* path, std::string* out) {
   if (out) out->clear();
@@ -272,16 +380,11 @@ static bool BootWifiFlow() {
   (void)WifiManagerGetSavedStaSsid(g_boot_try_ssid, sizeof(g_boot_try_ssid));
   if (!g_boot_try_ssid[0]) snprintf(g_boot_try_ssid, sizeof(g_boot_try_ssid), "%s", "--");
 
-  (void)RunOnLvglThreadCritical(LvglBootShowConnecting, "boot_show_connecting");
-
   WifiStaInfo sta = {};
   const bool ok = WifiManagerConnectSta(20000, &sta);
   if (ok) {
     snprintf(g_boot_sta_ssid, sizeof(g_boot_sta_ssid), "%s", sta.ssid);
     snprintf(g_boot_sta_ip, sizeof(g_boot_sta_ip), "%s", sta.ip);
-    (void)RunOnLvglThreadCritical(LvglBootShowSuccess, "boot_show_success");
-    vTaskDelay(pdMS_TO_TICKS(1500));
-    (void)RunOnLvglThreadCritical(LvglStopBootWifiScreen, "boot_stop_screen");
     return true;
   }
 
@@ -294,8 +397,72 @@ static bool BootWifiFlow() {
     snprintf(g_boot_ap_ip, sizeof(g_boot_ap_ip), "%s", "--");
   }
 
-  (void)RunOnLvglThreadCritical(LvglBootShowFailed, "boot_show_failed");
   return false;
+}
+
+static void BootFlowTask(void* arg) {
+  (void)arg;
+  ESP_LOGI(kTag, "boot_flow: begin");
+
+  if (kDebugBootLvglOnly) {
+    ESP_LOGW(kTag, "boot_flow: debug LVGL-only mode, skip Wi-Fi/Lua/OTA");
+    (void)RunOnLvglThreadCritical(LvglRunSmokeTest, "lvgl_smoke_test");
+    g_boot_flow_done.store(true, std::memory_order_release);
+    ESP_LOGI(kTag, "boot_flow: done (lvgl-only)");
+    vTaskDelete(nullptr);
+    return;
+  }
+
+  // Boot WiFi flow:
+  // - Try saved STA config (20s)
+  // - On failure, start setup AP and keep the setup screen
+  static constexpr bool kDebugSkipWifiFlow = false;
+  static constexpr bool kDebugSimulateWifiBootUi = false;
+  bool wifi_ok = true;
+
+  if (kDebugSimulateWifiBootUi) {
+    ESP_LOGI(kTag, "boot_flow: simulate ui");
+    BootWifiUiSimulation();
+    wifi_ok = true;
+  } else {
+    if (!kDebugSkipWifiFlow) {
+      ESP_LOGI(kTag, "boot_flow: show connecting");
+      (void)RunOnLvglThreadCritical(LvglBootShowConnecting, "boot_show_connecting_initial");
+    }
+    ESP_LOGI(kTag, "boot_flow: before wifi flow");
+    wifi_ok = kDebugSkipWifiFlow ? true : BootWifiFlow();
+    ESP_LOGI(kTag, "boot_flow: after wifi flow ok=%d", wifi_ok ? 1 : 0);
+    if (wifi_ok) {
+      ESP_LOGI(kTag, "boot_flow: show success");
+      (void)RunOnLvglThreadCritical(LvglBootShowSuccess, "boot_show_success");
+    } else {
+      ESP_LOGI(kTag, "boot_flow: show failed");
+      (void)RunOnLvglThreadCritical(LvglBootShowFailed, "boot_show_failed");
+    }
+  }
+
+  if (wifi_ok) {
+    if (kDebugDisableLuaStartup) {
+      ESP_LOGW(kTag, "boot_flow: Lua startup disabled for Wi-Fi-only isolation");
+    } else {
+      ESP_LOGI(kTag, "boot_flow: request active app");
+      RequestShowActiveLuaApp();
+      ApplyTimezoneFromConfig();
+      (void)SyncTimeByNtp(15000);
+    }
+  }
+
+  if (kDebugDisableOtaServer) {
+    ESP_LOGW(kTag, "boot_flow: OTA server disabled for Wi-Fi-only isolation");
+  } else if (AppUpdateServerStart(ReloadLuaAppsOnLvglThread, RequestSwitchLuaAppOnLvglThread)) {
+    ESP_LOGI(kTag, "HTTP API: GET /f.html, GET /api/system/status, GET /api/system/wifi/scan, POST /api/system/wifi/config, POST /api/system/display/brightness, GET /api/firmware, POST /api/firmware/ota, POST /api/system/reboot, GET /api/apps/list, PUT /api/apps/<app_id>/<file>, DELETE /api/apps/<app_id>[/*], POST /api/apps/reload, POST /api/apps/switch/<app_id> or ?app_id=");
+  } else {
+    ESP_LOGW(kTag, "App update API start failed");
+  }
+
+  g_boot_flow_done.store(true, std::memory_order_release);
+  ESP_LOGI(kTag, "boot_flow: done");
+  vTaskDelete(nullptr);
 }
 
 }  // namespace
@@ -303,22 +470,23 @@ static bool BootWifiFlow() {
 static void LvglTask(void *arg) {
   (void)arg;
   uint32_t prev_tick = lv_tick_get();
+  ESP_LOGI(kTag, "lvgl task started");
   while (true) {
-    const uint32_t switch_req = g_request_switch_app_seq.load(std::memory_order_relaxed);
-    if (switch_req != g_done_switch_app_seq.load(std::memory_order_relaxed)) {
-      ESP_LOGI(kTag, "lvgl consume switch request seq=%u", static_cast<unsigned>(switch_req));
-      SwitchLuaAppOnLvglThread();
-      g_done_switch_app_seq.store(switch_req, std::memory_order_relaxed);
-    }
-
     const uint32_t show_req = g_request_show_active_seq.load(std::memory_order_relaxed);
-    if (show_req != g_done_show_active_seq.load(std::memory_order_relaxed)) {
-      ESP_LOGI(kTag, "lvgl consume show-active request seq=%u", static_cast<unsigned>(show_req));
+    const uint32_t show_done = g_done_show_active_seq.load(std::memory_order_relaxed);
+    if (show_req != show_done) {
       ShowActiveLuaAppOnLvglThread();
       g_done_show_active_seq.store(show_req, std::memory_order_relaxed);
     }
 
-    // Consume cross-thread "next app" requests on the LVGL thread.
+    const uint32_t switch_req = g_request_switch_app_seq.load(std::memory_order_relaxed);
+    const uint32_t switch_done = g_done_switch_app_seq.load(std::memory_order_relaxed);
+    if (switch_req != switch_done) {
+      SwitchLuaAppOnLvglThread();
+      g_done_switch_app_seq.store(switch_req, std::memory_order_relaxed);
+      g_active_app_shown.store(true, std::memory_order_relaxed);
+    }
+
     LvglLuaAppCarouselPumpRequests();
 
     const uint32_t now_tick = lv_tick_get();
@@ -349,7 +517,7 @@ static void MountLittlefs() {
   const esp_err_t ret = esp_vfs_littlefs_register(&conf);
   if (ret != ESP_OK) {
     ESP_LOGW(kTag, "LittleFS mount failed: %s", esp_err_to_name(ret));
-    ESP_LOGW(kTag, "Hint: run `pio run -e hub75_idf -t uploadfs`");
+    ESP_LOGW(kTag, "Hint: run `pio run -e esp32-s3-n16r8 -t uploadfs`");
     return;
   }
 
@@ -358,10 +526,25 @@ static void MountLittlefs() {
   if (esp_littlefs_info(conf.partition_label, &total, &used) == ESP_OK) {
     ESP_LOGI(kTag, "LittleFS: used=%u, total=%u", static_cast<unsigned>(used), static_cast<unsigned>(total));
   }
+
+  LogInstalledLuaApps();
+  if (!SelectStartupLuaAppId(g_active_app_id, sizeof(g_active_app_id))) {
+    ESP_LOGW(kTag, "no startup Lua app selected");
+  }
 }
 
 extern "C" void app_main(void) {
   ESP_LOGI(kTag, "=== Font Test Start ===");
+
+  // The generated board config is still booting at 160MHz, so force the CPU
+  // to the S3's nominal 240MHz here for a direct runtime validation.
+  rtc_cpu_freq_config_t cpu_config;
+  if (rtc_clk_cpu_freq_mhz_to_config(240, &cpu_config)) {
+    rtc_clk_cpu_freq_set_config_fast(&cpu_config);
+  } else {
+    ESP_LOGW(kTag, "failed to build 240MHz cpu config; keeping default clock");
+  }
+  ESP_LOGI(kTag, "cpu freq forced to %lu Hz", (unsigned long)esp_clk_cpu_freq());
   
   MatrixPanel_I2S_DMA display(MakePanelConfig());
   if (!display.begin()) {
@@ -369,11 +552,11 @@ extern "C" void app_main(void) {
     while (true) vTaskDelay(pdMS_TO_TICKS(1000));
   }
 
-  display.setBrightness8(64);
-  display.fillScreenRGB888(0, 0, 32);
   auto display_mutex = xSemaphoreCreateMutex();
-
-  MountLittlefs();
+  // Keep startup current low; a bright white splash can brown out the board
+  // right when Wi-Fi/PSRAM are also ramping up.
+  DisplayControlBind(&display, display_mutex, 64);
+  display.fillScreenRGB888(0, 0, 0);
 
   LvglHub75Start({
       .display = &display,
@@ -382,50 +565,26 @@ extern "C" void app_main(void) {
       .ver_res = display.height(),
   });
 
-  // 启动按键任务：当前逻辑为单击重启（见 app/user_button.cpp）
+  // 启动按键任务：短按切换 app，长按重启（见 app/user_button.cpp）
   StartUserButtonTask(display, display_mutex, {
     .request_aapl_ticker = nullptr,
     .request_raw_benchmark = nullptr,
   });
-  
+
   ESP_LOGI(kTag, "=== Preloading fonts ===");
   LvglBootWifiScreenPreloadFont();
-  
+
   ESP_LOGI(kTag, "=== Boot Complete ===");
 
-  xTaskCreatePinnedToCore(LvglTask, "lvgl", 8192, nullptr, 5, &g_lvgl_task_handle, 1);
+  xTaskCreatePinnedToCore(LvglTask, "lvgl", 8192, nullptr, 5, &g_lvgl_task_handle, 0);
+  g_lvgl_ready.store(true, std::memory_order_release);
 
-  // Boot WiFi flow:
-  // - Try saved STA config (20s)
-  // - On failure, start setup AP and keep the setup screen
-  static constexpr bool kDebugSkipWifiFlow = false;
-  static constexpr bool kDebugSimulateWifiBootUi = false;
-  bool wifi_ok = true;
-  if (kDebugSimulateWifiBootUi) {
-    BootWifiUiSimulation();
-    wifi_ok = true;
-  } else {
-    wifi_ok = kDebugSkipWifiFlow ? true : BootWifiFlow();
+  MountLittlefs();
+  xTaskCreatePinnedToCore(BootFlowTask, "boot_flow", 6144, nullptr, 4, nullptr, 1);
+
+  if (kEnableHeapLogTask) {
+  xTaskCreatePinnedToCore(HeapLogTask, "heap_log", 3072, nullptr, 1, nullptr, 0);
   }
-
-  // Startup app is fixed; runtime switching is handled via HTTP API.
-  // POST /api/apps/switch/<app_id> or POST /api/apps/switch?app_id=<app_id>
-  if (!wifi_ok) {
-    // Keep setup screen.
-  } else {
-    // Don't block startup on app-show handshake; request once and let LVGL task consume it.
-    RequestShowActiveLuaApp();
-    ApplyTimezoneFromConfig();
-    (void)SyncTimeByNtp(15000);
-  }
-
-  if (AppUpdateServerStart(ReloadLuaAppsOnLvglThread, RequestSwitchLuaAppOnLvglThread)) {
-    ESP_LOGI(kTag, "App update API: PUT /api/apps/<app_id>/<file>, DELETE /api/apps/<app_id>[/*], POST /api/apps/reload, POST /api/apps/switch/<app_id> or ?app_id=");
-  } else {
-    ESP_LOGW(kTag, "App update API start failed");
-  }
-
-  xTaskCreatePinnedToCore(HeapLogTask, "heap_log", 3072, nullptr, 1, nullptr, 1);
 
   while (true) {
     vTaskDelay(pdMS_TO_TICKS(1000));

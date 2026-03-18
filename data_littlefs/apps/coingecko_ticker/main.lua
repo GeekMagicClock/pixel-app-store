@@ -52,8 +52,8 @@ local icon_map = {
   DOT = "S:/littlefs/apps/coingecko_ticker/icons/dot-24.png",
 }
 
--- Optional LAN gateway. Default points to local Mac proxy.
-local gateway_base = data.get("proxy.coingecko_base") or "http://192.168.3.139:8080"
+-- Optional LAN gateway. Empty by default so the app uses the public HTTPS API.
+local gateway_base = data.get("proxy.coingecko_base") or ""
 
 local base_hosts = {
   "https://api.coingecko.com",

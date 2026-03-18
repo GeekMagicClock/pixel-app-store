@@ -154,7 +154,7 @@ local function start_request()
   end
 
   local url = string.format(
-    "http://api.openweathermap.org/data/2.5/weather?q=%s&units=%s&appid=%s",
+    "https://api.openweathermap.org/data/2.5/weather?q=%s&units=%s&appid=%s",
     CITY, UNITS, OWM_API_KEY
   )
 

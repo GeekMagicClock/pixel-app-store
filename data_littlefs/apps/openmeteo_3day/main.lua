@@ -210,20 +210,27 @@ local function draw_owm_icon(fb, icon, cx, cy)
 end
 
 local function handle_response(status, body)
+  sys.log(string.format(
+    "openmeteo_3day handle_response status=%s body_len=%d",
+    tostring(status), body and #body or 0
+  ))
   if status ~= 200 then
     state.err = "HTTP " .. tostring(status)
+    sys.log("openmeteo_3day response error=" .. tostring(state.err))
     return
   end
 
   local obj, jerr = json.decode(body)
   if not obj then
     state.err = jerr or "JSON ERR"
+    sys.log("openmeteo_3day json error=" .. tostring(state.err))
     return
   end
 
   local d = obj.daily
   if not d or not d.time or not d.weather_code or not d.temperature_2m_max then
     state.err = "BAD DATA"
+    sys.log("openmeteo_3day data error=BAD DATA")
     return
   end
 
@@ -240,6 +247,12 @@ local function handle_response(status, body)
 
   state.err = nil
   state.last_ok_ms = now_ms()
+  sys.log(string.format(
+    "openmeteo_3day updated d1=%s/%s d2=%s/%s d3=%s/%s",
+    tostring(state.days[1].label), tostring(state.days[1].temp),
+    tostring(state.days[2].label), tostring(state.days[2].temp),
+    tostring(state.days[3].label), tostring(state.days[3].temp)
+  ))
 end
 
 local function start_request()
@@ -253,13 +266,22 @@ local function start_request()
   )
 
   local ttl_ms = 10 * 60 * 1000
+  sys.log(string.format(
+    "openmeteo_3day req start url=%s ttl=%d timeout=%d max_body=%d",
+    tostring(url), ttl_ms, 6000, 4096
+  ))
   local id, body, age_ms, err = net.cached_get(url, ttl_ms, 6000, 4096)
   if err then
     state.err = err
+    sys.log("openmeteo_3day cached_get err=" .. tostring(err))
     return
   end
 
   if body then
+    sys.log(string.format(
+      "openmeteo_3day cached_get hit bytes=%d age_ms=%s",
+      #body, tostring(age_ms)
+    ))
     handle_response(200, body)
     state.last_req_ms = now_ms()
     return
@@ -268,14 +290,19 @@ local function start_request()
   if id then
     state.req_id = id
     state.last_req_ms = now_ms()
+    sys.log("openmeteo_3day req inflight id=" .. tostring(id))
     return
   end
 
   state.err = "HTTP GET FAIL"
+  sys.log("openmeteo_3day req error=HTTP GET FAIL")
 end
 
 function app.init(config)
-  sys.log("openmeteo_3day init")
+  sys.log(string.format(
+    "openmeteo_3day init lat=%s lon=%s unit=%s",
+    tostring(LAT), tostring(LON), tostring(TEMP_UNIT)
+  ))
   state.req_id = nil
   state.last_req_ms = 0
   state.last_ok_ms = 0
@@ -289,9 +316,14 @@ function app.tick(dt_ms)
   if state.req_id then
     local done, status, body = net.cached_poll(state.req_id)
     if done then
+      sys.log(string.format(
+        "openmeteo_3day req done status=%s body_len=%d",
+        tostring(status), body and #body or 0
+      ))
       state.req_id = nil
       if status == 0 then
         state.err = body or "HTTP ERR"
+        sys.log("openmeteo_3day req transport err=" .. tostring(state.err))
       else
         handle_response(status, body or "")
       end

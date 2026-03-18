@@ -37,6 +37,34 @@ When `--lua-bytecode` is enabled:
 
 Then commit/push `dist/store/*` to GitHub.
 
+One-click SSH publish to the current app store host:
+
+```bash
+python3 python/publish_store.py
+```
+
+Default publish target:
+- SSH: `root@111.229.177.3:/root/fw/pixel64x32V2/apps`
+- SSH key: `~/.ssh/t20260309.pem`
+- Store index: `http://111.229.177.3:8001/fw/pixel64x32V2/apps/apps-index.json`
+- Package entry: `app.bin` by default
+
+Useful options:
+
+```bash
+# Capture real thumbnails before publish
+python3 python/publish_store.py --thumbnail-mode capture --device 192.168.3.152
+
+# Generate synthetic thumbnails before publish
+python3 python/publish_store.py --thumbnail-mode generate
+
+# Build only, do not upload or start the remote server
+python3 python/publish_store.py --skip-upload --skip-serve --skip-verify
+
+# If you explicitly want plain-text main.lua packages
+python3 python/publish_store.py --plain-lua
+```
+
 Optional thumbnail:
 - Put one of these files in each app folder: `thumbnail.png` / `thumbnail.jpg` / `thumbnail.jpeg` / `thumb.png` / `preview.png`
 - Script will copy it to `dist/store/thumbs/` and write `thumbnail_url` into `apps-index.json`.

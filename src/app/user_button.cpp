@@ -1,5 +1,7 @@
 #include "app/user_button.h"
 
+#include "app/display_control.h"
+
 #include "esp_log.h"
 #include "esp_system.h"
 #include "esp_timer.h"
@@ -11,13 +13,29 @@
 static const char *kTag = "app";
 
 // Reuse the original Arduino project's button pin (src_old/lib/btn.cpp).
-static constexpr gpio_num_t kUserButtonGpio = GPIO_NUM_32; // active-low, INPUT_PULLUP
+#ifndef USER_BUTTON_GPIO
+#define USER_BUTTON_GPIO 38
+#endif
+static constexpr int kUserButtonGpio = USER_BUTTON_GPIO; // active-low, INPUT_PULLUP
+static uint64_t UserButtonPinMask() {
+#if USER_BUTTON_GPIO < 0 || USER_BUTTON_GPIO >= 64
+  return 0;
+#else
+  if (kUserButtonGpio < 0 || kUserButtonGpio >= 64) {
+    return 0;
+  }
+  return 1ULL << static_cast<unsigned>(kUserButtonGpio);
+#endif
+}
 
 static void InitUserButtonGpio() {
+  if (kUserButtonGpio < 0) {
+    return;
+  }
   gpio_config_t io_conf{};
   io_conf.intr_type = GPIO_INTR_DISABLE;
   io_conf.mode = GPIO_MODE_INPUT;
-  io_conf.pin_bit_mask = 1ULL << kUserButtonGpio;
+  io_conf.pin_bit_mask = UserButtonPinMask();
   io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
   io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
   gpio_config(&io_conf);
@@ -42,7 +60,7 @@ static void ToggleScreen(ButtonContext &ctx) {
     ctx.brightness = 0;
     ctx.screen_off = true;
   }
-  ctx.display->setBrightness8(ctx.brightness);
+  (void)DisplayControlSetBrightness(ctx.brightness);
   ESP_LOGI(kTag, "button: screen %s (brightness=%u)", ctx.screen_off ? "off" : "on", ctx.brightness);
 }
 
@@ -57,7 +75,7 @@ static void CycleBrightness(ButtonContext &ctx) {
     else if (ctx.brightness < 255) ctx.brightness = 255;
     else ctx.brightness = 64;
   }
-  ctx.display->setBrightness8(ctx.brightness);
+  (void)DisplayControlSetBrightness(ctx.brightness);
   ESP_LOGI(kTag, "button: brightness=%u", ctx.brightness);
 }
 
@@ -70,7 +88,7 @@ static void ButtonTask(void *arg) {
   // If the button line is held low at boot (wiring/bootstraps), don't treat it as a "new press"
   // that immediately triggers long-press actions (e.g. turning the screen off).
   const int64_t boot_us = esp_timer_get_time();
-  const bool boot_raw_pressed = (gpio_get_level(kUserButtonGpio) == 0);
+  const bool boot_raw_pressed = (gpio_get_level(static_cast<gpio_num_t>(kUserButtonGpio)) == 0);
 
   bool ignore_until_release = boot_raw_pressed;
   bool stable_pressed = boot_raw_pressed;
@@ -81,7 +99,7 @@ static void ButtonTask(void *arg) {
 
   while (true) {
     const int64_t now_us = esp_timer_get_time();
-    const bool raw_pressed = (gpio_get_level(kUserButtonGpio) == 0);
+    const bool raw_pressed = (gpio_get_level(static_cast<gpio_num_t>(kUserButtonGpio)) == 0);
 
     if (raw_pressed != last_raw_pressed) {
       last_raw_pressed = raw_pressed;
@@ -122,11 +140,19 @@ static void ButtonTask(void *arg) {
 void StartUserButtonTask(MatrixPanel_I2S_DMA &display,
                          SemaphoreHandle_t display_mutex,
                          const ButtonEventFlags &flags) {
+  if (kUserButtonGpio < 0) {
+    ESP_LOGW(kTag, "button disabled (USER_BUTTON_GPIO=%d)", kUserButtonGpio);
+    return;
+  }
+
   InitUserButtonGpio();
   static ButtonContext ctx;
   ctx.display = &display;
   ctx.display_mutex = display_mutex;
   ctx.flags = flags;
+  ctx.brightness = DisplayControlGetBrightness();
+  ctx.saved_brightness = ctx.brightness;
 
+  ESP_LOGI(kTag, "button enabled gpio=%d mode=active-low short=next-app long=reboot", kUserButtonGpio);
   xTaskCreate(&ButtonTask, "button", 4096, &ctx, tskIDLE_PRIORITY + 1, nullptr);
 }

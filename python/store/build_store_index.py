@@ -91,6 +91,21 @@ def load_manifest(app_dir: pathlib.Path) -> dict:
             return {}
     return {}
 
+
+def resolve_entry_path(app_dir: pathlib.Path, manifest: dict) -> pathlib.Path | None:
+    entry = str(manifest.get('entry', '') or '').strip()
+    if entry:
+        rel = pathlib.Path(entry)
+        if not rel.is_absolute() and '..' not in rel.parts:
+            candidate = app_dir / rel
+            if candidate.exists() and candidate.is_file():
+                return candidate
+
+    main_lua = app_dir / 'main.lua'
+    if main_lua.exists() and main_lua.is_file():
+        return main_lua
+    return None
+
 def find_thumbnail(app_dir: pathlib.Path) -> pathlib.Path | None:
     preferred = [
         'thumbnail.png', 'thumbnail.jpg', 'thumbnail.jpeg',
@@ -143,18 +158,24 @@ def main() -> None:
         app_id = app_dir.name
         if app_id.startswith('.'):
             continue
-        if not (app_dir / 'main.lua').exists():
-            continue
 
         manifest = load_manifest(app_dir)
+        entry_path = resolve_entry_path(app_dir, manifest)
+        if entry_path is None:
+            continue
+
         name = manifest.get('name', app_id)
         version = str(manifest.get('version', '0.1.0'))
         description = manifest.get('description', '')
 
         zip_name = f'{app_id}-{version}.zip'
         zip_path = out_dir / zip_name
-        if args.lua_bytecode:
+        packaged_entry = entry_path.relative_to(app_dir).as_posix()
+        package_uses_bytecode = False
+        if args.lua_bytecode and (app_dir / 'main.lua').exists():
             zip_app_with_bytecode(app_dir, zip_path, args.luac_bin, args.entry_name)
+            packaged_entry = args.entry_name
+            package_uses_bytecode = True
         else:
             zip_app(app_dir, zip_path)
         digest = sha256_file(zip_path)
@@ -177,7 +198,8 @@ def main() -> None:
             'thumbnail_url': thumbnail_url,
             'sha256': digest,
             'size': zip_path.stat().st_size,
-            'lua_bytecode': bool(args.lua_bytecode),
+            'lua_bytecode': package_uses_bytecode or packaged_entry.endswith('.bin'),
+            'entry': packaged_entry,
         })
 
     index = {

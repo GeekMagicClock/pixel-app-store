@@ -1,0 +1,123 @@
+{
+  "schema": 1,
+  "generated_at": "2026-03-14T09:02:42.167351+00:00",
+  "apps": [
+    {
+      "id": "binance_chart",
+      "name": "Binance Chart",
+      "version": "1.0.2",
+      "category": "other",
+      "description": "",
+      "zip_url": "http://111.229.177.3:8001/fw/pixel64x32V2/apps/binance_chart-1.0.2.zip",
+      "thumbnail_url": "http://111.229.177.3:8001/fw/pixel64x32V2/apps/thumbs/binance_chart.png",
+      "sha256": "bf6f00788b95b967ed237c2e9a6aa1eaeeb76556c91b29f96582aa2637809a95",
+      "size": 6462,
+      "lua_bytecode": true,
+      "entry": "app.bin"
+    },
+    {
+      "id": "binance_ticker",
+      "name": "Binance Ticker",
+      "version": "1.0.2",
+      "category": "other",
+      "description": "",
+      "zip_url": "http://111.229.177.3:8001/fw/pixel64x32V2/apps/binance_ticker-1.0.2.zip",
+      "thumbnail_url": "http://111.229.177.3:8001/fw/pixel64x32V2/apps/thumbs/binance_ticker.png",
+      "sha256": "8c2fd55a6834d527d1d171ac2d966115c311d8accbd189d7705ba4c992981c11",
+      "size": 18420,
+      "lua_bytecode": true,
+      "entry": "app.bin"
+    },
+    {
+      "id": "coingecko_ticker",
+      "name": "CoinGecko Ticker",
+      "version": "1.0.2",
+      "category": "other",
+      "description": "",
+      "zip_url": "http://111.229.177.3:8001/fw/pixel64x32V2/apps/coingecko_ticker-1.0.2.zip",
+      "thumbnail_url": "http://111.229.177.3:8001/fw/pixel64x32V2/apps/thumbs/coingecko_ticker.png",
+      "sha256": "cff5fffc469091457e8a2e68ac2881ad926f463892853c38d584c8b3e2d25295",
+      "size": 18926,
+      "lua_bytecode": true,
+      "entry": "app.bin"
+    },
+    {
+      "id": "fb_test",
+      "name": "Stocks (Framebuffer)",
+      "version": "1.0.2",
+      "category": "other",
+      "description": "",
+      "zip_url": "http://111.229.177.3:8001/fw/pixel64x32V2/apps/fb_test-1.0.2.zip",
+      "thumbnail_url": "http://111.229.177.3:8001/fw/pixel64x32V2/apps/thumbs/fb_test.png",
+      "sha256": "6be95220232dce2be0cd514f2b00cb6eef7297b1ae2a69cae7d40efb77923d20",
+      "size": 1901,
+      "lua_bytecode": true,
+      "entry": "app.bin"
+    },
+    {
+      "id": "media_gallery",
+      "name": "Media Gallery",
+      "version": "1.0.2",
+      "category": "other",
+      "description": "",
+      "zip_url": "http://111.229.177.3:8001/fw/pixel64x32V2/apps/media_gallery-1.0.2.zip",
+      "thumbnail_url": "http://111.229.177.3:8001/fw/pixel64x32V2/apps/thumbs/media_gallery.png",
+      "sha256": "13012e4e0c9511253649cff3dcbfe4eb9bc7d117f1918f6f0d373a91d167327e",
+      "size": 157849,
+      "lua_bytecode": true,
+      "entry": "app.bin"
+    },
+    {
+      "id": "moon_phase_png",
+      "name": "Moon Phase PNG",
+      "version": "1.0.2",
+      "category": "other",
+      "description": "",
+      "zip_url": "http://111.229.177.3:8001/fw/pixel64x32V2/apps/moon_phase_png-1.0.2.zip",
+      "thumbnail_url": "http://111.229.177.3:8001/fw/pixel64x32V2/apps/thumbs/moon_phase_png.png",
+      "sha256": "4076274462bb8081d3df1f3041f698605683cbaf2a77130ea8b9fdbe207a82bb",
+      "size": 46602,
+      "lua_bytecode": true,
+      "entry": "app.bin"
+    },
+    {
+      "id": "openmeteo_3day",
+      "name": "Open-Meteo 3 Day",
+      "version": "1.0.2",
+      "category": "other",
+      "description": "",
+      "zip_url": "http://111.229.177.3:8001/fw/pixel64x32V2/apps/openmeteo_3day-1.0.2.zip",
+      "thumbnail_url": "http://111.229.177.3:8001/fw/pixel64x32V2/apps/thumbs/openmeteo_3day.png",
+      "sha256": "e3c5220d5368468b96dd654d2092a55c3f43b285ed05231cfd9060d66837b01c",
+      "size": 4583,
+      "lua_bytecode": true,
+      "entry": "app.bin"
+    },
+    {
+      "id": "sunrise_sunset_owm",
+      "name": "Sunrise Sunset (OWM)",
+      "version": "1.0.2",
+      "category": "other",
+      "description": "",
+      "zip_url": "http://111.229.177.3:8001/fw/pixel64x32V2/apps/sunrise_sunset_owm-1.0.2.zip",
+      "thumbnail_url": "http://111.229.177.3:8001/fw/pixel64x32V2/apps/thumbs/sunrise_sunset_owm.png",
+      "sha256": "435af080256744287cf665114ee070001217e25e957cbbc98038d7ea346f4bca",
+      "size": 3137,
+      "lua_bytecode": true,
+      "entry": "app.bin"
+    },
+    {
+      "id": "weather_card_owm",
+      "name": "Weather Card OWM",
+      "version": "1.0.2",
+      "category": "other",
+      "description": "",
+      "zip_url": "http://111.229.177.3:8001/fw/pixel64x32V2/apps/weather_card_owm-1.0.2.zip",
+      "thumbnail_url": "http://111.229.177.3:8001/fw/pixel64x32V2/apps/thumbs/weather_card_owm.png",
+      "sha256": "6004b0999323aedf11890880861d8311e6a563811f2d8b9facd0d07b289599f1",
+      "size": 11817,
+      "lua_bytecode": true,
+      "entry": "app.bin"
+    }
+  ]
+}

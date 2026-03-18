@@ -66,6 +66,7 @@ class LuaAppRuntime {
   const char* last_error() const { return last_error_.c_str(); }
 
  private:
+  static void* LuaAllocPreferPsram(void* ud, void* ptr, size_t osize, size_t nsize);
   bool CreateState();
   void DestroyState();
   bool LoadMain(const std::string& main_path);

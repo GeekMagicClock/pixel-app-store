@@ -1,5 +1,7 @@
 #include "ui/lvgl_hub75_port.h"
 
+#include "ui/lvgl_mem_utils.h"
+
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -20,12 +22,19 @@ static const char *kTag = "lvgl";
 
 namespace {
 
+static bool g_flush_enabled = true;
+
 struct DriverContext {
   MatrixPanel_I2S_DMA *display;
   SemaphoreHandle_t display_mutex;
 };
 
 void FlushCb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map) {
+  if (!g_flush_enabled) {
+    lv_display_flush_ready(disp);
+    return;
+  }
+
   auto *ctx = static_cast<DriverContext *>(lv_display_get_user_data(disp));
   if (!ctx || !ctx->display) {
     lv_display_flush_ready(disp);
@@ -59,9 +68,11 @@ void FlushCb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map) {
       const uint16_t c565 = color_p[src_idx++];
       ctx->display->drawPixel(static_cast<int16_t>(x), static_cast<int16_t>(y), c565);
     }
-    // Break up long flushes so CPU0 IDLE can run (prevents task watchdog warnings).
-    if (((y - clip_y1) & 0x07) == 0) {
-      taskYIELD();
+    // `taskYIELD()` only switches to equal-priority tasks, which does not help
+    // the IDLE task monitored by the watchdog. Give back one scheduler tick
+    // periodically during large HUB75 flushes.
+    if (((y - clip_y1) & 0x07) == 0x07) {
+      vTaskDelay(1);
     }
   }
 
@@ -81,11 +92,6 @@ void TickTimerCb(void *arg) {
 
 void LvglHub75Start(const LvglHub75PortConfig &cfg) {
   lv_init();
-
-#if LV_USE_FS_STDIO
-  lv_fs_stdio_init();
-  ESP_LOGI(kTag, "LVGL stdio FS registered (letter=%c)", static_cast<char>(LV_FS_STDIO_LETTER));
-#endif
 
   static DriverContext ctx;
   ctx.display = cfg.display;
@@ -109,12 +115,19 @@ void LvglHub75Start(const LvglHub75PortConfig &cfg) {
   const size_t bytes_per_pixel = LV_COLOR_FORMAT_GET_SIZE(lv_display_get_color_format(disp));
   const size_t buf_bytes = buf_pixels * bytes_per_pixel;
 
-  buf1 = heap_caps_malloc(buf_bytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-  buf2 = heap_caps_malloc(buf_bytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  // ESP32-S3 HUB75 uses LCD_CAM + GDMA. Keeping LVGL draw buffers in PSRAM can
+  // stall the first `lv_timer_handler()` and trip the task watchdog, so require
+  // internal DMA-capable RAM here. Higher-level, non-DMA UI allocations can
+  // still prefer PSRAM elsewhere.
+  buf1 = heap_caps_malloc(buf_bytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
+  buf2 = heap_caps_malloc(buf_bytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
   if (!buf1 || !buf2) {
     ESP_LOGE(kTag, "Failed to allocate LVGL draw buffers");
     abort();
   }
+
+  ESP_LOGI(kTag, "LVGL draw buffers in internal DMA RAM (%u bytes each)",
+           static_cast<unsigned>(buf_bytes));
 
   lv_display_set_user_data(disp, &ctx);
   lv_display_set_flush_cb(disp, FlushCb);
@@ -134,6 +147,11 @@ void LvglHub75Start(const LvglHub75PortConfig &cfg) {
   ESP_ERROR_CHECK(esp_timer_create(&tick_args, &tick_timer));
   ESP_ERROR_CHECK(esp_timer_start_periodic(tick_timer, kTickMs * 1000));
   ESP_LOGI(kTag, "LVGL initialized (%dx%d)", cfg.hor_res, cfg.ver_res);
+}
+
+void LvglHub75SetFlushEnabled(bool enabled) {
+  g_flush_enabled = enabled;
+  ESP_LOGI(kTag, "flush gate: %s", enabled ? "enabled" : "disabled");
 }
 
 void LvglRunBenchmarkDemo() {

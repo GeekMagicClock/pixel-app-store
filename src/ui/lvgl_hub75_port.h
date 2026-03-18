@@ -15,6 +15,9 @@ struct LvglHub75PortConfig {
 // Initializes LVGL, registers HUB75 display driver, and starts the LVGL task.
 void LvglHub75Start(const LvglHub75PortConfig &cfg);
 
+// Temporarily suppress physical display flushes while screens are being constructed.
+void LvglHub75SetFlushEnabled(bool enabled);
+
 // Runs LVGL's benchmark demo (requires CONFIG_LV_USE_DEMO_BENCHMARK=y).
 void LvglRunBenchmarkDemo();
 

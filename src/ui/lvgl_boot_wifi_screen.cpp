@@ -1,5 +1,8 @@
 #include "ui/lvgl_boot_wifi_screen.h"
 
+#include "ui/lvgl_hub75_port.h"
+#include "ui/lvgl_mem_utils.h"
+
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
@@ -7,6 +10,7 @@
 
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "esp_heap_caps.h"
 
 extern "C" {
 #include "lvgl.h"
@@ -296,7 +300,10 @@ static void EnsureScreen() {
   g_scr = lv_obj_create(nullptr);
   lv_obj_set_style_bg_color(g_scr, lv_color_hex(0x000000), 0);
 
-  g_canvas_buf = lv_draw_buf_create(64, 32, LV_COLOR_FORMAT_RGB565, LV_STRIDE_AUTO);
+  g_canvas_buf = LvglCreateDrawBufferPreferPsram(64, 32, LV_COLOR_FORMAT_RGB565, LV_STRIDE_AUTO);
+  if (g_canvas_buf) {
+    ESP_LOGI(kTag, "boot canvas buffer ready stride=%u", static_cast<unsigned>(g_canvas_buf->header.stride));
+  }
   if (!g_canvas_buf) {
     ESP_LOGE(kTag, "Failed to create canvas buffer");
     return;
@@ -335,10 +342,9 @@ void LvglShowBootWifiConnecting(const char *try_ssid, uint32_t timeout_ms) {
   g_start_us = static_cast<uint64_t>(esp_timer_get_time());
   snprintf(g_try_ssid, sizeof(g_try_ssid), "%s", try_ssid ? try_ssid : "");
 
+  LvglHub75SetFlushEnabled(false);
   Render();
   lv_screen_load(g_scr);
-
-  g_timer = lv_timer_create(TimerCb, 200, nullptr);
 }
 
 void LvglShowBootWifiSuccess(const char *sta_ssid, const char *sta_ip) {
@@ -356,6 +362,7 @@ void LvglShowBootWifiSuccess(const char *sta_ssid, const char *sta_ip) {
   snprintf(g_sta_ssid, sizeof(g_sta_ssid), "%s", sta_ssid ? sta_ssid : "");
   snprintf(g_sta_ip, sizeof(g_sta_ip), "%s", sta_ip ? sta_ip : "");
 
+  LvglHub75SetFlushEnabled(true);
   Render();
   lv_screen_load(g_scr);
 
@@ -378,20 +385,19 @@ void LvglShowBootWifiFailed(const char *ap_ssid, const char *ap_ip) {
   snprintf(g_ap_ssid, sizeof(g_ap_ssid), "%s", ap_ssid ? ap_ssid : "");
   snprintf(g_ap_ip, sizeof(g_ap_ip), "%s", ap_ip ? ap_ip : "");
 
+  LvglHub75SetFlushEnabled(true);
   Render();
   lv_screen_load(g_scr);
-
-  // Keep refresh timer for any future animations.
-  g_timer = lv_timer_create(TimerCb, 250, nullptr);
 }
 
 void LvglStopBootWifiScreen() {
   StopTimer();
+  LvglHub75SetFlushEnabled(true);
 
   g_font = nullptr;
 
   if (g_canvas_buf) {
-    lv_draw_buf_destroy(g_canvas_buf);
+    LvglDestroyDrawBufferPreferPsram(g_canvas_buf);
     g_canvas_buf = nullptr;
   }
 

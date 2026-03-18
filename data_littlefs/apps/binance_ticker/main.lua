@@ -27,7 +27,7 @@ local icon_map = {
 }
 
 local base_hosts = {
-  "http://data-api.binance.vision",
+  "https://data-api.binance.vision",
 }
 
 local state = {
@@ -78,13 +78,24 @@ local function update_from_body(sym, body)
     return false
   end
 
-  local s = tostring(obj.symbol or "")
-  local p_str = tostring(obj.lastPrice or obj.price or "")
-  local p = tonumber(obj.lastPrice or obj.price)
+  local raw_symbol = obj.symbol
+  local s = tostring(raw_symbol or sym or "")
+  local raw_price = obj.lastPrice
+  if raw_price == nil or raw_price == "" then raw_price = obj.price end
+  local p_str = tostring(raw_price or "")
+  local p = tonumber(raw_price)
   local pct = tonumber(obj.priceChangePercent)
-  if s ~= sym or not p or p_str == "" then
+  if not p or p_str == "" then
+    sys.log(string.format(
+      "binance_ticker bad data expect=%s resp_sym=%s raw_price=%s pct=%s body=%s",
+      tostring(sym), tostring(s), tostring(raw_price), tostring(obj.priceChangePercent),
+      string.sub(tostring(body or ""), 1, 160)
+    ))
     state.last_err = "BAD DATA"
     return false
+  end
+  if raw_symbol ~= nil and s ~= sym then
+    sys.log(string.format("binance_ticker symbol mismatch expect=%s got=%s", tostring(sym), tostring(s)))
   end
 
   state.prices[sym] = p
@@ -100,7 +111,7 @@ local function start_fetch(sym)
   local url = ticker_url(sym, host_idx)
 
   local ttl_ms = 30 * 1000
-  local id, body, age_ms, err = net.cached_get(url, ttl_ms, 4000, 768)
+  local id, body, age_ms, err = net.cached_get(url, ttl_ms, 8000, 4096)
   if err then
     state.last_err = err
     return
