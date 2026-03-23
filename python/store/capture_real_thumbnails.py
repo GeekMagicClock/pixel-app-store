@@ -8,6 +8,8 @@ import urllib.error
 import urllib.request
 import zlib
 
+THUMBNAIL_NAMES = ("thumbnail.png", "thumbnail.jpg", "thumbnail.jpeg", "thumb.png", "preview.png")
+
 
 def png_pack(tag: bytes, data: bytes) -> bytes:
     return struct.pack("!I", len(data)) + tag + data + struct.pack("!I", zlib.crc32(tag + data) & 0xFFFFFFFF)
@@ -38,6 +40,20 @@ def http_post(url: str, timeout: float):
 def http_get(url: str, timeout: float) -> bytes:
     with urllib.request.urlopen(url, timeout=timeout) as r:
         return r.read()
+
+
+def retry_post(url: str, timeout: float, attempts: int = 3, gap_s: float = 0.6):
+    last_err = None
+    for i in range(max(1, attempts)):
+        try:
+            http_post(url, timeout)
+            return True
+        except Exception as e:
+            last_err = e
+            if i + 1 < max(1, attempts):
+                time.sleep(max(0.0, gap_s))
+    print(f"  switch warning: {last_err}")
+    return False
 
 
 def parse_ppm_p6(buf: bytes):
@@ -99,6 +115,10 @@ def score_frame(pixels):
     return (non_black * 10) + len(colors)
 
 
+def has_thumbnail(app_dir: pathlib.Path) -> bool:
+    return any((app_dir / name).is_file() for name in THUMBNAIL_NAMES)
+
+
 def main():
     ap = argparse.ArgumentParser(description="Capture real 64x32 app thumbnails from device screen")
     ap.add_argument("--device", default="192.168.3.140", help="Device host or host:port")
@@ -108,6 +128,8 @@ def main():
     ap.add_argument("--retries", type=int, default=3)
     ap.add_argument("--samples", type=int, default=5, help="Number of frames sampled per app")
     ap.add_argument("--sample-gap-ms", type=int, default=900, help="Gap between sampled frames")
+    ap.add_argument("--overwrite", action="store_true", help="Overwrite existing app thumbnails")
+    ap.add_argument("--use-proxy", action="store_true", help="Use system HTTP proxy settings for device requests")
     ap.add_argument(
         "--apps",
         action="append",
@@ -115,6 +137,9 @@ def main():
         help="Only capture specified app ids. Supports comma-separated list and repeated flag.",
     )
     args = ap.parse_args()
+
+    if not args.use_proxy:
+        urllib.request.install_opener(urllib.request.build_opener(urllib.request.ProxyHandler({})))
 
     base = f"http://{args.device}"
     apps_root = pathlib.Path(args.apps_root)
@@ -144,6 +169,18 @@ def main():
         if not app_dirs:
             raise SystemExit(f"no matching apps found for --apps: {sorted(selected)}")
 
+    if not args.overwrite:
+        filtered = []
+        for app_dir in app_dirs:
+            if has_thumbnail(app_dir):
+                print(f"[skip] {app_dir.name}: thumbnail already exists")
+                continue
+            filtered.append(app_dir)
+        app_dirs = filtered
+        if not app_dirs:
+            print("done: 0/0")
+            return
+
     # Apps with network/data warm-up need longer delay before first capture.
     settle_override_ms = {
         "moon_phase_png": 6500,
@@ -157,11 +194,9 @@ def main():
     for app_dir in app_dirs:
         app_id = app_dir.name
         print(f"[capture] switch -> {app_id}")
-        try:
-            http_post(f"{base}/api/apps/switch/{app_id}", args.timeout)
-        except urllib.error.URLError as e:
-            print(f"  switch failed: {e}")
-            continue
+        switch_ok = retry_post(f"{base}/api/apps/switch/{app_id}", args.timeout)
+        if not switch_ok:
+            print("  continuing after switch warning; device may have switched anyway")
         settle_ms = max(args.settle_ms, settle_override_ms.get(app_id, 0))
         print(f"  settle {settle_ms}ms")
         time.sleep(max(0.0, settle_ms / 1000.0))

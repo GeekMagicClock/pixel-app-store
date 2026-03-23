@@ -32,6 +32,8 @@ local C_LINE = 0x07FF
 local C_MTN = 0x0410
 
 local FONT = "builtin:silkscreen_regular_8"
+local MIN_REFRESH_MS = 10000
+local CACHE_KEY = "binance_chart.cache.v1"
 
 local HOSTS = {
   "https://data-api.binance.vision",
@@ -60,6 +62,9 @@ local state = {
   price_texts = {},
   change_pcts = {},
   closes_map = {},
+  cache = {},
+  ticker_req_ms = {},
+  klines_req_ms = {},
   active_klimit = KLIMIT,
   klines_pause_until_ms = 0,
   klines_fail_count = 0,
@@ -80,11 +85,166 @@ local function find_symbol_index(sym)
   return 1
 end
 
+local function symbol_exists(sym)
+  for i = 1, #symbols do
+    if symbols[i] == sym then return true end
+  end
+  return false
+end
+
+local function unix_time_s()
+  return tonumber(sys.unix_time() or 0) or 0
+end
+
+local function cache_age_ms(updated_at_s)
+  local now_s = unix_time_s()
+  local ts = tonumber(updated_at_s or 0) or 0
+  if now_s <= 0 or ts <= 0 or ts > now_s then return MIN_REFRESH_MS end
+  local age_ms = (now_s - ts) * 1000
+  if age_ms < 0 then return MIN_REFRESH_MS end
+  local max_age_ms = 7 * 24 * 60 * 60 * 1000
+  if age_ms > max_age_ms then age_ms = max_age_ms end
+  return age_ms
+end
+
 local function has_symbol_data(sym)
   if not sym then return false end
   local p = state.price_texts[sym]
   local c = state.closes_map[sym]
   return (p ~= nil and p ~= "") and (c ~= nil and #c >= 2)
+end
+
+local function clone_number_array(arr)
+  if type(arr) ~= "table" then return nil end
+  local out = {}
+  for i = 1, #arr do
+    local v = tonumber(arr[i])
+    if v then out[#out + 1] = v end
+  end
+  if #out < 2 then return nil end
+  return out
+end
+
+local function normalize_price_text(s)
+  if not s or s == "" then return "--" end
+  return tostring(s)
+end
+
+local function normalize_cache_entry(entry)
+  if type(entry) ~= "table" then return nil end
+  local out = {
+    price = tonumber(entry.price),
+    price_text = normalize_price_text(entry.price_text),
+    change_pct = tonumber(entry.change_pct),
+    ticker_updated_at_s = tonumber(entry.ticker_updated_at_s) or 0,
+    chart_updated_at_s = tonumber(entry.chart_updated_at_s) or 0,
+  }
+  local entry_interval = tostring(entry.interval or "")
+  local entry_limit = tonumber(entry.limit or 0) or 0
+  if entry_interval == INTERVAL and entry_limit == KLIMIT then
+    out.closes = clone_number_array(entry.closes)
+    out.interval = entry_interval
+    out.limit = entry_limit
+  end
+  if (out.price == nil) and (out.price_text == "--") and (out.change_pct == nil) and (out.closes == nil) then
+    return nil
+  end
+  return out
+end
+
+local function load_cache()
+  if not data or type(data.get) ~= "function" then
+    return {}, false
+  end
+  local raw = data.get(CACHE_KEY)
+  local cache = {}
+  local changed = false
+  if type(raw) == "table" then
+    for sym, entry in pairs(raw) do
+      if symbol_exists(sym) then
+        local norm = normalize_cache_entry(entry)
+        if norm then
+          cache[sym] = norm
+          if norm.closes == nil and type(entry) == "table" and entry.closes ~= nil then
+            changed = true
+          end
+        else
+          changed = true
+        end
+      else
+        changed = true
+      end
+    end
+  end
+  return cache, changed
+end
+
+local function save_cache()
+  if not data or type(data.set) ~= "function" then
+    return
+  end
+  local ok = data.set(CACHE_KEY, state.cache)
+  if ok == false then
+    sys.log("binance_chart cache save failed")
+  end
+end
+
+local function hydrate_from_cache()
+  local now = now_ms()
+  for sym, entry in pairs(state.cache) do
+    if entry.price ~= nil then state.prices[sym] = entry.price end
+    if entry.price_text and entry.price_text ~= "" then state.price_texts[sym] = entry.price_text end
+    if entry.change_pct ~= nil then state.change_pcts[sym] = entry.change_pct end
+    if entry.closes then state.closes_map[sym] = entry.closes end
+    state.ticker_req_ms[sym] = now - cache_age_ms(entry.ticker_updated_at_s)
+    if entry.closes then
+      state.klines_req_ms[sym] = now - cache_age_ms(entry.chart_updated_at_s)
+    end
+  end
+end
+
+local function persist_symbol_cache(sym)
+  local entry = state.cache[sym] or {}
+  entry.price = state.prices[sym]
+  entry.price_text = state.price_texts[sym]
+  entry.change_pct = state.change_pcts[sym]
+  entry.ticker_updated_at_s = tonumber(entry.ticker_updated_at_s) or 0
+  if state.closes_map[sym] and #state.closes_map[sym] >= 2 then
+    entry.closes = state.closes_map[sym]
+    entry.interval = INTERVAL
+    entry.limit = KLIMIT
+    entry.chart_updated_at_s = tonumber(entry.chart_updated_at_s) or 0
+  else
+    entry.closes = nil
+    entry.interval = nil
+    entry.limit = nil
+    entry.chart_updated_at_s = nil
+  end
+  state.cache[sym] = entry
+  save_cache()
+end
+
+local function kind_has_data(kind, sym)
+  if kind == "ticker" then
+    local p = state.price_texts[sym]
+    return p ~= nil and p ~= ""
+  end
+  local c = state.closes_map[sym]
+  return c ~= nil and #c >= 2
+end
+
+local function kind_due_in_ms(kind, sym, now)
+  if not kind_has_data(kind, sym) then return 0 end
+  local last = 0
+  if kind == "ticker" then
+    last = state.ticker_req_ms[sym] or 0
+  else
+    last = state.klines_req_ms[sym] or 0
+  end
+  if last <= 0 then return 0 end
+  local wait_ms = MIN_REFRESH_MS - (now - last)
+  if wait_ms < 0 then return 0 end
+  return wait_ms
 end
 
 local function commit_switch(sym, now)
@@ -99,8 +259,21 @@ local function commit_switch(sym, now)
 end
 
 local function compact_symbol(sym)
-  if string.sub(sym, -4) == "USDT" then
-    return string.sub(sym, 1, #sym - 4)
+  sym = tostring(sym or "")
+  local quote_suffixes = {
+    "USDT",
+    "USDC",
+    "BUSD",
+    "FDUSD",
+    "TUSD",
+    "EUR",
+    "USD",
+  }
+  for i = 1, #quote_suffixes do
+    local suffix = quote_suffixes[i]
+    if #sym > #suffix and string.sub(sym, -#suffix) == suffix then
+      return string.sub(sym, 1, #sym - #suffix)
+    end
   end
   return sym
 end
@@ -116,11 +289,6 @@ local function pct_color(v)
   if v > 0 then return C_UP end
   if v < 0 then return C_DOWN end
   return C_MUTED
-end
-
-local function normalize_price_text(s)
-  if not s or s == "" then return "--" end
-  return tostring(s)
 end
 
 local function fit_price_text(s)
@@ -210,6 +378,11 @@ local function parse_ticker(sym, body)
   state.prices[sym] = p_num
   state.price_texts[sym] = normalize_price_text(p_str)
   state.change_pcts[sym] = pct
+  state.ticker_req_ms[sym] = now_ms()
+  local entry = state.cache[sym] or {}
+  entry.ticker_updated_at_s = unix_time_s()
+  state.cache[sym] = entry
+  persist_symbol_cache(sym)
   return true, nil
 end
 
@@ -231,6 +404,11 @@ local function parse_klines(sym, body)
 
   if #out < 2 then return false, "BAD CLOSE" end
   state.closes_map[sym] = out
+  state.klines_req_ms[sym] = now_ms()
+  local entry = state.cache[sym] or {}
+  entry.chart_updated_at_s = unix_time_s()
+  state.cache[sym] = entry
+  persist_symbol_cache(sym)
   return true, nil
 end
 
@@ -277,7 +455,7 @@ local function note_error(err, failed_kind_override)
     end
   end
 
-  if state.backoff_ms <= 0 then state.backoff_ms = 5000 else state.backoff_ms = state.backoff_ms * 2 end
+  if state.backoff_ms <= 0 then state.backoff_ms = MIN_REFRESH_MS else state.backoff_ms = state.backoff_ms * 2 end
   if state.backoff_ms > 60000 then state.backoff_ms = 60000 end
   state.backoff_until_ms = now_ms() + state.backoff_ms
   if failed_kind == "klines" then
@@ -299,7 +477,7 @@ local function note_success(kind)
   else
     state.klines_fail_count = 0
     state.next_kind = "ticker"
-    state.cycle_due_ms = now_ms() + 15000
+    state.cycle_due_ms = now_ms() + MIN_REFRESH_MS
   end
   collectgarbage("collect")
 end
@@ -333,15 +511,51 @@ local function start_next_request()
   if state.backoff_until_ms > now then return end
   if now < (state.cycle_due_ms or 0) then return end
 
-  local kind = state.next_kind or "ticker"
   local sym = state.fetch_symbol or state.symbol
-  if kind == "klines" and (state.klines_pause_until_ms or 0) > now then
-    state.next_kind = "ticker"
-    state.cycle_due_ms = now + 15000
-    return
+  local ticker_wait_ms = kind_due_in_ms("ticker", sym, now)
+  local klines_wait_ms = kind_due_in_ms("klines", sym, now)
+  local klines_paused = (state.klines_pause_until_ms or 0) > now
+  local kind = state.next_kind or "ticker"
+
+  if kind == "ticker" and ticker_wait_ms > 0 then
+    if not klines_paused and klines_wait_ms == 0 then
+      kind = "klines"
+    else
+      local next_wait_ms = ticker_wait_ms
+      if not klines_paused and klines_wait_ms < next_wait_ms then
+        next_wait_ms = klines_wait_ms
+      end
+      if klines_paused then
+        local pause_wait_ms = state.klines_pause_until_ms - now
+        if pause_wait_ms < next_wait_ms then
+          next_wait_ms = pause_wait_ms
+        end
+      end
+      state.cycle_due_ms = now + math.max(200, next_wait_ms)
+      return
+    end
+  elseif kind == "klines" then
+    if klines_paused or klines_wait_ms > 0 then
+      if ticker_wait_ms == 0 then
+        kind = "ticker"
+      else
+        local next_wait_ms = ticker_wait_ms
+        if not klines_paused and klines_wait_ms < next_wait_ms then
+          next_wait_ms = klines_wait_ms
+        end
+        if klines_paused then
+          local pause_wait_ms = state.klines_pause_until_ms - now
+          if pause_wait_ms < next_wait_ms then
+            next_wait_ms = pause_wait_ms
+          end
+        end
+        state.cycle_due_ms = now + math.max(200, next_wait_ms)
+        return
+      end
+    end
   end
   local host_idx = state.req_host_idx or 1
-  local ttl_ms = 20 * 1000
+  local ttl_ms = MIN_REFRESH_MS
   local url = nil
   local timeout_ms = 5000
   local max_body = 2048
@@ -354,13 +568,6 @@ local function start_next_request()
     url = klines_url(sym, host_idx)
     timeout_ms = 9000
     max_body = klines_buf_size(state.active_klimit)
-    local im = interval_ms(INTERVAL)
-    if im < 30 * 1000 then
-      ttl_ms = 20 * 1000
-    else
-      -- Avoid hammering API while still refreshing around each new candle.
-      ttl_ms = im - 5000
-    end
   end
 
   sys.log(string.format(
@@ -608,11 +815,19 @@ function app.init(config)
   state.price_texts = {}
   state.change_pcts = {}
   state.closes_map = {}
+  state.cache = {}
+  state.ticker_req_ms = {}
+  state.klines_req_ms = {}
   state.active_klimit = KLIMIT
   state.klines_pause_until_ms = 0
   state.klines_fail_count = 0
   state.symbol = current_symbol()
   state.fetch_symbol = state.symbol
+
+  local cache, changed = load_cache()
+  state.cache = cache
+  hydrate_from_cache()
+  if changed then save_cache() end
 
   start_next_request()
 end
@@ -626,22 +841,22 @@ end
 function app.render_fb(fb)
   fb:fill(C_BG)
 
-  local sym = compact_symbol(state.symbol)
-  local sym = state.symbol
-  local pct_v = state.change_pcts[sym]
+  local raw_sym = state.symbol
+  local display_sym = compact_symbol(raw_sym)
+  local pct_v = state.change_pcts[raw_sym]
   local pct = pct_text(pct_v)
   local pct_c = pct_color(pct_v)
-  local price = fit_price_text(state.price_texts[sym])
+  local price = fit_price_text(state.price_texts[raw_sym])
 
   -- Row 1 (8px): symbol left, change% right
-  fb:text_box(0, -3, 32, 8, sym, C_TEXT, FONT, 8, "left", true)
+  fb:text_box(0, -3, 32, 8, display_sym, C_TEXT, FONT, 8, "left", true)
   fb:text_box(32, -3, 32, 8, pct, pct_c, FONT, 8, "right", true)
 
   -- Row 2 (8px): price
   fb:text_box(0, 5, 64, 8, price, C_TEXT, FONT, 8, "left", true)
 
   -- Row 3 (16px): chart
-  draw_chart(fb, state.closes_map[sym])
+  draw_chart(fb, state.closes_map[raw_sym])
 
   if state.last_err then
     fb:text_box(0, 24, 64, 8, tostring(state.last_err), C_DOWN, FONT, 8, "center", true)

@@ -1,0 +1,12 @@
+{
+  "app_id": "great_wave_art",
+  "name": "Great Wave Pixel",
+  "version": "1.0.3",
+  "min_fw": "0.0.0",
+  "min_api": "1.0",
+  "entry": "main.lua",
+  "layout_id": "framebuffer_rgb565",
+  "category": "art",
+  "capabilities": ["art", "media"],
+  "description": "Pixel reinterpretation of The Great Wave with moving foam."
+}

@@ -1,0 +1,14 @@
+{
+  "app_id": "centipede_dash",
+  "name": "Centipede Dash",
+  "version": "1.0.3",
+  "min_fw": "0.0.0",
+  "min_api": "1.0",
+  "entry": "main.lua",
+  "layout_id": "framebuffer_rgb565",
+  "category": "games",
+  "capabilities": [
+    "game"
+  ],
+  "description": "A long segmented crawler snakes through mushrooms under player fire."
+}

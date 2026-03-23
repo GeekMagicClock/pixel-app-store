@@ -1,0 +1,14 @@
+{
+  "app_id": "pinball_scene",
+  "name": "Pinball Scene",
+  "version": "1.0.1",
+  "min_fw": "0.0.0",
+  "min_api": "1.0",
+  "entry": "main.lua",
+  "layout_id": "framebuffer_rgb565",
+  "category": "media",
+  "capabilities": [
+    "media"
+  ],
+  "description": "Pinball attract screen with bumpers, lane lights, and a moving ball."
+}

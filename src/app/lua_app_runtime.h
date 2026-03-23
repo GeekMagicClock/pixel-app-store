@@ -77,9 +77,11 @@ class LuaAppRuntime {
   // Lua C functions we expose.
   static int LuaSysLog(lua_State* L);
   static int LuaSysNowMs(lua_State* L);
+  static int LuaSysLocalTime(lua_State* L);
   static int LuaSysUnixTime(lua_State* L);
   static int LuaSysListDir(lua_State* L);
   static int LuaDataGet(lua_State* L);
+  static int LuaDataSet(lua_State* L);
 
   void PushDataModule();
   void PushSysModule();

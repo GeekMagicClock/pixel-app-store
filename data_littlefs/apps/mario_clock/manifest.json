@@ -1,0 +1,12 @@
+{
+  "app_id": "mario_clock",
+  "name": "Mario Clock",
+  "version": "1.0.6",
+  "min_fw": "0.0.0",
+  "min_api": "1.0",
+  "entry": "main.lua",
+  "layout_id": "framebuffer_rgb565",
+  "category": "time",
+  "capabilities": ["time"],
+  "description": "8-bit platformer clock inspired by open-source Mario clock faces."
+}

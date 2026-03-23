@@ -1,0 +1,14 @@
+{
+  "app_id": "road_fighter_game",
+  "name": "Road Fighter",
+  "version": "1.0.3",
+  "min_fw": "0.0.0",
+  "min_api": "1.0",
+  "entry": "main.lua",
+  "layout_id": "framebuffer_rgb565",
+  "category": "games",
+  "capabilities": [
+    "game"
+  ],
+  "description": "An overhead racer threads heavy traffic between scrolling lane markers."
+}

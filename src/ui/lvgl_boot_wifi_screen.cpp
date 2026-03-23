@@ -187,6 +187,7 @@ static void RenderConnecting() {
   const uint32_t timeout_ms = (g_timeout_ms < 1000) ? 1000 : g_timeout_ms;
   const uint32_t pct = (elapsed_ms >= timeout_ms) ? 100 : static_cast<uint32_t>((elapsed_ms * 100) / timeout_ms);
   const uint32_t left_ms = (elapsed_ms >= timeout_ms) ? 0 : static_cast<uint32_t>(timeout_ms - elapsed_ms);
+  const bool has_ssid = g_try_ssid[0] != '\0';
 
   lv_canvas_fill_bg(g_canvas, lv_color_black(), LV_OPA_COVER);
 
@@ -194,10 +195,10 @@ static void RenderConnecting() {
   lv_canvas_init_layer(g_canvas, &layer);
 
   char ssid_short[16] = {};
-  TruncCopy(ssid_short, sizeof(ssid_short), g_try_ssid[0] ? g_try_ssid : "--", 12);
+  TruncCopy(ssid_short, sizeof(ssid_short), has_ssid ? g_try_ssid : "Starting", 12);
 
   char line0[20] = {};
-  snprintf(line0, sizeof(line0), "Try SSID");
+  snprintf(line0, sizeof(line0), "%s", has_ssid ? "Try SSID" : "BOOTING");
 
   char line1[24] = {};
   snprintf(line1, sizeof(line1), "%s", ssid_short);
@@ -344,7 +345,10 @@ void LvglShowBootWifiConnecting(const char *try_ssid, uint32_t timeout_ms) {
 
   LvglHub75SetFlushEnabled(false);
   Render();
+  LvglHub75SetFlushEnabled(true);
   lv_screen_load(g_scr);
+  lv_obj_invalidate(g_canvas);
+  g_timer = lv_timer_create(TimerCb, 120, nullptr);
 }
 
 void LvglShowBootWifiSuccess(const char *sta_ssid, const char *sta_ip) {

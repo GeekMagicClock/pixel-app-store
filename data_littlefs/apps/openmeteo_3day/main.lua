@@ -12,7 +12,9 @@ local C_MUTED = 0x9CF3
 local C_CYAN = 0x07FF
 local C_HOT = 0xF800
 local C_SUN = 0xFD20
+local C_SUN_HI = 0xFFE0
 local C_CLOUD = 0xC638
+local C_CLOUD_HI = 0xEF7D
 local C_RAIN = 0x051F
 local C_SNOW = 0xE73C
 local C_STORM = 0xFFE0
@@ -59,6 +61,19 @@ local function fill_circle(fb, cx, cy, r, c)
   end
 end
 
+local function draw_pattern(fb, x, y, pattern, palette)
+  for row = 1, #pattern do
+    local line = pattern[row]
+    for col = 1, #line do
+      local key = string.sub(line, col, col)
+      local c = palette[key]
+      if c then
+        set_px_safe(fb, x + col - 1, y + row - 1, c)
+      end
+    end
+  end
+end
+
 -- Open-Meteo weather_code -> OWM icon key.
 local function code_to_owm_icon(code)
   local c = tonumber(code) or -1
@@ -92,121 +107,127 @@ local function weekday_label(ymd)
   return zeller[h + 1] or "---"
 end
 
-local function draw_cloud(fb, cx, cy)
-  fill_circle(fb, cx - 3, cy + 1, 2, C_CLOUD)
-  fill_circle(fb, cx, cy, 3, C_CLOUD)
-  fill_circle(fb, cx + 3, cy + 1, 2, C_CLOUD)
-  hline(fb, cx - 5, cx + 5, cy + 3, C_CLOUD)
-  hline(fb, cx - 4, cx + 4, cy + 4, C_CLOUD)
+local function draw_sun_icon(fb, x, y)
+  draw_pattern(fb, x, y, {
+    "..s..s..",
+    "...sh...",
+    ".sshhhss",
+    "..hhhhh.",
+    "shhhhhhs",
+    "..hhhhh.",
+    ".sshhhss",
+    "...sh...",
+    "..s..s..",
+  }, { s = C_SUN, h = C_SUN_HI })
 end
 
-local function draw_sun(fb, cx, cy)
-  fill_circle(fb, cx, cy, 3, C_SUN)
-  set_px_safe(fb, cx, cy - 5, C_SUN)
-  set_px_safe(fb, cx, cy + 5, C_SUN)
-  set_px_safe(fb, cx - 5, cy, C_SUN)
-  set_px_safe(fb, cx + 5, cy, C_SUN)
-  set_px_safe(fb, cx - 4, cy - 4, C_SUN)
-  set_px_safe(fb, cx + 4, cy - 4, C_SUN)
-  set_px_safe(fb, cx - 4, cy + 4, C_SUN)
-  set_px_safe(fb, cx + 4, cy + 4, C_SUN)
+local function draw_cloud_icon(fb, x, y)
+  draw_pattern(fb, x, y, {
+    "...hhh....",
+    "..hcccch..",
+    ".hccccccch",
+    "hccccccccch",
+    "ccccccccccc",
+    ".ccccccccc.",
+    "..ccccccc..",
+  }, { h = C_CLOUD_HI, c = C_CLOUD })
 end
 
-local function draw_rain(fb, cx, cy)
-  vline(fb, cx - 3, cy + 4, cy + 6, C_RAIN)
-  vline(fb, cx, cy + 5, cy + 7, C_RAIN)
-  vline(fb, cx + 3, cy + 4, cy + 6, C_RAIN)
+local function draw_rain_icon(fb, x, y)
+  draw_cloud_icon(fb, x, y)
+  draw_pattern(fb, x, y + 6, {
+    ".r..r..r.",
+    "..r..r...",
+    ".r..r..r.",
+  }, { r = C_RAIN })
 end
 
-local function draw_snow(fb, cx, cy)
-  -- Extra-large single snowflake.
-  local sx = cx
-  local sy = cy + 1
-  -- center core (thicker)
-  set_px_safe(fb, sx, sy, C_SNOW)
-  set_px_safe(fb, sx - 1, sy, C_SNOW)
-  set_px_safe(fb, sx + 1, sy, C_SNOW)
-  set_px_safe(fb, sx, sy - 1, C_SNOW)
-  set_px_safe(fb, sx, sy + 1, C_SNOW)
-  -- long cross arms
-  set_px_safe(fb, sx - 3, sy, C_SNOW)
-  set_px_safe(fb, sx - 2, sy, C_SNOW)
-  set_px_safe(fb, sx + 2, sy, C_SNOW)
-  set_px_safe(fb, sx + 3, sy, C_SNOW)
-  set_px_safe(fb, sx, sy - 3, C_SNOW)
-  set_px_safe(fb, sx, sy - 2, C_SNOW)
-  set_px_safe(fb, sx, sy + 2, C_SNOW)
-  set_px_safe(fb, sx, sy + 3, C_SNOW)
-  -- stronger diagonals
-  set_px_safe(fb, sx - 2, sy - 2, C_SNOW)
-  set_px_safe(fb, sx + 2, sy - 2, C_SNOW)
-  set_px_safe(fb, sx - 2, sy + 2, C_SNOW)
-  set_px_safe(fb, sx + 2, sy + 2, C_SNOW)
-  set_px_safe(fb, sx - 1, sy - 1, C_SNOW)
-  set_px_safe(fb, sx + 1, sy - 1, C_SNOW)
-  set_px_safe(fb, sx - 1, sy + 1, C_SNOW)
-  set_px_safe(fb, sx + 1, sy + 1, C_SNOW)
+local function draw_snow_icon(fb, x, y)
+  draw_cloud_icon(fb, x, y)
+  draw_pattern(fb, x + 1, y + 6, {
+    ".*...*...",
+    "..*.*....",
+    ".*...*...",
+  }, { ["*"] = C_SNOW })
 end
 
-local function draw_storm(fb, cx, cy)
-  -- A bigger zig-zag bolt so it stays visible on 64x32.
-  set_px_safe(fb, cx + 1, cy + 3, C_STORM)
-  set_px_safe(fb, cx + 0, cy + 4, C_STORM)
-  set_px_safe(fb, cx + 1, cy + 4, C_STORM)
-  set_px_safe(fb, cx + 2, cy + 4, C_STORM)
-  set_px_safe(fb, cx + 0, cy + 5, C_STORM)
-  set_px_safe(fb, cx + 1, cy + 5, C_STORM)
-  set_px_safe(fb, cx + 1, cy + 6, C_STORM)
-  set_px_safe(fb, cx + 2, cy + 6, C_STORM)
-  set_px_safe(fb, cx + 1, cy + 7, C_STORM)
+local function draw_storm_icon(fb, x, y)
+  draw_cloud_icon(fb, x, y)
+  draw_pattern(fb, x + 3, y + 6, {
+    "..t.",
+    ".tt.",
+    ".t..",
+    ".tt.",
+    "..t.",
+  }, { t = C_STORM })
 end
 
-local function draw_fog(fb, cx, cy)
-  -- Lift mist by 2px to align with other icons.
-  hline(fb, cx - 5, cx + 5, cy + 0, C_MUTED)
-  hline(fb, cx - 4, cx + 4, cy + 2, C_MUTED)
-  hline(fb, cx - 5, cx + 5, cy + 4, C_MUTED)
+local function draw_fog_icon(fb, x, y)
+  draw_pattern(fb, x, y + 1, {
+    "...hhh....",
+    "..hcccch..",
+    ".ccccccccc",
+    "cccccccccc.",
+  }, { h = C_CLOUD_HI, c = C_CLOUD })
+  draw_pattern(fb, x + 1, y + 5, {
+    "mmmmmmmmm",
+    ".mmmmmmm.",
+    "mmmmmmmmm",
+  }, { m = C_MUTED })
+end
+
+local function draw_partly_icon(fb, x, y)
+  draw_pattern(fb, x, y, {
+    ".s..s...",
+    "..sh....",
+    "sshhhss.",
+    "..hhhhh.",
+    ".hccccch",
+    "cccccccc",
+    ".cccccc.",
+  }, { s = C_SUN, h = C_SUN_HI, c = C_CLOUD })
 end
 
 local function draw_owm_icon(fb, icon, cx, cy)
+  local x = cx - 5
+  local y = cy - 4
   if icon == "01d" then
-    draw_sun(fb, cx, cy)
+    draw_sun_icon(fb, x + 1, y)
     return
   end
   if icon == "02d" then
-    draw_sun(fb, cx - 2, cy - 1)
-    draw_cloud(fb, cx + 1, cy + 1)
+    draw_partly_icon(fb, x, y)
     return
   end
   if icon == "03d" or icon == "04d" then
-    draw_cloud(fb, cx, cy)
+    draw_cloud_icon(fb, x, y + 1)
     return
   end
   if icon == "09d" then
-    draw_cloud(fb, cx, cy)
-    draw_rain(fb, cx, cy)
+    draw_rain_icon(fb, x, y)
     return
   end
   if icon == "10d" then
-    draw_sun(fb, cx - 2, cy - 1)
-    draw_cloud(fb, cx + 1, cy + 1)
-    draw_rain(fb, cx + 1, cy + 1)
+    draw_partly_icon(fb, x, y)
+    draw_pattern(fb, x + 2, y + 7, {
+      "r..r..r",
+      ".r..r..",
+    }, { r = C_RAIN })
     return
   end
   if icon == "11d" then
-    draw_cloud(fb, cx, cy)
-    draw_storm(fb, cx, cy)
+    draw_storm_icon(fb, x, y)
     return
   end
   if icon == "13d" then
-    draw_snow(fb, cx, cy)
+    draw_snow_icon(fb, x, y)
     return
   end
   if icon == "50d" then
-    draw_fog(fb, cx, cy)
+    draw_fog_icon(fb, x, y)
     return
   end
-  draw_cloud(fb, cx, cy)
+  draw_cloud_icon(fb, x, y + 1)
 end
 
 local function handle_response(status, body)

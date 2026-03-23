@@ -1,0 +1,14 @@
+{
+  "app_id": "breakout_blitz",
+  "name": "Breakout Blitz",
+  "version": "1.0.2",
+  "min_fw": "0.0.0",
+  "min_api": "1.0",
+  "entry": "main.lua",
+  "layout_id": "framebuffer_rgb565",
+  "category": "games",
+  "capabilities": [
+    "game"
+  ],
+  "description": "Auto paddle and ricochet ball chew through a flashing brick wall."
+}

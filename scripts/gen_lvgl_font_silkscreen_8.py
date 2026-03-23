@@ -77,6 +77,12 @@ def main():
         ofs_x = g.bitmap_left
         ofs_y = g.bitmap_top - box_h
         adv_px = g.advance.x >> 6
+        # The stock 8px Silkscreen bitmap leaves 2px between adjacent glyphs
+        # because most glyphs have a 1px left bearing and a 1px right bearing.
+        # Keep the 1px left bearing for clarity, but remove the extra right
+        # bearing so the visible gap between neighboring glyphs becomes 1px.
+        if cp != 0x20 and box_w > 0:
+            adv_px = ofs_x + box_w
         adv_w = adv_px * 16
 
         if box_w == 0 or box_h == 0:

@@ -1,0 +1,14 @@
+{
+  "app_id": "desert_sun_scene",
+  "name": "Desert Sun Scene",
+  "version": "1.0.2",
+  "min_fw": "0.0.0",
+  "min_api": "1.0",
+  "entry": "main.lua",
+  "layout_id": "framebuffer_rgb565",
+  "category": "media",
+  "capabilities": [
+    "media"
+  ],
+  "description": "Desert sunset with cactus silhouette and layered dunes."
+}

@@ -1,6 +1,6 @@
 # App Store Packaging
 
-Build zip packages and `apps-index.json` from local apps:
+Build zip packages and a gzip-served `apps-index.json` from local apps:
 
 ```bash
 # 1) Capture real thumbnails from device (recommended, matches actual screen)
@@ -46,7 +46,8 @@ python3 python/publish_store.py
 Default publish target:
 - SSH: `root@111.229.177.3:/root/fw/pixel64x32V2/apps`
 - SSH key: `~/.ssh/t20260309.pem`
-- Store index: `http://111.229.177.3:8001/fw/pixel64x32V2/apps/apps-index.json`
+- Store index: `http://ota.geekmagic.cc:8001/fw/pixel64x32V2/apps/apps-index.json`
+  On the server this is transmitted with `Content-Encoding: gzip` from `apps-index.json.gz`.
 - Package entry: `app.bin` by default
 
 Useful options:
@@ -67,13 +68,13 @@ python3 python/publish_store.py --plain-lua
 
 Optional thumbnail:
 - Put one of these files in each app folder: `thumbnail.png` / `thumbnail.jpg` / `thumbnail.jpeg` / `thumb.png` / `preview.png`
-- Script will copy it to `dist/store/thumbs/` and write `thumbnail_url` into `apps-index.json`.
+- Script will copy it to `dist/store/thumbs/` and write `thumbnail_url` into the store index.
 
 On device, open:
 
 - `http://<device-ip>/api/store/ui`
 
-The page loads `apps-index.json`, downloads a zip, unpacks in browser, and uploads files to the device via `/api/apps/<app_id>/<file>`.
+The page loads `apps-index.json` over gzip transport, downloads a zip, unpacks in browser, and uploads files to the device via `/api/apps/<app_id>/<file>`.
 
 Capture API:
 - `GET /api/screen/capture.ppm` returns current 64x32 frame as PPM(P6), used by `capture_real_thumbnails.py`.

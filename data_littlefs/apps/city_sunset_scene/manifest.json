@@ -1,0 +1,14 @@
+{
+  "app_id": "city_sunset_scene",
+  "name": "City Sunset Scene",
+  "version": "1.0.8",
+  "min_fw": "0.0.0",
+  "min_api": "1.0",
+  "entry": "main.lua",
+  "layout_id": "framebuffer_rgb565",
+  "category": "media",
+  "capabilities": [
+    "media"
+  ],
+  "description": "A slow sunset-to-night skyline with falling sun, fading windows, stars, and neon."
+}

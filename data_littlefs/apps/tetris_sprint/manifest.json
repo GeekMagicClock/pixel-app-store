@@ -1,0 +1,14 @@
+{
+  "app_id": "tetris_sprint",
+  "name": "Tetris Sprint",
+  "version": "1.0.2",
+  "min_fw": "0.0.0",
+  "min_api": "1.0",
+  "entry": "main.lua",
+  "layout_id": "framebuffer_rgb565",
+  "category": "games",
+  "capabilities": [
+    "game"
+  ],
+  "description": "Auto-play falling blocks with line clears and stack pressure."
+}

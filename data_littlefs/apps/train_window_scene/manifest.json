@@ -1,0 +1,14 @@
+{
+  "app_id": "train_window_scene",
+  "name": "Train Window Scene",
+  "version": "1.0.1",
+  "min_fw": "0.0.0",
+  "min_api": "1.0",
+  "entry": "main.lua",
+  "layout_id": "framebuffer_rgb565",
+  "category": "media",
+  "capabilities": [
+    "media"
+  ],
+  "description": "Window-seat landscape scene with passing poles and horizon streaks."
+}

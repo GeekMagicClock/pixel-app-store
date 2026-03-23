@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import gzip
 import hashlib
 import json
 import pathlib
@@ -8,6 +9,18 @@ import subprocess
 import tempfile
 import zipfile
 from datetime import datetime, timezone
+
+CATEGORY_ORDER = ['finance', 'time', 'weather', 'sports', 'games', 'art', 'media', 'other']
+CATEGORY_LABELS = {
+    'finance': 'Finance',
+    'time': 'Time',
+    'weather': 'Weather',
+    'sports': 'Sports',
+    'games': 'Games',
+    'art': 'Art',
+    'media': 'Media',
+    'other': 'Other',
+}
 
 
 def sha256_file(path: pathlib.Path) -> str:
@@ -130,9 +143,82 @@ def find_thumbnail(app_dir: pathlib.Path) -> pathlib.Path | None:
         return candidates[0]
     return None
 
+
+def normalize_category(raw: str) -> str:
+    key = str(raw or '').strip().lower()
+    return key if key in CATEGORY_LABELS else ''
+
+
+def category_from_capabilities(manifest: dict) -> str:
+    caps = manifest.get('capabilities')
+    if not isinstance(caps, list):
+        return ''
+    values = {str(item).strip().lower() for item in caps if str(item).strip()}
+    if {'finance', 'stocks', 'stock', 'crypto', 'market'} & values:
+        return 'finance'
+    if {'time', 'clock', 'calendar'} & values:
+        return 'time'
+    if {'weather', 'forecast'} & values:
+        return 'weather'
+    if {'sports', 'sport', 'score'} & values:
+        return 'sports'
+    if {'game', 'games', 'arcade', 'play'} & values:
+        return 'games'
+    if {'art', 'painting', 'paintings', 'masterpiece', 'museum'} & values:
+        return 'art'
+    if {'media', 'image', 'photo', 'gif', 'video'} & values:
+        return 'media'
+    return ''
+
+
+def category_from_keywords(app_id: str, manifest: dict) -> str:
+    parts = [
+        str(app_id or ''),
+        str(manifest.get('name', '') or ''),
+        str(manifest.get('description', '') or ''),
+    ]
+    hay = ' '.join(parts).lower()
+
+    if any(token in hay for token in ('binance', 'coingecko', 'ticker', 'stocks', 'stock', 'crypto', 'market', 'chart')):
+        return 'finance'
+    if any(token in hay for token in ('weather', 'meteo', 'sunrise', 'sunset', 'forecast', 'owm')):
+        return 'weather'
+    if any(token in hay for token in ('clock', 'time', 'moon', 'phase', 'calendar')):
+        return 'time'
+    if any(token in hay for token in ('sports', 'score', 'match', 'fixture', 'nba', 'nfl', 'mlb', 'epl', 'soccer', 'football')):
+        return 'sports'
+    if any(token in hay for token in ('snake', 'game', 'arcade', 'play', 'puzzle')):
+        return 'games'
+    if any(token in hay for token in ('_art', ' art', 'painting', 'paintings', 'masterpiece', 'museum', 'starry night', 'great wave', 'scream', 'sunflowers')):
+        return 'art'
+    if any(token in hay for token in ('media', 'gallery', 'gif', 'photo', 'image', 'video')):
+        return 'media'
+    return ''
+
+
 def detect_category(app_id: str, manifest: dict) -> str:
-    c = str(manifest.get('category', '')).strip().lower()
-    return c if c else 'other'
+    explicit = normalize_category(manifest.get('category', ''))
+    if explicit:
+        return explicit
+    by_caps = category_from_capabilities(manifest)
+    if by_caps:
+        return by_caps
+    by_keywords = category_from_keywords(app_id, manifest)
+    if by_keywords:
+        return by_keywords
+    return 'other'
+
+
+def clean_output_dir(out_dir: pathlib.Path) -> None:
+    for item in out_dir.iterdir():
+        if item.name in ('apps-index.json', 'apps-index.json.gz') and item.is_file():
+            item.unlink()
+            continue
+        if item.name == 'thumbs' and item.is_dir():
+            shutil.rmtree(item)
+            continue
+        if item.suffix == '.zip' and item.is_file():
+            item.unlink()
 
 
 def main() -> None:
@@ -148,6 +234,7 @@ def main() -> None:
     apps_root = pathlib.Path(args.apps_root)
     out_dir = pathlib.Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    clean_output_dir(out_dir)
     thumbs_dir = out_dir / 'thumbs'
     thumbs_dir.mkdir(parents=True, exist_ok=True)
     if args.lua_bytecode:
@@ -205,9 +292,12 @@ def main() -> None:
     index = {
         'schema': 1,
         'generated_at': datetime.now(timezone.utc).isoformat(),
+        'category_order': CATEGORY_ORDER,
+        'category_labels': CATEGORY_LABELS,
         'apps': apps,
     }
-    (out_dir / 'apps-index.json').write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding='utf-8')
+    index_bytes = json.dumps(index, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+    (out_dir / 'apps-index.json.gz').write_bytes(gzip.compress(index_bytes, compresslevel=9, mtime=0))
     print(f'Wrote {len(apps)} app(s) to {out_dir}')
 
 

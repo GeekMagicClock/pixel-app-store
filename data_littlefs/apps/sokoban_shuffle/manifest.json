@@ -1,0 +1,14 @@
+{
+  "app_id": "sokoban_shuffle",
+  "name": "Sokoban Shuffle",
+  "version": "1.0.2",
+  "min_fw": "0.0.0",
+  "min_api": "1.0",
+  "entry": "main.lua",
+  "layout_id": "framebuffer_rgb565",
+  "category": "games",
+  "capabilities": [
+    "game"
+  ],
+  "description": "Warehouse crates slide into target slots through a clean auto-solved route."
+}

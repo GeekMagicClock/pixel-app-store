@@ -30,10 +30,15 @@ local base_hosts = {
   "https://data-api.binance.vision",
 }
 
+local ROTATE_INTERVAL_MS = tonumber(data.get("binance_ticker.rotate_interval_ms") or 5000) or 5000
+if ROTATE_INTERVAL_MS < 5000 then ROTATE_INTERVAL_MS = 5000 end
+local MIN_REFRESH_MS = 10000
+local CACHE_KEY = "binance_ticker.cache.v1"
+
 local state = {
   idx = 1,
   last_rotate_ms = 0,
-  rotate_interval_ms = 4000,
+  rotate_interval_ms = ROTATE_INTERVAL_MS,
   req_id = nil,
   req_symbol = nil,
   req_host_idx = 1,
@@ -43,6 +48,7 @@ local state = {
   price_text = {},
   change_pct = {},
   last_req_ms = {},
+  cache = {},
 }
 
 local function now_ms()
@@ -58,6 +64,101 @@ local function compact_symbol(sym)
     return string.sub(sym, 1, #sym - 4)
   end
   return sym
+end
+
+local function normalize_price_text(s)
+  if not s or s == "" then return "--" end
+  return tostring(s)
+end
+
+local function symbol_exists(sym)
+  for i = 1, #symbols do
+    if symbols[i] == sym then return true end
+  end
+  return false
+end
+
+local function unix_time_s()
+  return tonumber(sys.unix_time() or 0) or 0
+end
+
+local function cache_age_ms(updated_at_s)
+  local now_s = unix_time_s()
+  local ts = tonumber(updated_at_s or 0) or 0
+  if now_s <= 0 or ts <= 0 or ts > now_s then return MIN_REFRESH_MS end
+  local age_ms = (now_s - ts) * 1000
+  if age_ms < 0 then return MIN_REFRESH_MS end
+  local max_age_ms = 7 * 24 * 60 * 60 * 1000
+  if age_ms > max_age_ms then age_ms = max_age_ms end
+  return age_ms
+end
+
+local function normalize_cache_entry(entry)
+  if type(entry) ~= "table" then return nil end
+  local out = {
+    price = tonumber(entry.price),
+    price_text = normalize_price_text(entry.price_text),
+    change_pct = tonumber(entry.change_pct),
+    updated_at_s = tonumber(entry.updated_at_s) or 0,
+  }
+  if (out.price == nil) and (out.price_text == "--") and (out.change_pct == nil) then
+    return nil
+  end
+  return out
+end
+
+local function load_cache()
+  if not data or type(data.get) ~= "function" then
+    return {}, false
+  end
+  local raw = data.get(CACHE_KEY)
+  local cache = {}
+  local changed = false
+  if type(raw) == "table" then
+    for sym, entry in pairs(raw) do
+      if symbol_exists(sym) then
+        local norm = normalize_cache_entry(entry)
+        if norm then
+          cache[sym] = norm
+        else
+          changed = true
+        end
+      else
+        changed = true
+      end
+    end
+  end
+  return cache, changed
+end
+
+local function save_cache()
+  if not data or type(data.set) ~= "function" then
+    return
+  end
+  local ok = data.set(CACHE_KEY, state.cache)
+  if ok == false then
+    sys.log("binance_ticker cache save failed")
+  end
+end
+
+local function hydrate_from_cache()
+  local now = now_ms()
+  for sym, entry in pairs(state.cache) do
+    if entry.price ~= nil then state.prices[sym] = entry.price end
+    if entry.price_text and entry.price_text ~= "" then state.price_text[sym] = entry.price_text end
+    if entry.change_pct ~= nil then state.change_pct[sym] = entry.change_pct end
+    state.last_req_ms[sym] = now - cache_age_ms(entry.updated_at_s)
+  end
+end
+
+local function update_cache_entry(sym)
+  state.cache[sym] = {
+    price = state.prices[sym],
+    price_text = state.price_text[sym],
+    change_pct = state.change_pct[sym],
+    updated_at_s = unix_time_s(),
+  }
+  save_cache()
 end
 
 local function symbol_initial(sym)
@@ -103,6 +204,8 @@ local function update_from_body(sym, body)
   state.change_pct[sym] = pct
   state.last_ok_ms = now_ms()
   state.last_err = nil
+  state.last_req_ms[sym] = now_ms()
+  update_cache_entry(sym)
   return true
 end
 
@@ -138,8 +241,7 @@ local function maybe_fetch(sym)
 
   local now = now_ms()
   local last = state.last_req_ms[sym] or 0
-  local refresh_ms = 15 * 1000
-  if state.last_err then refresh_ms = 5000 end
+  local refresh_ms = MIN_REFRESH_MS
   if now - last < refresh_ms then return end
 
   start_fetch(sym)
@@ -191,6 +293,12 @@ function app.init(config)
   state.price_text = {}
   state.change_pct = {}
   state.last_req_ms = {}
+  state.cache = {}
+
+  local cache, changed = load_cache()
+  state.cache = cache
+  hydrate_from_cache()
+  if changed then save_cache() end
 
   maybe_fetch(current_symbol())
 end

@@ -333,19 +333,32 @@
       accent-color: var(--accent);
     }
 
-    .wifi-grid,
-    .card-grid {
+    .wifi-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
       gap: 12px;
     }
 
-    .wifi-item,
-    .app-card {
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(188px, 1fr));
+      gap: 10px;
+    }
+
+    .wifi-item {
       display: grid;
       gap: 10px;
       padding: 14px;
       border-radius: 16px;
+      border: 1px solid rgba(143, 64, 29, 0.12);
+      background: rgba(255, 255, 255, 0.78);
+    }
+
+    .app-card {
+      display: grid;
+      gap: 8px;
+      padding: 10px;
+      border-radius: 14px;
       border: 1px solid rgba(143, 64, 29, 0.12);
       background: rgba(255, 255, 255, 0.78);
     }
@@ -361,7 +374,8 @@
     .ssid,
     .app-name {
       margin: 0;
-      font-size: 16px;
+      font-size: 15px;
+      line-height: 1.15;
       font-weight: 800;
       letter-spacing: -0.02em;
       word-break: break-word;
@@ -371,7 +385,7 @@
     .app-meta {
       margin: 0;
       color: var(--muted);
-      font: 600 12px/1.4 var(--font-mono);
+      font: 600 11px/1.35 var(--font-mono);
     }
 
     .strength {
@@ -382,8 +396,8 @@
     }
 
     .thumb {
-      height: 120px;
-      border-radius: 14px;
+      height: 96px;
+      border-radius: 12px;
       overflow: hidden;
       background: linear-gradient(135deg, #2d261f, #5b4230);
       display: flex;
@@ -401,20 +415,91 @@
 
     .thumb-fallback {
       color: rgba(255, 255, 255, 0.8);
-      font: 800 32px/1 var(--font-mono);
+      font: 800 28px/1 var(--font-mono);
     }
 
     .app-desc {
       margin: 0;
       color: var(--muted);
-      min-height: 2.8em;
-      line-height: 1.4;
-      font-size: 13px;
+      line-height: 1.35;
+      font-size: 12px;
+      min-height: 0;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
     }
 
     .status-row {
       color: var(--muted);
-      font-size: 13px;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .app-card .toolbar {
+      gap: 8px;
+    }
+
+    .app-card .toolbar button {
+      flex: 1 1 calc(50% - 4px);
+      padding: 9px 10px;
+      font-size: 12px;
+    }
+
+    .storage-card {
+      display: grid;
+      gap: 10px;
+      padding: 14px;
+      border-radius: 16px;
+      border: 1px solid rgba(143, 64, 29, 0.1);
+      background: rgba(255, 255, 255, 0.78);
+    }
+
+    .storage-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+    }
+
+    .storage-usage,
+    .storage-percent {
+      margin: 0;
+      font-family: var(--font-mono);
+    }
+
+    .storage-usage {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .storage-percent {
+      color: var(--accent-strong);
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+    }
+
+    .capacity-track {
+      height: 12px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: rgba(84, 69, 58, 0.12);
+      border: 1px solid rgba(143, 64, 29, 0.1);
+    }
+
+    .capacity-bar {
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #b8582f, #e08a45);
+      transition: width 0.18s ease;
+    }
+
+    .capacity-meta {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
       line-height: 1.4;
     }
 
@@ -740,6 +825,16 @@
                 <h2 class="panel-title">System API</h2>
                 <span class="code-note">Embedded page: /f.html</span>
               </div>
+              <div class="storage-card" style="margin-bottom: 12px;">
+                <div class="storage-head">
+                  <p class="storage-usage" id="storageUsage">-- / --</p>
+                  <p class="storage-percent" id="storagePercent">--%</p>
+                </div>
+                <div class="capacity-track">
+                  <div class="capacity-bar" id="storageBar"></div>
+                </div>
+                <p class="capacity-meta" id="storageMeta">LittleFS usage is unavailable.</p>
+              </div>
               <p class="panel-note">This UI is built from <code>webpages/f.html</code>, gzip-compressed at build time, then embedded as a generated header in the firmware image.</p>
               <div class="kv-grid" style="margin-top: 12px;">
                 <div class="kv">
@@ -821,6 +916,7 @@
     };
 
     const LS_KEY = "pixel_store_index_url";
+    const FORCED_STORE_INDEX_URL = "http://ota.geekmagic.cc:8001/fw/pixel64x32V2/apps/apps-index.json";
     const logEl = document.getElementById("log");
     const badgeVersionEl = document.getElementById("badgeVersion");
     const badgeModeEl = document.getElementById("badgeMode");
@@ -844,6 +940,10 @@
     const otaProgressBarEl = document.getElementById("otaProgressBar");
     const otaPercentEl = document.getElementById("otaPercent");
     const otaBytesEl = document.getElementById("otaBytes");
+    const storageUsageEl = document.getElementById("storageUsage");
+    const storagePercentEl = document.getElementById("storagePercent");
+    const storageBarEl = document.getElementById("storageBar");
+    const storageMetaEl = document.getElementById("storageMeta");
 
     function esc(value) {
       return String(value ?? "")
@@ -869,6 +969,12 @@
       if (value < 1024) return Math.round(value) + " B";
       if (value < 1024 * 1024) return (value / 1024).toFixed(1) + " KB";
       return (value / (1024 * 1024)).toFixed(2) + " MB";
+    }
+
+    function clampPercent(value) {
+      const pct = Number(value);
+      if (!Number.isFinite(pct)) return 0;
+      return Math.max(0, Math.min(100, Math.round(pct)));
     }
 
     function setOtaOverlay({ visible, title, detail, loaded, total }) {
@@ -1048,6 +1154,11 @@
         .replace(/\b[a-z]/g, (m) => m.toUpperCase());
     }
 
+    function appVersionMeta(version) {
+      const v = String(version || "").trim();
+      return v ? "Version " + v : "Version --";
+    }
+
     function appStatus(item) {
       const id = String(item.id || item.app_id || "");
       const local = state.installedById[id];
@@ -1085,6 +1196,16 @@
       const brightness = Number(status?.display?.brightness ?? 64);
       brightnessSliderEl.value = String(brightness);
       brightnessValueEl.textContent = String(brightness);
+
+      const totalBytes = Number(status?.storage?.total_bytes || 0);
+      const usedBytes = Number(status?.storage?.used_bytes || 0);
+      const usedPct = clampPercent(status?.storage?.used_pct ?? (totalBytes > 0 ? (usedBytes * 100) / totalBytes : 0));
+      storagePercentEl.textContent = totalBytes > 0 ? usedPct + "%" : "--%";
+      storageUsageEl.textContent = totalBytes > 0 ? formatBytes(usedBytes) + " / " + formatBytes(totalBytes) : "-- / --";
+      storageBarEl.style.width = (totalBytes > 0 ? usedPct : 0) + "%";
+      storageMetaEl.textContent = totalBytes > 0
+        ? formatBytes(usedBytes) + " used in LittleFS app storage."
+        : "LittleFS usage is unavailable.";
 
       if (!wifiSsidEl.value && status?.wifi?.saved_ssid) {
         wifiSsidEl.value = status.wifi.saved_ssid;
@@ -1124,7 +1245,7 @@
     function renderInstalledApps() {
       installedAppsGridEl.innerHTML = "";
       const items = state.installedApps.slice().sort((a, b) =>
-        String(a.id || "").localeCompare(String(b.id || ""))
+        String(a.name || a.id || "").localeCompare(String(b.name || b.id || ""))
       );
       if (!items.length) {
         installedAppsGridEl.innerHTML = '<div class="muted">No installed apps</div>';
@@ -1138,14 +1259,13 @@
         const card = document.createElement("div");
         card.className = "app-card";
         card.innerHTML = `
-          <div class="thumb">${thumb ? `<img loading="lazy" src="${esc(thumb)}" alt="${esc(title)}" />` : `<div class="thumb-fallback">${esc((id[0] || "?").toUpperCase())}</div>`}</div>
+          <div class="thumb">${thumb ? `<img loading="lazy" src="${esc(thumb)}" alt="${esc(title)}" />` : `<div class="thumb-fallback">${esc((title[0] || id[0] || "?").toUpperCase())}</div>`}</div>
           <div class="app-top">
             <div>
               <p class="app-name">${esc(title)}</p>
-              <p class="app-meta">${esc(id)} · v${esc(version || "?")}</p>
+              <p class="app-meta">${esc(appVersionMeta(version))}</p>
             </div>
           </div>
-          <p class="app-desc">Installed on device.</p>
           <div class="status-row"><span class="status-ok">Ready</span></div>
           <div class="toolbar">
             <button type="button" data-a="run">Run</button>
@@ -1228,18 +1348,19 @@
             : version && semverCmp(version, local.version) > 0
               ? "Update"
               : "Reinstall";
+          const descHtml = desc ? `<p class="app-desc">${esc(desc)}</p>` : "";
 
           const card = document.createElement("div");
           card.className = "app-card";
           card.innerHTML = `
-            <div class="thumb">${thumb ? `<img loading="lazy" src="${esc(thumb)}" alt="${esc(titleText)}" />` : `<div class="thumb-fallback">${esc((id[0] || "?").toUpperCase())}</div>`}</div>
+            <div class="thumb">${thumb ? `<img loading="lazy" src="${esc(thumb)}" alt="${esc(titleText)}" />` : `<div class="thumb-fallback">${esc((titleText[0] || id[0] || "?").toUpperCase())}</div>`}</div>
             <div class="app-top">
               <div>
                 <p class="app-name">${esc(titleText)}</p>
-                <p class="app-meta">${esc(id)} · v${esc(version || "?")}</p>
+                <p class="app-meta">${esc(appVersionMeta(version))}</p>
               </div>
             </div>
-            <p class="app-desc">${esc(desc)}</p>
+            ${descHtml}
             <div class="status-row">${appStatus(item)}</div>
             <div class="toolbar">
               <button type="button" data-a="install">${esc(installLabel)}</button>
@@ -1311,7 +1432,10 @@
     }
 
     async function loadStoreIndex() {
-      const url = indexUrlEl.value.trim();
+      const url = FORCED_STORE_INDEX_URL;
+      if (indexUrlEl.value !== url) {
+        indexUrlEl.value = url;
+      }
       if (!url) {
         state.storeApps = [];
         storeMetaEl.textContent = "No catalog loaded.";
@@ -1597,10 +1721,10 @@
       setTab(location.hash === "#apps" ? "apps" : "system");
 
       try {
-        const storeConfig = await apiJson("GET", "/api/store/index");
-        indexUrlEl.value = localStorage.getItem(LS_KEY) || storeConfig.default_index_url || "";
+        localStorage.setItem(LS_KEY, FORCED_STORE_INDEX_URL);
+        indexUrlEl.value = FORCED_STORE_INDEX_URL;
       } catch (error) {
-        log("failed to load store index config: " + String(error.message || error), "status-bad");
+        log("failed to apply forced store index: " + String(error.message || error), "status-bad");
       }
 
       try {

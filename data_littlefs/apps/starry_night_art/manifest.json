@@ -1,0 +1,12 @@
+{
+  "app_id": "starry_night_art",
+  "name": "Starry Night Pixel",
+  "version": "1.0.0",
+  "min_fw": "0.0.0",
+  "min_api": "1.0",
+  "entry": "main.lua",
+  "layout_id": "framebuffer_rgb565",
+  "category": "art",
+  "capabilities": ["art", "media"],
+  "description": "Pixel reinterpretation of Starry Night with animated swirls."
+}

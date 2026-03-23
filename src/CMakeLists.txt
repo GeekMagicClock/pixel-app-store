@@ -21,6 +21,7 @@ endif()
 idf_component_register(
   SRCS
     "main.cpp"
+    "app/buzzer.cpp"
     "app/hub75_config.cpp"
     "app/app_update_server.cpp"
     "app/display_control.cpp"
@@ -44,6 +45,7 @@ idf_component_register(
     lvgl
     lua
     json
+    driver
     esp_event
     esp_netif
     esp_wifi

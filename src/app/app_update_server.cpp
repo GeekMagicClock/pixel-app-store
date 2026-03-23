@@ -12,6 +12,7 @@
 #include "cJSON.h"
 #include "app/display_control.h"
 #include "app/wifi_manager.h"
+#include "esp_littlefs.h"
 #include "esp_ota_ops.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
@@ -27,7 +28,7 @@ static httpd_handle_t g_httpd = nullptr;
 static AppUpdateReloadCallback g_reload_cb = nullptr;
 static AppUpdateSwitchCallback g_switch_cb = nullptr;
 static const char* kDefaultStoreIndexUrl =
-    "http://111.229.177.3:8001/fw/pixel64x32V2/apps/apps-index.json";
+    "http://ota.geekmagic.cc:8001/fw/pixel64x32V2/apps/apps-index.json";
 
 static bool EnsureDir(const char* path) {
   if (!path || !*path) return false;
@@ -403,6 +404,29 @@ static bool AppHasThumbnail(const std::string& app_id) {
   return false;
 }
 
+static bool AppHasLoadableEntry(const std::string& app_id) {
+  if (!IsValidAppId(app_id)) return false;
+  const std::string app_dir = std::string("/littlefs/apps/") + app_id;
+  struct stat st = {};
+
+  std::string entry;
+  if (ReadAppManifestString(app_id, "entry", &entry)) {
+    const bool safe_rel = !entry.empty() && entry.front() != '/' && entry.find("..") == std::string::npos;
+    if (safe_rel) {
+      const std::string configured = app_dir + "/" + entry;
+      if (stat(configured.c_str(), &st) == 0 && S_ISREG(st.st_mode)) return true;
+    }
+  }
+
+  const std::string main_lua = app_dir + "/main.lua";
+  if (stat(main_lua.c_str(), &st) == 0 && S_ISREG(st.st_mode)) return true;
+
+  const std::string app_bin = app_dir + "/app.bin";
+  if (stat(app_bin.c_str(), &st) == 0 && S_ISREG(st.st_mode)) return true;
+
+  return false;
+}
+
 static bool SendFile(httpd_req_t* req, const std::string& path, const char* content_type) {
   FILE* f = fopen(path.c_str(), "rb");
   if (!f) return false;
@@ -694,8 +718,7 @@ static esp_err_t HandleInstalledApps(httpd_req_t* req) {
     struct stat st = {};
     if (stat(app_dir.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)) continue;
 
-    const std::string main_lua = app_dir + "/main.lua";
-    if (stat(main_lua.c_str(), &st) != 0 || !S_ISREG(st.st_mode)) continue;
+    if (!AppHasLoadableEntry(app_id)) continue;
 
     std::string version;
     (void)ReadAppVersion(app_id, &version);
@@ -758,6 +781,13 @@ static esp_err_t HandleSystemStatus(httpd_req_t* req) {
 
   const esp_partition_t* running = esp_ota_get_running_partition();
   const esp_app_desc_t* desc = esp_app_get_description();
+  size_t littlefs_total = 0;
+  size_t littlefs_used = 0;
+  const bool littlefs_ok = esp_littlefs_info("littlefs", &littlefs_total, &littlefs_used) == ESP_OK;
+  const unsigned littlefs_pct =
+      (littlefs_ok && littlefs_total > 0)
+          ? static_cast<unsigned>(((littlefs_used * 100U) + (littlefs_total / 2U)) / littlefs_total)
+          : 0U;
 
   std::string body = "{\"ok\":true,\"firmware\":{\"project\":\"";
   AppendJsonEscaped(&body, desc ? desc->project_name : "unknown");
@@ -767,6 +797,14 @@ static esp_err_t HandleSystemStatus(httpd_req_t* req) {
   AppendJsonEscaped(&body, running ? running->label : "?");
   body += "\"},\"display\":{\"brightness\":";
   body += std::to_string(static_cast<unsigned>(DisplayControlGetBrightness()));
+  body += "},\"storage\":{\"mounted\":";
+  body += littlefs_ok ? "true" : "false";
+  body += ",\"used_bytes\":";
+  body += std::to_string(static_cast<unsigned long long>(littlefs_used));
+  body += ",\"total_bytes\":";
+  body += std::to_string(static_cast<unsigned long long>(littlefs_total));
+  body += ",\"used_pct\":";
+  body += std::to_string(littlefs_pct);
   body += "},\"wifi\":{\"mode\":\"";
   AppendJsonEscaped(&body, wifi.mode);
   body += "\",\"saved_ssid\":\"";
@@ -900,6 +938,10 @@ static esp_err_t HandleStoreIndex(httpd_req_t* req) {
 
 static esp_err_t HandleStoreUi(httpd_req_t* req) {
   return SendCompressedHtml(req, f_html_gz, f_html_gz_len);
+}
+
+static esp_err_t HandleRoot(httpd_req_t* req) {
+  return HandleStoreUi(req);
 }
 
 static inline uint8_t Expand5(uint16_t v) { return static_cast<uint8_t>((v << 3) | (v >> 2)); }
@@ -1123,6 +1165,17 @@ bool AppUpdateServerStart(AppUpdateReloadCallback reload_cb, AppUpdateSwitchCall
   store_index.handler = HandleStoreIndex;
   if (httpd_register_uri_handler(g_httpd, &store_index) != ESP_OK) {
     ESP_LOGE(kTag, "register store index failed");
+    httpd_stop(g_httpd);
+    g_httpd = nullptr;
+    return false;
+  }
+
+  httpd_uri_t root = {};
+  root.uri = "/";
+  root.method = HTTP_GET;
+  root.handler = HandleRoot;
+  if (httpd_register_uri_handler(g_httpd, &root) != ESP_OK) {
+    ESP_LOGE(kTag, "register root failed");
     httpd_stop(g_httpd);
     g_httpd = nullptr;
     return false;

@@ -30,6 +30,7 @@ extern "C" {
 
 #include "app/hub75_config.h"
 #include "app/app_update_server.h"
+#include "app/buzzer.h"
 #include "app/display_control.h"
 #include "app/user_button.h"
 #include "app/wifi_manager.h"
@@ -349,6 +350,7 @@ static char g_boot_ap_ssid[33] = {};
 static char g_boot_ap_ip[16] = {};
 
 static constexpr uint32_t kBootUiProgressMs = 5000;
+static constexpr uint32_t kBootUiSuccessHoldMs = 5000;
 static void LvglBootShowConnecting() { LvglShowBootWifiConnecting(g_boot_try_ssid, kBootUiProgressMs); }
 static void LvglBootShowSuccess() { LvglShowBootWifiSuccess(g_boot_sta_ssid, g_boot_sta_ip); }
 static void LvglBootShowFailed() { LvglShowBootWifiFailed(g_boot_ap_ssid, g_boot_ap_ip); }
@@ -363,7 +365,7 @@ static void BootWifiUiSimulation() {
   vTaskDelay(pdMS_TO_TICKS(kBootUiProgressMs));
 
   (void)RunOnLvglThreadCritical(LvglBootShowSuccess, "boot_show_success");
-  vTaskDelay(pdMS_TO_TICKS(5000));
+  vTaskDelay(pdMS_TO_TICKS(kBootUiSuccessHoldMs));
 
   (void)RunOnLvglThreadCritical(LvglStopBootWifiScreen, "boot_stop_screen");
 }
@@ -435,6 +437,7 @@ static void BootFlowTask(void* arg) {
     if (wifi_ok) {
       ESP_LOGI(kTag, "boot_flow: show success");
       (void)RunOnLvglThreadCritical(LvglBootShowSuccess, "boot_show_success");
+      vTaskDelay(pdMS_TO_TICKS(kBootUiSuccessHoldMs));
     } else {
       ESP_LOGI(kTag, "boot_flow: show failed");
       (void)RunOnLvglThreadCritical(LvglBootShowFailed, "boot_show_failed");
@@ -545,6 +548,10 @@ extern "C" void app_main(void) {
     ESP_LOGW(kTag, "failed to build 240MHz cpu config; keeping default clock");
   }
   ESP_LOGI(kTag, "cpu freq forced to %lu Hz", (unsigned long)esp_clk_cpu_freq());
+
+  // Run the buzzer test before HUB75 starts, because GPIO8 is already used by
+  // the panel config in this project.
+  RunBootBuzzerTest();
   
   MatrixPanel_I2S_DMA display(MakePanelConfig());
   if (!display.begin()) {
@@ -573,6 +580,7 @@ extern "C" void app_main(void) {
 
   ESP_LOGI(kTag, "=== Preloading fonts ===");
   LvglBootWifiScreenPreloadFont();
+  LvglShowBootWifiConnecting(nullptr, kBootUiProgressMs);
 
   ESP_LOGI(kTag, "=== Boot Complete ===");
 

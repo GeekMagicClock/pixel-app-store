@@ -13,6 +13,8 @@
 #include <dirent.h>
 #include <cstdlib>
 #include <cctype>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include "cJSON.h"
 #include "esp_crt_bundle.h"
@@ -57,6 +59,8 @@ namespace {
 
 static constexpr const char* kRegistryAppKey = "__app";
 static constexpr const char* kRegistryRenderKey = "__render";
+static constexpr const char* kLuaDataDir = "/littlefs/.sys";
+static constexpr const char* kLuaDataPath = "/littlefs/.sys/lua_data.json";
 static void ReleaseGifPlayerForState(lua_State* L);
 
 static bool TryParseLineIndex(const std::string& key, int* out_idx_1based) {
@@ -87,6 +91,92 @@ static void SetFieldFn(lua_State* L, const char* table_name, const char* fn_name
   lua_pushcfunction(L, fn);
   lua_setfield(L, -2, fn_name);
   lua_pop(L, 1);
+}
+
+static bool ReadFileToString(const char* path, std::string* out) {
+  if (out) out->clear();
+  if (!path || !out) return false;
+  FILE* f = fopen(path, "rb");
+  if (!f) return false;
+  std::string s;
+  char buf[256];
+  while (true) {
+    const size_t n = fread(buf, 1, sizeof(buf), f);
+    if (n > 0) s.append(buf, n);
+    if (n < sizeof(buf)) break;
+  }
+  fclose(f);
+  *out = std::move(s);
+  return true;
+}
+
+static bool EnsureDirExists(const char* path) {
+  if (!path || !*path) return false;
+  if (mkdir(path, 0755) == 0) return true;
+  return errno == EEXIST;
+}
+
+static bool WriteStringToFile(const char* path, const std::string& text, std::string* out_err) {
+  if (out_err) out_err->clear();
+  if (!path || !*path) {
+    if (out_err) *out_err = "invalid path";
+    return false;
+  }
+  if (!EnsureDirExists(kLuaDataDir)) {
+    if (out_err) *out_err = "mkdir failed";
+    return false;
+  }
+
+  const std::string tmp_path = std::string(path) + ".tmp";
+  FILE* f = fopen(tmp_path.c_str(), "wb");
+  if (!f) {
+    if (out_err) *out_err = "open tmp failed";
+    return false;
+  }
+  const size_t need = text.size();
+  const size_t wrote = fwrite(text.data(), 1, need, f);
+  if (fclose(f) != 0 || wrote != need) {
+    unlink(tmp_path.c_str());
+    if (out_err) *out_err = "write tmp failed";
+    return false;
+  }
+  if (rename(tmp_path.c_str(), path) != 0) {
+    unlink(tmp_path.c_str());
+    if (out_err) *out_err = "rename failed";
+    return false;
+  }
+  return true;
+}
+
+static cJSON* LoadLuaDataRoot() {
+  std::string text;
+  if (!ReadFileToString(kLuaDataPath, &text) || text.empty()) {
+    return cJSON_CreateObject();
+  }
+
+  cJSON* root = cJSON_ParseWithLength(text.c_str(), text.size());
+  if (!root) return cJSON_CreateObject();
+  if (!cJSON_IsObject(root)) {
+    cJSON_Delete(root);
+    return cJSON_CreateObject();
+  }
+  return root;
+}
+
+static bool SaveLuaDataRoot(cJSON* root, std::string* out_err) {
+  if (out_err) out_err->clear();
+  if (!root || !cJSON_IsObject(root)) {
+    if (out_err) *out_err = "invalid root";
+    return false;
+  }
+  char* rendered = cJSON_PrintUnformatted(root);
+  if (!rendered) {
+    if (out_err) *out_err = "json render failed";
+    return false;
+  }
+  const std::string text(rendered);
+  cJSON_free(rendered);
+  return WriteStringToFile(kLuaDataPath, text, out_err);
 }
 
 struct HttpReq {
@@ -1049,6 +1139,7 @@ static void PushNetModule(lua_State* L) {
 }
 
 static void JsonToLua(lua_State* L, const cJSON* v, int depth);
+static cJSON* LuaToJson(lua_State* L, int idx, int depth);
 
 static void JsonObjectToLua(lua_State* L, const cJSON* obj, int depth) {
   lua_newtable(L);
@@ -1097,6 +1188,90 @@ static void JsonToLua(lua_State* L, const cJSON* v, int depth) {
     JsonObjectToLua(L, v, depth);
   } else {
     lua_pushnil(L);
+  }
+}
+
+static bool LuaTableIsDenseArray(lua_State* L, int idx, int* out_len) {
+  if (out_len) *out_len = 0;
+  idx = lua_absindex(L, idx);
+  int count = 0;
+  int max_index = 0;
+
+  lua_pushnil(L);
+  while (lua_next(L, idx) != 0) {
+    if (!lua_isinteger(L, -2)) {
+      lua_pop(L, 2);
+      return false;
+    }
+    const lua_Integer raw = lua_tointeger(L, -2);
+    if (raw < 1 || raw > INT_MAX) {
+      lua_pop(L, 2);
+      return false;
+    }
+    const int key = static_cast<int>(raw);
+    if (key > max_index) max_index = key;
+    count += 1;
+    lua_pop(L, 1);
+  }
+
+  if (count == 0 || max_index != count) return false;
+  if (out_len) *out_len = max_index;
+  return true;
+}
+
+static cJSON* LuaTableToJson(lua_State* L, int idx, int depth) {
+  idx = lua_absindex(L, idx);
+  int arr_len = 0;
+  if (LuaTableIsDenseArray(L, idx, &arr_len)) {
+    cJSON* arr = cJSON_CreateArray();
+    if (!arr) return nullptr;
+    for (int i = 1; i <= arr_len; ++i) {
+      lua_geti(L, idx, i);
+      cJSON* item = LuaToJson(L, -1, depth + 1);
+      lua_pop(L, 1);
+      if (!item) item = cJSON_CreateNull();
+      cJSON_AddItemToArray(arr, item);
+    }
+    return arr;
+  }
+
+  cJSON* obj = cJSON_CreateObject();
+  if (!obj) return nullptr;
+  lua_pushnil(L);
+  while (lua_next(L, idx) != 0) {
+    if (lua_type(L, -2) == LUA_TSTRING) {
+      const char* key = lua_tostring(L, -2);
+      if (key && *key) {
+        cJSON* item = LuaToJson(L, -1, depth + 1);
+        if (!item) item = cJSON_CreateNull();
+        cJSON_AddItemToObject(obj, key, item);
+      }
+    }
+    lua_pop(L, 1);
+  }
+  return obj;
+}
+
+static cJSON* LuaToJson(lua_State* L, int idx, int depth) {
+  if (depth > 24) return cJSON_CreateNull();
+
+  idx = lua_absindex(L, idx);
+  switch (lua_type(L, idx)) {
+    case LUA_TNIL:
+      return cJSON_CreateNull();
+    case LUA_TBOOLEAN:
+      return cJSON_CreateBool(lua_toboolean(L, idx) ? 1 : 0);
+    case LUA_TNUMBER:
+      return cJSON_CreateNumber(lua_tonumber(L, idx));
+    case LUA_TSTRING: {
+      size_t len = 0;
+      const char* s = lua_tolstring(L, idx, &len);
+      return cJSON_CreateString(s ? s : "");
+    }
+    case LUA_TTABLE:
+      return LuaTableToJson(L, idx, depth);
+    default:
+      return nullptr;
   }
 }
 
@@ -2718,6 +2893,34 @@ int LuaAppRuntime::LuaSysNowMs(lua_State* L) {
   return 1;
 }
 
+int LuaAppRuntime::LuaSysLocalTime(lua_State* L) {
+  const time_t now = time(nullptr);
+  struct tm tm_now = {};
+  localtime_r(&now, &tm_now);
+
+  lua_newtable(L);
+
+  lua_pushinteger(L, static_cast<lua_Integer>(tm_now.tm_year + 1900));
+  lua_setfield(L, -2, "year");
+  lua_pushinteger(L, static_cast<lua_Integer>(tm_now.tm_mon + 1));
+  lua_setfield(L, -2, "month");
+  lua_pushinteger(L, static_cast<lua_Integer>(tm_now.tm_mday));
+  lua_setfield(L, -2, "day");
+  lua_pushinteger(L, static_cast<lua_Integer>(tm_now.tm_hour));
+  lua_setfield(L, -2, "hour");
+  lua_pushinteger(L, static_cast<lua_Integer>(tm_now.tm_min));
+  lua_setfield(L, -2, "min");
+  lua_pushinteger(L, static_cast<lua_Integer>(tm_now.tm_sec));
+  lua_setfield(L, -2, "sec");
+  lua_pushinteger(L, static_cast<lua_Integer>(tm_now.tm_wday + 1));
+  lua_setfield(L, -2, "wday");
+  lua_pushinteger(L, static_cast<lua_Integer>(tm_now.tm_yday + 1));
+  lua_setfield(L, -2, "yday");
+  lua_pushboolean(L, tm_now.tm_isdst > 0 ? 1 : 0);
+  lua_setfield(L, -2, "isdst");
+  return 1;
+}
+
 int LuaAppRuntime::LuaSysUnixTime(lua_State* L) {
   const time_t now = time(nullptr);
   lua_pushinteger(L, static_cast<lua_Integer>(now));
@@ -2796,7 +2999,57 @@ int LuaAppRuntime::LuaDataGet(lua_State* L) {
     return 1;
   }
 
+  cJSON* root = LoadLuaDataRoot();
+  if (root) {
+    cJSON* item = cJSON_GetObjectItemCaseSensitive(root, key);
+    if (item) {
+      JsonToLua(L, item, 0);
+      cJSON_Delete(root);
+      return 1;
+    }
+    cJSON_Delete(root);
+  }
+
   lua_pushnil(L);
+  return 1;
+}
+
+int LuaAppRuntime::LuaDataSet(lua_State* L) {
+  const char* key = luaL_checkstring(L, 1);
+  if (!key || !*key) {
+    lua_pushboolean(L, 0);
+    lua_pushstring(L, "key required");
+    return 2;
+  }
+
+  cJSON* root = LoadLuaDataRoot();
+  if (!root) {
+    lua_pushboolean(L, 0);
+    lua_pushstring(L, "load store failed");
+    return 2;
+  }
+
+  cJSON_DeleteItemFromObjectCaseSensitive(root, key);
+  if (!(lua_gettop(L) >= 2 && lua_isnil(L, 2))) {
+    cJSON* item = LuaToJson(L, 2, 0);
+    if (!item) {
+      cJSON_Delete(root);
+      lua_pushboolean(L, 0);
+      lua_pushstring(L, "unsupported value");
+      return 2;
+    }
+    cJSON_AddItemToObject(root, key, item);
+  }
+
+  std::string err;
+  const bool ok = SaveLuaDataRoot(root, &err);
+  cJSON_Delete(root);
+
+  lua_pushboolean(L, ok ? 1 : 0);
+  if (!ok) {
+    lua_pushstring(L, err.empty() ? "save failed" : err.c_str());
+    return 2;
+  }
   return 1;
 }
 
@@ -2808,6 +3061,8 @@ void LuaAppRuntime::PushSysModule() {
   lua_setfield(L_, -2, "log");
   lua_pushcfunction(L_, LuaSysNowMs);
   lua_setfield(L_, -2, "now_ms");
+  lua_pushcfunction(L_, LuaSysLocalTime);
+  lua_setfield(L_, -2, "local_time");
   lua_pushcfunction(L_, LuaSysUnixTime);
   lua_setfield(L_, -2, "unix_time");
   lua_pushcfunction(L_, LuaSysListDir);
@@ -2817,6 +3072,7 @@ void LuaAppRuntime::PushSysModule() {
   // Also allow sys.* as functions via global table injection.
   SetFieldFn(L_, "sys", "log", LuaSysLog);
   SetFieldFn(L_, "sys", "now_ms", LuaSysNowMs);
+  SetFieldFn(L_, "sys", "local_time", LuaSysLocalTime);
   SetFieldFn(L_, "sys", "unix_time", LuaSysUnixTime);
   SetFieldFn(L_, "sys", "listdir", LuaSysListDir);
 }
@@ -2827,7 +3083,10 @@ void LuaAppRuntime::PushDataModule() {
   lua_newtable(L_);
   lua_pushcfunction(L_, LuaDataGet);
   lua_setfield(L_, -2, "get");
+  lua_pushcfunction(L_, LuaDataSet);
+  lua_setfield(L_, -2, "set");
   lua_setglobal(L_, "data");
 
   SetFieldFn(L_, "data", "get", LuaDataGet);
+  SetFieldFn(L_, "data", "set", LuaDataSet);
 }

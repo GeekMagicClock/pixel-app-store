@@ -1,0 +1,14 @@
+{
+  "app_id": "pong_duel",
+  "name": "Pong Duel",
+  "version": "1.0.2",
+  "min_fw": "0.0.0",
+  "min_api": "1.0",
+  "entry": "main.lua",
+  "layout_id": "framebuffer_rgb565",
+  "category": "games",
+  "capabilities": [
+    "game"
+  ],
+  "description": "Two auto-tracking paddles rally a bright ball across a CRT court."
+}
