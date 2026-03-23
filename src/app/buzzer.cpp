@@ -1,14 +1,11 @@
-#include "app/buzzer.h"
 
+#include "app/buzzer.h"
 #include "driver/gpio.h"
 #include "driver/ledc.h"
 #include "esp_err.h"
 #include "esp_log.h"
-
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-
-namespace {
 
 static const char* kTag = "buzzer";
 // 已改为GPIO9，未被其他功能占用
@@ -26,40 +23,28 @@ struct ToneStep {
 
 // 经典8-bit电子音阶（Mario/FC风格）
 static constexpr ToneStep kBootToneSteps[] = {
-  {660, 100}, // E5
-  {660, 100}, // E5
-  {0,   100}, // pause
-  {660, 100}, // E5
-  {0,   100},
-  {510, 100}, // B4
-  {660, 100}, // E5
-  {0,   100},
-  {770, 100}, // G#5
-  {0,   300},
-  {380, 100}, // F#4
-  {0,   300},
-  // Mario短前奏
-  {510, 100},
-  {380, 100},
-  {320, 100},
-  {440, 100},
-  {480, 80},
-  {450, 80},
-  {430, 80},
-  {380, 100},
-  {660, 100},
-  {760, 50},
-  {860, 50},
-  {700, 80},
-  {760, 50},
-  {860, 50},
-  {700, 80},
-  {660, 100},
-  {520, 100},
-  {580, 80},
-  {480, 80},
+  // 清澈高频电子音自检序列
+  {2637, 80}, // E7
+  {3136, 80}, // G7
+  {3520, 80}, // A7
+  {2794, 80}, // F#7
+  {3136, 80}, // G7
+  {3951, 80}, // B7
+  {4186, 120}, // C8
+  {3520, 80}, // A7
+  {3136, 80}, // G7
+  {2637, 80}, // E7
+  {3136, 80}, // G7
+  {3520, 80}, // A7
+  {2794, 80}, // F#7
+  {3136, 80}, // G7
+  {3951, 80}, // B7
+  {4186, 120}, // C8
+  {3520, 80}, // A7
+  {3136, 80}, // G7
+  {2637, 80}, // E7
+  {4186, 200}, // C8
 };
-
 
 static esp_err_t ConfigureTimer(uint32_t freq_hz) {
   ledc_timer_config_t timer_cfg = {};
@@ -110,7 +95,26 @@ static void StopTone() {
   (void)ledc_stop(kLedcMode, kLedcChannel, 0);
 }
 
-}  // namespace
+void BuzzerPlayTone(unsigned freq_hz, unsigned duration_ms) {
+  ConfigureChannel();
+  if (StartTone(freq_hz)) {
+    vTaskDelay(pdMS_TO_TICKS(duration_ms));
+    StopTone();
+  }
+  gpio_reset_pin(kBuzzerGpio);
+}
+
+void BuzzerPlaySequence(const unsigned* freq_hz, const unsigned* duration_ms, unsigned count) {
+  ConfigureChannel();
+  for (unsigned i = 0; i < count; ++i) {
+    if (StartTone(freq_hz[i])) {
+      vTaskDelay(pdMS_TO_TICKS(duration_ms[i]));
+      StopTone();
+      vTaskDelay(pdMS_TO_TICKS(30));
+    }
+  }
+  gpio_reset_pin(kBuzzerGpio);
+}
 
 void RunBootBuzzerTest() {
 #if defined(B_PIN_DEFAULT) && (B_PIN_DEFAULT == 8)

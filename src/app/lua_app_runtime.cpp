@@ -1,4 +1,13 @@
+
+extern "C" {
+#include "lua.h"
+}
+// 临时空实现，防止链接错误，后续可补充实际功能
+static void PushNetModule(lua_State* L) {
+  (void)L;
+}
 #include "app/lua_app_runtime.h"
+#include "app/buzzer.h"
 
 #include <cstdio>
 #include <ctime>
@@ -1120,7 +1129,41 @@ static int LuaNetCachedPoll(lua_State* L) {
   return 3;
 }
 
-static void PushNetModule(lua_State* L) {
+static int lua_buzzer_play_tone(lua_State* L) {
+  unsigned freq = (unsigned)luaL_checkinteger(L, 1);
+  unsigned dur = (unsigned)luaL_checkinteger(L, 2);
+  BuzzerPlayTone(freq, dur);
+  return 0;
+}
+
+static int lua_buzzer_play_sequence(lua_State* L) {
+  luaL_checktype(L, 1, LUA_TTABLE);
+  luaL_checktype(L, 2, LUA_TTABLE);
+  unsigned count = (unsigned)lua_rawlen(L, 1);
+  if (count == 0 || count != lua_rawlen(L, 2)) return 0;
+  std::vector<unsigned> freqs(count), durs(count);
+  for (unsigned i = 0; i < count; ++i) {
+    lua_rawgeti(L, 1, i+1);
+    freqs[i] = (unsigned)lua_tointeger(L, -1);
+    lua_pop(L, 1);
+    lua_rawgeti(L, 2, i+1);
+    durs[i] = (unsigned)lua_tointeger(L, -1);
+    lua_pop(L, 1);
+  }
+  BuzzerPlaySequence(freqs.data(), durs.data(), count);
+  return 0;
+}
+
+static void RegisterBuzzerModule(lua_State* L) {
+  lua_newtable(L);
+  lua_pushcfunction(L, lua_buzzer_play_tone);
+  lua_setfield(L, -2, "play_tone");
+  lua_pushcfunction(L, lua_buzzer_play_sequence);
+  lua_setfield(L, -2, "play_sequence");
+  lua_setglobal(L, "buzzer");
+}
+
+static void RegisterAppBin(lua_State* L) {
   lua_newtable(L);
   lua_pushcfunction(L, LuaNetHttpGet);
   lua_setfield(L, -2, "http_get");
@@ -1373,6 +1416,7 @@ bool LuaAppRuntime::CreateState() {
   PushDataModule();
   PushNetModule(L_);
   PushJsonModule(L_);
+  RegisterBuzzerModule(L_);
 
   // Forbid `dofile`/`loadfile` by removing them from base lib.
   lua_getglobal(L_, "dofile");
@@ -1828,7 +1872,7 @@ bool LuaAppRuntime::RenderBinds(const std::vector<std::string>& keys, std::vecto
   if (lua_istable(L_, -1)) {
     lua_remove(L_, -2);  // drop outer table, keep lines table on top
   } else {
-    lua_pop(L_, 1);
+    lua_pop(L_, 1);  // drop non-table `lines` field
   }
 
   // Store for debugging.

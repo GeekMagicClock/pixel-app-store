@@ -322,6 +322,14 @@ local function update_digits_from_time(t)
     state.hit_slot = hit_slot
     state.hero_target_x = HERO_X[hit_slot]
     state.jump_start_ms = state.anim_ms
+
+    -- Play Mario coin sound on buzzer (notes in Hz, durations in ms)
+    if buzzer and buzzer.play_sequence then
+      -- Classic Mario coin: E7 (2637 Hz, 100 ms), G7 (3136 Hz, 100 ms)
+      local notes = {2637, 3136}
+      local durs = {100, 100}
+      buzzer.play_sequence(notes, durs)
+    end
     return
   end
 

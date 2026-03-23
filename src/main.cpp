@@ -552,6 +552,43 @@ extern "C" void app_main(void) {
   // Run the buzzer test before HUB75 starts, because GPIO8 is already used by
   // the panel config in this project.
   RunBootBuzzerTest();
+
+  // 依次播放多种经典8-bit/马里奥风格音效，便于硬件自检和音色体验
+  // 1. Mario Coin
+  {
+    static const unsigned notes[] = {2637, 3136}; // E7, G7
+    static const unsigned durs[]  = {100, 100};
+    BuzzerPlaySequence(notes, durs, 2);
+    vTaskDelay(pdMS_TO_TICKS(100));
+  }
+  // 2. Mario 1UP
+  {
+    static const unsigned notes[] = {1319, 1568, 2637, 2093, 2349, 3136}; // E6, G6, E7, C7, D7, G7
+    static const unsigned durs[]  = {80, 80, 80, 80, 80, 160};
+    BuzzerPlaySequence(notes, durs, 6);
+    vTaskDelay(pdMS_TO_TICKS(100));
+  }
+  // 3. Mario Powerdown
+  {
+    static const unsigned notes[] = {1319, 1175, 1047, 988, 880}; // E6, D6, C6, B5, A5
+    static const unsigned durs[]  = {120, 120, 120, 120, 200};
+    BuzzerPlaySequence(notes, durs, 5);
+    vTaskDelay(pdMS_TO_TICKS(100));
+  }
+  // 4. Mario Jump
+  {
+    static const unsigned notes[] = {1319, 1568}; // E6, G6
+    static const unsigned durs[]  = {100, 100};
+    BuzzerPlaySequence(notes, durs, 2);
+    vTaskDelay(pdMS_TO_TICKS(100));
+  }
+  // 5. Mario Death
+  {
+    static const unsigned notes[] = {1047, 988, 880, 831, 784, 740, 698, 659}; // C6, B5, A5, G#5, G5, F#5, F5, E5
+    static const unsigned durs[]  = {100, 100, 100, 100, 100, 100, 100, 400};
+    BuzzerPlaySequence(notes, durs, 8);
+    vTaskDelay(pdMS_TO_TICKS(200));
+  }
   
   MatrixPanel_I2S_DMA display(MakePanelConfig());
   if (!display.begin()) {
