@@ -133,7 +133,13 @@ function app.render_fb(fb)
   for i = 0, 11 do
     set_px_safe(fb, (i * 13 + math.floor(state.anim_ms / 30)) % 64, (i * 7 + math.floor(state.anim_ms / 53)) % 32, C_STAR)
   end
+  for i = 0, 5 do
+    local sx = (i * 17 + math.floor(state.anim_ms / 24)) % 64
+    set_px_safe(fb, sx, 30 - (i % 3), 0x39E7)
+  end
   draw_number(fb, "1570", 3, 2, 1, C_SCORE, 0x4208, 1)
+  rect_safe(fb, 48, 2, 10, 1, 0x39E7)
+  rect_safe(fb, 48, 2, 3 + math.floor(cyc(2600, 0) * 7), 1, 0x07E0)
 
   local ox = 10 + math.floor(math.sin(state.anim_ms / 900) * 3)
   local flap = blink(320, 0.5, 0)
@@ -141,6 +147,9 @@ function app.render_fb(fb)
   for c = 0, 4 do draw_sprite(fb, ox + c * 9, 11, flap and BEE or {"y..y", ".yy.", "yyyy", ".yy."}, {y = C_BEE}, 1) end
   draw_sprite(fb, ox + 13, 17, flap and BOSS or BOSS2, {b = C_BOSS}, 1)
   draw_sprite(fb, ox + 22, 17, flap and BOSS or BOSS2, {b = C_BOSS}, 1)
+  if blink(480, 0.5, 120) then
+    draw_sprite(fb, ox + 39, 17, BOSS2, {b = 0xFD20}, 1)
+  end
 
   local p = cyc(2500, 0)
   local dx = 31 + math.sin(p * math.pi * 2) * 16
@@ -149,6 +158,7 @@ function app.render_fb(fb)
     set_px_safe(fb, 31 + math.sin((p - i * 0.04) * math.pi * 2) * 16, 5 + (p - i * 0.04) * 18, 0x39E7)
   end
   draw_sprite(fb, dx, dy, BUG, {r = C_BUG}, 1)
+  rect_safe(fb, dx + 1, dy + 4, 1, 3, 0xFD20)
   draw_sprite(fb, 27, 25, {
     "..ww..",
     ".wbbw.",
@@ -158,6 +168,9 @@ function app.render_fb(fb)
   rect_safe(fb, 31, 17, 1, 10, C_SHOT)
   rect_safe(fb, dx + 2, dy + 4, 1, 6, C_SHOT)
   rect_safe(fb, 27, 3, 10, 1, C_SCORE)
+  if blink(200, 0.5, 0) then
+    rect_safe(fb, 30, 24, 2, 1, 0xFFFF)
+  end
 end
 
 return app

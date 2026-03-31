@@ -133,6 +133,8 @@ local ORGY = 4
 local GRID = {'11111111','10101011','10000001','10101001','10000001','11111111'}
 function app.render_fb(fb)
   fb:fill(C_BG)
+  rect_safe(fb, 15, 2, 18, 1, 0x3186)
+  rect_safe(fb, 35, 2, 12, 1, 0x39E7)
   for y = 0, 5 do
     for x = 0, 7 do
       local ch = string.sub(GRID[y + 1], x + 1, x + 1)
@@ -167,6 +169,12 @@ function app.render_fb(fb)
     "roor",
     ".rr.",
   }, { r = C_ENEMY, o = C_ENEMY2 }, 1)
+  draw_sprite(fb, ORGX + (5 - math.floor(cyc(3600, 0) * 4)) * CELL, ORGY + 4 * CELL, {
+    ".rr.",
+    "rrrr",
+    "roor",
+    ".rr.",
+  }, { r = 0xF81F, o = 0xFFE0 }, 1)
   local phase = state.anim_ms % 1800
   local bx = ORGX + 3 * CELL + 1
   local by = ORGY + 2 * CELL + 1
@@ -178,7 +186,12 @@ function app.render_fb(fb)
     rect_safe(fb, bx, by - 7, 2, 16, C_BOOM)
     rect_safe(fb, bx - 5, by, 12, 1, C_BOOM2)
     rect_safe(fb, bx, by - 5, 1, 12, C_BOOM2)
+    rect_safe(fb, bx - 4, by - 4, 8, 8, 0xF800)
   end
+  if blink(260, 0.4, 120) then
+    rect_safe(fb, ORGX + 4 * CELL + 1, ORGY + 4 * CELL + 1, 2, 2, C_SPARK)
+  end
+  rect_safe(fb, ORGX + 7, ORGY + 1, 1, 22, 0x2104)
   draw_number(fb, "99", 47, 3, 1, 0xFFFF, 0x0000, 1)
 end
 

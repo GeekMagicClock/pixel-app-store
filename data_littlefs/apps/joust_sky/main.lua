@@ -151,6 +151,10 @@ function app.render_fb(fb)
   for i = 0, 10 do
     set_px_safe(fb, (i * 17 + math.floor(state.anim_ms / 40)) % 64, (i * 7) % 15 + 1, C_STAR)
   end
+  for i = 0, 4 do
+    local cx = (i * 14 + math.floor(state.anim_ms / 55)) % 64
+    rect_safe(fb, cx, 4 + (i % 3), 4, 1, 0x4208)
+  end
   for x = 0, 60, 12 do
     rect_safe(fb, (x + math.floor(state.anim_ms / 70)) % 64, 29, 3, 1, C_LAVA_HL)
   end
@@ -176,7 +180,12 @@ function app.render_fb(fb)
   local y2 = 10 - math.abs(math.sin(state.anim_ms / 290 + 0.5) * 6)
   bird(fb, math.floor(x1), math.floor(y1), C_RIDER, C_PLAYER_BIRD, blink(220, 0.5, 0))
   bird(fb, math.floor(x2), math.floor(y2), C_ENEMY, C_ENEMY_BIRD, blink(200, 0.5, 120))
+  line_safe(fb, math.floor(x1) + 7, math.floor(y1) + 2, math.floor(x1) + 10, math.floor(y1) + 1, 0xFFE0)
+  line_safe(fb, math.floor(x2), math.floor(y2) + 3, math.floor(x2) - 3, math.floor(y2) + 4, 0xFD20)
   draw_sprite(fb, 31, 22, { ".ee.", "eeee", ".ee." }, { e = C_EGG }, 1)
+  if blink(380, 0.5, 0) then
+    rect_safe(fb, 32, 25, 1, 1, 0xFD20)
+  end
   draw_number(fb, "75", 2, 2, 1, 0xFFFF, 0x0000, 1)
 end
 

@@ -1,0 +1,57 @@
+#ifndef LV_CONF_H
+#define LV_CONF_H
+
+#include "../../components/lvgl/lv_conf_template.h"
+
+#undef LV_USE_OS
+#define LV_USE_OS LV_OS_NONE
+
+#undef LV_USE_LOG
+#define LV_USE_LOG 0
+
+#undef LV_COLOR_DEPTH
+#define LV_COLOR_DEPTH 16
+
+#undef LV_DEF_REFR_PERIOD
+#define LV_DEF_REFR_PERIOD 16
+
+#undef LV_FONT_MONTSERRAT_14
+#define LV_FONT_MONTSERRAT_14 1
+
+#undef LV_USE_TINY_TTF
+#define LV_USE_TINY_TTF 1
+
+#undef LV_TINY_TTF_FILE_SUPPORT
+#define LV_TINY_TTF_FILE_SUPPORT 1
+
+#undef LV_USE_SNAPSHOT
+#define LV_USE_SNAPSHOT 1
+
+#undef LV_USE_LODEPNG
+#define LV_USE_LODEPNG 1
+
+#undef LV_USE_SDL
+#define LV_USE_SDL 1
+
+#undef LV_SDL_INCLUDE_PATH
+#define LV_SDL_INCLUDE_PATH <SDL.h>
+
+#undef LV_SDL_RENDER_MODE
+#define LV_SDL_RENDER_MODE LV_DISPLAY_RENDER_MODE_DIRECT
+
+#undef LV_SDL_BUF_COUNT
+#define LV_SDL_BUF_COUNT 1
+
+#undef LV_SDL_ACCELERATED
+#define LV_SDL_ACCELERATED 1
+
+#undef LV_SDL_FULLSCREEN
+#define LV_SDL_FULLSCREEN 0
+
+#undef LV_SDL_DIRECT_EXIT
+#define LV_SDL_DIRECT_EXIT 1
+
+#undef LV_USE_DRAW_SDL
+#define LV_USE_DRAW_SDL 0
+
+#endif

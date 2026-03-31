@@ -139,6 +139,7 @@ function app.render_fb(fb)
   fb:fill(C_BG)
   rect_safe(fb, 2, 2, 60, 28, C_WALL)
   rect_safe(fb, 4, 4, 56, 24, C_BG)
+  rect_safe(fb, 2, 2, 60, 1, C_WALL_HI)
   rect_safe(fb, 10, 8, 13, 2, C_WALL)
   rect_safe(fb, 41, 8, 13, 2, C_WALL)
   rect_safe(fb, 10, 20, 13, 2, C_WALL)
@@ -154,6 +155,13 @@ function app.render_fb(fb)
   rect_safe(fb, 54, 8, 2, 2, C_PELLET)
   rect_safe(fb, 8, 22, 2, 2, C_PELLET)
   rect_safe(fb, 54, 22, 2, 2, C_PELLET)
+  for i = 0, 5 do
+    local x = 12 + i * 8
+    if ((i + math.floor(state.anim_ms / 300)) % 2) == 0 then
+      rect_safe(fb, x, 6, 1, 1, C_PELLET)
+      rect_safe(fb, x, 26, 1, 1, C_PELLET)
+    end
+  end
   rect_safe(fb, 30, 15, 4, 2, 0xF800)
   local p = cyc(5200, 0)
   local px, py = pac_xy(p)
@@ -171,7 +179,12 @@ function app.render_fb(fb)
   draw_sprite(fb, select(1, pac_xy((p + 0.62) % 1.0)), select(2, pac_xy((p + 0.62) % 1.0)), GHOST, {c=C_G1,w=C_EYE}, 1)
   draw_sprite(fb, select(1, pac_xy((p + 0.37) % 1.0)), select(2, pac_xy((p + 0.37) % 1.0)), GHOST, {c=C_G2,w=C_EYE}, 1)
   draw_sprite(fb, 28, 13 + math.floor(tri(900, 0) * 3), GHOST, {c=C_G3,w=C_EYE}, 1)
-  rect_safe(fb, 0, 0, 64, 2, C_WALL_HI)
+  if blink(280, 0.5, 0) then
+    rect_safe(fb, px + 6, py + 2, 1, 1, C_PELLET)
+  end
+  if blink(640, 0.5, 200) then
+    rect_safe(fb, 29, 14, 6, 4, 0x0010)
+  end
   draw_number(fb, "240", 3, 1, 1, C_TEXT, 0x0000, 1)
 end
 

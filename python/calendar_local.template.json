@@ -1,0 +1,36 @@
+{
+  "timezone": "Europe/London",
+  "sources": [
+    {
+      "type": "json",
+      "name": "tasks",
+      "path": "calendar_tasks.json",
+      "kind": "task",
+      "default_priority": 75,
+      "items_path": "items"
+    },
+    {
+      "type": "static",
+      "name": "special",
+      "items": [
+        {
+          "title": "Mom Birthday",
+          "kind": "anniversary",
+          "month": 4,
+          "day": 2,
+          "priority": 100,
+          "special": true,
+          "countdown": true
+        },
+        {
+          "title": "Spring Holiday",
+          "kind": "holiday",
+          "date": "2026-04-04",
+          "priority": 80,
+          "special": true,
+          "countdown": true
+        }
+      ]
+    }
+  ]
+}

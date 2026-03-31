@@ -45,7 +45,7 @@ static constexpr bool kEnableHeapLogTask = false;
 static constexpr bool kDebugBootLvglOnly = false;
 static constexpr bool kDebugDisableLuaStartup = false;
 static constexpr bool kDebugDisableOtaServer = false;
-static constexpr const char* kPreferredStartupAppId = "openmeteo_3day";
+static constexpr const char* kPreferredStartupAppId = "today_glance";
 
 static TaskHandle_t g_lvgl_task_handle = nullptr;
 static std::atomic_bool g_lvgl_ready{false};
@@ -472,7 +472,6 @@ static void BootFlowTask(void* arg) {
 
 static void LvglTask(void *arg) {
   (void)arg;
-  uint32_t prev_tick = lv_tick_get();
   ESP_LOGI(kTag, "lvgl task started");
   while (true) {
     const uint32_t show_req = g_request_show_active_seq.load(std::memory_order_relaxed);
@@ -492,19 +491,12 @@ static void LvglTask(void *arg) {
 
     LvglLuaAppCarouselPumpRequests();
 
-    const uint32_t now_tick = lv_tick_get();
-    const uint32_t dt = now_tick - prev_tick;
-    prev_tick = now_tick;
+    (void)lv_tick_get();
 
     uint32_t wait_ms = lv_timer_handler();
     if (wait_ms == LV_NO_TIMER_READY) wait_ms = 20;
     if (wait_ms < 5) wait_ms = 5;
     if (wait_ms > 20) wait_ms = 20;
-
-    // Debug: if LVGL is starved, animations degrade into "fade/flash".
-    if (dt > 50) {
-      ESP_LOGW(kTag, "lvgl_task jitter: dt=%lums handler_wait=%lums", (unsigned long)dt, (unsigned long)wait_ms);
-    }
 
     vTaskDelay(pdMS_TO_TICKS(wait_ms));
   }

@@ -1,0 +1,14 @@
+/Users/ifeng/develop/project/esp32-pixel/tools/lvgl_simulator/build/CMakeFiles/lvgl_pixel_sim.dir
+/Users/ifeng/develop/project/esp32-pixel/tools/lvgl_simulator/build/CMakeFiles/edit_cache.dir
+/Users/ifeng/develop/project/esp32-pixel/tools/lvgl_simulator/build/CMakeFiles/rebuild_cache.dir
+/Users/ifeng/develop/project/esp32-pixel/tools/lvgl_simulator/build/CMakeFiles/list_install_components.dir
+/Users/ifeng/develop/project/esp32-pixel/tools/lvgl_simulator/build/CMakeFiles/install.dir
+/Users/ifeng/develop/project/esp32-pixel/tools/lvgl_simulator/build/CMakeFiles/install/local.dir
+/Users/ifeng/develop/project/esp32-pixel/tools/lvgl_simulator/build/CMakeFiles/install/strip.dir
+/Users/ifeng/develop/project/esp32-pixel/tools/lvgl_simulator/build/lvgl/CMakeFiles/lvgl.dir
+/Users/ifeng/develop/project/esp32-pixel/tools/lvgl_simulator/build/lvgl/CMakeFiles/edit_cache.dir
+/Users/ifeng/develop/project/esp32-pixel/tools/lvgl_simulator/build/lvgl/CMakeFiles/rebuild_cache.dir
+/Users/ifeng/develop/project/esp32-pixel/tools/lvgl_simulator/build/lvgl/CMakeFiles/list_install_components.dir
+/Users/ifeng/develop/project/esp32-pixel/tools/lvgl_simulator/build/lvgl/CMakeFiles/install.dir
+/Users/ifeng/develop/project/esp32-pixel/tools/lvgl_simulator/build/lvgl/CMakeFiles/install/local.dir
+/Users/ifeng/develop/project/esp32-pixel/tools/lvgl_simulator/build/lvgl/CMakeFiles/install/strip.dir

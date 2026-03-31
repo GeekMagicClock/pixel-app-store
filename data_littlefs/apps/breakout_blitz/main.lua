@@ -124,6 +124,11 @@ function app.render_fb(fb)
   rect_safe(fb, 2, 2, 1, 28, C_WALL)
   rect_safe(fb, 61, 2, 1, 28, C_WALL)
   rect_safe(fb, 2, 2, 60, 1, C_WALL)
+  rect_safe(fb, 3, 3, 58, 1, 0xBDF7)
+  for i = 0, 7 do
+    local sx = (i * 9 + math.floor(state.anim_ms / 40)) % 64
+    set_px_safe(fb, sx, 1 + (i % 2), 0x7BEF)
+  end
   for r = 0, 5 do
     for c = 0, 7 do
       local alive = ((math.floor(state.anim_ms / 550) + c + r) % 12) > (r // 2)
@@ -132,6 +137,9 @@ function app.render_fb(fb)
         local y = 5 + r * 3
         rect_safe(fb, x, y, 6, 2, BRICKS[r + 1])
         rect_safe(fb, x, y, 6, 1, 0xFFFF)
+        if ((c + r + math.floor(state.anim_ms / 280)) % 3) == 0 then
+          rect_safe(fb, x + 4, y + 1, 1, 1, 0xFFFF)
+        end
       end
     end
   end
@@ -142,9 +150,16 @@ function app.render_fb(fb)
   local px = clamp(bx - 8, 6, 47)
   rect_safe(fb, px, 27, 14, 2, C_PADDLE)
   rect_safe(fb, px + 5, 26, 4, 1, 0xBDF7)
+  rect_safe(fb, px + 2, 28, 10, 1, 0x7BEF)
   rect_safe(fb, bx - 3, by, 2, 1, 0x39E7)
   rect_safe(fb, bx - 1, by - 1, 3, 3, 0x39E7)
   rect_safe(fb, bx, by, 2, 2, C_BALL)
+  if blink(220, 0.45, 0) then
+    rect_safe(fb, bx - 5, by - 2, 2, 1, 0xFFE0)
+    rect_safe(fb, bx + 3, by + 2, 2, 1, 0xFFE0)
+  end
+  rect_safe(fb, 4, 24, 10, 1, 0x39E7)
+  rect_safe(fb, 4, 24, 2 + math.floor(cyc(1800, 0) * 8), 1, 0x07E0)
 end
 
 return app

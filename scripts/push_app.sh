@@ -34,6 +34,7 @@ APPS_ROOT="${3:-data_littlefs/apps}"
 SWITCH_AFTER_PUSH="${4:-}"
 APP_DIR="${APPS_ROOT}/${APP_ID}"
 BASE_URL="http://${DEVICE}"
+CURL_ARGS=(--silent --show-error --fail --noproxy "*")
 
 if [[ "${SWITCH_AFTER_PUSH}" != "" && "${SWITCH_AFTER_PUSH}" != "--switch" ]]; then
   echo "error: unknown option '${SWITCH_AFTER_PUSH}', only --switch is supported" >&2
@@ -51,7 +52,7 @@ if [[ ! "${APP_ID}" =~ ^[A-Za-z0-9_-]+$ ]]; then
 fi
 
 echo "==> Checking device API: ${BASE_URL}/api/apps/ping"
-curl --silent --show-error --fail "${BASE_URL}/api/apps/ping" >/dev/null
+curl "${CURL_ARGS[@]}" "${BASE_URL}/api/apps/ping" >/dev/null
 
 uploaded=0
 while IFS= read -r -d '' file_path; do
@@ -63,7 +64,7 @@ while IFS= read -r -d '' file_path; do
     continue
   fi
   echo "==> Uploading ${file_path}"
-  curl --silent --show-error --fail \
+  curl "${CURL_ARGS[@]}" \
     -X PUT \
     --data-binary @"${file_path}" \
     "${BASE_URL}/api/apps/${APP_ID}/${rel}" >/dev/null
@@ -76,11 +77,11 @@ if [[ ${uploaded} -eq 0 ]]; then
 fi
 
 echo "==> Reloading app carousel"
-curl --silent --show-error --fail -X POST "${BASE_URL}/api/apps/reload" >/dev/null
+curl "${CURL_ARGS[@]}" -X POST "${BASE_URL}/api/apps/reload" >/dev/null
 
 if [[ "${SWITCH_AFTER_PUSH}" == "--switch" ]]; then
   echo "==> Switching to ${APP_ID}"
-  curl --silent --show-error --fail -X POST "${BASE_URL}/api/apps/switch/${APP_ID}" >/dev/null
+  curl "${CURL_ARGS[@]}" -X POST "${BASE_URL}/api/apps/switch/${APP_ID}" >/dev/null
 fi
 
 echo "done: pushed ${APP_ID} (${uploaded} file(s)) to ${DEVICE}"

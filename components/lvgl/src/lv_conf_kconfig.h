@@ -238,6 +238,17 @@ extern "C" {
 #  define CONFIG_LV_FONT_DEFAULT &lv_font_unscii_16
 #endif
 
+/*
+ * Project override: keep the bundled Silkscreen 8 font as LVGL's default
+ * without relying on shell-sensitive compiler definitions.
+ */
+#undef CONFIG_LV_FONT_DEFAULT
+#define CONFIG_LV_FONT_DEFAULT &lv_font_silkscreen_regular_8
+
+#ifndef CONFIG_LV_FONT_CUSTOM_DECLARE
+#define CONFIG_LV_FONT_CUSTOM_DECLARE LV_FONT_DECLARE(lv_font_silkscreen_regular_8)
+#endif
+
 /*------------------
  * TEXT ENCODING
  *-----------------*/

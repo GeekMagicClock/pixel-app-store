@@ -1,7 +1,7 @@
 local app = {}
 
-local LAT = tonumber(data.get("aqi.lat") or data.get("openmeteo.lat")) or 37.5665
-local LON = tonumber(data.get("aqi.lon") or data.get("openmeteo.lon")) or 126.9780
+local LAT = tonumber(data.get("aqi.lat") or data.get("openmeteo.lat")) or 22.548994
+local LON = tonumber(data.get("aqi.lon") or data.get("openmeteo.lon")) or 113.459035
 
 local font = "builtin:silkscreen_regular_8"
 
@@ -148,10 +148,18 @@ local function fmt_int(v)
   return string.format("%d", math.floor((tonumber(v) or 0) + 0.5))
 end
 
-local function draw_chip(fb, x, y, w, label, bg, fg)
+local function draw_chip(fb, x, y, w, label, bg, fg, text_y)
   rect_fill(fb, x, y, w, 8, bg)
   rect_outline(fb, x, y, w, 8, C_FRAME)
-  fb:text_box(x + 1, y, w - 2, 8, label, fg, font, 8, "center", true)
+  fb:text_box(x + 1, text_y or y, w - 2, 8, label, fg, font, 8, "center", false)
+end
+
+local function dominant_label(key)
+  if key == "PM25" then return "PM2.5" end
+  if key == "PM10" then return "PM10" end
+  if key == "NO2" then return "NO2" end
+  if key == "O3" then return "O3" end
+  return tostring(key or "--")
 end
 
 local function handle_response(status, body)
@@ -256,11 +264,11 @@ function app.render_fb(fb)
 
   draw_big_text(fb, fmt_int(aqi), 3, 8, 2, C_FRAME)
   draw_big_text(fb, fmt_int(aqi), 2, 7, 2, accent)
-  fb:text_box(28, 1, 35, 8, "AQI NOW", C_TEXT, font, 8, "left", true)
-  draw_chip(fb, 28, 10, 18, label, accent, C_BG)
-  draw_chip(fb, 48, 10, 14, "US", C_PANEL, C_MUTED)
-  draw_chip(fb, 28, 20, 18, state.dominant, C_PANEL, C_TEXT)
-  fb:text_box(48, 20, 14, 8, fmt_int(state.dominant_value), accent, font, 8, "right", true)
+  fb:text_box(28, -1, 35, 8, "AQI NOW", C_TEXT, font, 8, "left", true)
+  draw_chip(fb, 26, 10, 23, label, accent, C_BG, 9)
+  draw_chip(fb, 51, 10, 13, "US", C_PANEL, C_MUTED, 9)
+  draw_chip(fb, 25, 20, 26, dominant_label(state.dominant), C_PANEL, C_TEXT, 19)
+  fb:text_box(50, 20, 12, 8, fmt_int(state.dominant_value), accent, font, 8, "right", false)
 
   rect_fill(fb, 2, 29, 60, 2, C_PANEL)
   rect_fill(fb, 2, 29, 10, 2, C_GOOD)

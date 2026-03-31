@@ -141,6 +141,9 @@ end
 function app.render_fb(fb)
   rect_safe(fb, 0, 0, 64, 3, C_SKY)
   rect_safe(fb, 0, 3, 64, 2, C_GRASS)
+  rect_safe(fb, 6, 1, 1, 2, 0xFFE0)
+  rect_safe(fb, 7, 1, 1, 1, 0xFFE0)
+  rect_safe(fb, 56, 1, 1, 2, 0xF81F)
   rect_safe(fb, 0, 5, 64, 9, C_SOIL1)
   rect_safe(fb, 0, 14, 64, 8, C_SOIL2)
   rect_safe(fb, 0, 22, 64, 10, C_SOIL3)
@@ -152,6 +155,8 @@ function app.render_fb(fb)
   rect_safe(fb, 10, 7, 6, 17, C_TUNNEL)
   rect_safe(fb, 9, 13, 41, 10, C_TUNNEL_EDGE)
   rect_safe(fb, 10, 14, 39, 8, C_TUNNEL)
+  rect_safe(fb, 30, 14, 7, 7, C_TUNNEL_EDGE)
+  rect_safe(fb, 31, 15, 5, 5, C_TUNNEL)
 
   local hx = 18 + math.floor(math.sin(state.anim_ms / 650) * 3)
   draw_sprite(fb, hx, 13, {
@@ -178,8 +183,21 @@ function app.render_fb(fb)
     "..ff..",
   }, { f = C_FYGAR, w = C_EYE }, 1)
   rect_safe(fb, 53, 24, 3, 1, 0xFD20)
+  rect_safe(fb, 56, 24, 3, 1, 0xFD20)
+  if blink(260, 0.6, 60) then
+    rect_safe(fb, 58, 23, 2, 1, 0xFFE0)
+  end
+  draw_sprite(fb, 24 + math.floor(tri(1800, 0) * 2), 18, {
+    ".pp.",
+    "pppp",
+    ".pp.",
+  }, { p = 0xF81F }, 1)
 
   rect_safe(fb, 48, 7 + math.floor(tri(1800, 0) * 3), 9, 6, C_ROCK)
+  rect_safe(fb, 50, 9 + math.floor(tri(1800, 0) * 3), 2, 1, 0xBDF7)
+  if blink(220, 0.5, 0) then
+    rect_safe(fb, 34 - inflate, 18, 2, 1, 0xFFFF)
+  end
   draw_number(fb, "40", 50, 1, 1, 0xFFFF, 0x0000, 1)
 end
 

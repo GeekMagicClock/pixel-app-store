@@ -2,7 +2,7 @@ local app = {}
 
 -- Same config source pattern as weather_owm.
 local OWM_API_KEY = data.get("owm.api_key") or "5ce216b488692ef60673d24f9583a873"
-local CITY = data.get("owm.city") or "Seoul,KR"
+local CITY = data.get("owm.city") or "zhongshangang,cn"
 
 local font_label = "builtin:silkscreen_regular_8"
 local font_time = "builtin:silkscreen_regular_8"

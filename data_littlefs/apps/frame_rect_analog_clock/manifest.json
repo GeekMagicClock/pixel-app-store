@@ -1,0 +1,11 @@
+{
+  "app_id": "frame_rect_analog_clock",
+  "name": "Frame Rect Analog Clock",
+  "version": "1.0.0",
+  "min_fw": "0.0.0",
+  "min_api": "1.0",
+  "entry": "main.lua",
+  "layout_id": "framebuffer_rgb565",
+  "capabilities": ["clock"],
+  "category": "time"
+}

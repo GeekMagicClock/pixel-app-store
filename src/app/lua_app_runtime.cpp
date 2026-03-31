@@ -2,10 +2,6 @@
 extern "C" {
 #include "lua.h"
 }
-// 临时空实现，防止链接错误，后续可补充实际功能
-static void PushNetModule(lua_State* L) {
-  (void)L;
-}
 #include "app/lua_app_runtime.h"
 #include "app/buzzer.h"
 
@@ -186,6 +182,28 @@ static bool SaveLuaDataRoot(cJSON* root, std::string* out_err) {
   const std::string text(rendered);
   cJSON_free(rendered);
   return WriteStringToFile(kLuaDataPath, text, out_err);
+}
+
+static bool PushBuiltInLuaDefault(lua_State* L, const char* key) {
+  if (!L || !key || !*key) return false;
+
+  if (strcmp(key, "owm.city") == 0 || strcmp(key, "hourly_weather_strip.city") == 0 ||
+      strcmp(key, "hourly_rain_watch.city") == 0) {
+    lua_pushstring(L, "zhongshangang,cn");
+    return true;
+  }
+
+  if (strcmp(key, "openmeteo.lat") == 0 || strcmp(key, "aqi.lat") == 0) {
+    lua_pushnumber(L, static_cast<lua_Number>(22.548994));
+    return true;
+  }
+
+  if (strcmp(key, "openmeteo.lon") == 0 || strcmp(key, "aqi.lon") == 0) {
+    lua_pushnumber(L, static_cast<lua_Number>(113.459035));
+    return true;
+  }
+
+  return false;
 }
 
 struct HttpReq {
@@ -1142,6 +1160,7 @@ static int lua_buzzer_play_sequence(lua_State* L) {
   unsigned count = (unsigned)lua_rawlen(L, 1);
   if (count == 0 || count != lua_rawlen(L, 2)) return 0;
   std::vector<unsigned> freqs(count), durs(count);
+  std::vector<unsigned> gaps;
   for (unsigned i = 0; i < count; ++i) {
     lua_rawgeti(L, 1, i+1);
     freqs[i] = (unsigned)lua_tointeger(L, -1);
@@ -1150,7 +1169,19 @@ static int lua_buzzer_play_sequence(lua_State* L) {
     durs[i] = (unsigned)lua_tointeger(L, -1);
     lua_pop(L, 1);
   }
-  BuzzerPlaySequence(freqs.data(), durs.data(), count);
+  if (lua_gettop(L) >= 3 && lua_type(L, 3) == LUA_TTABLE && lua_rawlen(L, 3) == count) {
+    gaps.resize(count);
+    for (unsigned i = 0; i < count; ++i) {
+      lua_rawgeti(L, 3, i + 1);
+      gaps[i] = (unsigned)lua_tointeger(L, -1);
+      lua_pop(L, 1);
+    }
+  }
+  if (!gaps.empty()) {
+    BuzzerPlaySequenceWithGap(freqs.data(), durs.data(), gaps.data(), count);
+  } else {
+    BuzzerPlaySequence(freqs.data(), durs.data(), count);
+  }
   return 0;
 }
 
@@ -1163,7 +1194,7 @@ static void RegisterBuzzerModule(lua_State* L) {
   lua_setglobal(L, "buzzer");
 }
 
-static void RegisterAppBin(lua_State* L) {
+static void PushNetModule(lua_State* L) {
   lua_newtable(L);
   lua_pushcfunction(L, LuaNetHttpGet);
   lua_setfield(L, -2, "http_get");
@@ -1348,6 +1379,247 @@ static void PushJsonModule(lua_State* L) {
   SetFieldFn(L, "json", "decode", LuaJsonDecode);
 }
 
+static inline bool XmlStartsWith(const std::string& s, size_t pos, const char* pat) {
+  const size_t n = strlen(pat);
+  return pos + n <= s.size() && s.compare(pos, n, pat) == 0;
+}
+
+static std::string XmlTrim(const std::string& s) {
+  size_t a = 0;
+  while (a < s.size() && std::isspace(static_cast<unsigned char>(s[a]))) a++;
+  size_t b = s.size();
+  while (b > a && std::isspace(static_cast<unsigned char>(s[b - 1]))) b--;
+  return s.substr(a, b - a);
+}
+
+static std::string XmlCollapseWs(const std::string& s) {
+  std::string out;
+  out.reserve(s.size());
+  bool in_ws = false;
+  for (char ch : s) {
+    if (std::isspace(static_cast<unsigned char>(ch))) {
+      if (!in_ws && !out.empty()) out.push_back(' ');
+      in_ws = true;
+    } else {
+      out.push_back(ch);
+      in_ws = false;
+    }
+  }
+  return XmlTrim(out);
+}
+
+static std::string XmlDecodeEntities(const std::string& s) {
+  std::string out;
+  out.reserve(s.size());
+  for (size_t i = 0; i < s.size(); ++i) {
+    if (s[i] != '&') {
+      out.push_back(s[i]);
+      continue;
+    }
+    if (s.compare(i, 5, "&amp;") == 0) {
+      out.push_back('&');
+      i += 4;
+    } else if (s.compare(i, 4, "&lt;") == 0) {
+      out.push_back('<');
+      i += 3;
+    } else if (s.compare(i, 4, "&gt;") == 0) {
+      out.push_back('>');
+      i += 3;
+    } else if (s.compare(i, 6, "&quot;") == 0) {
+      out.push_back('"');
+      i += 5;
+    } else if (s.compare(i, 6, "&apos;") == 0) {
+      out.push_back('\'');
+      i += 5;
+    } else if (s.compare(i, 5, "&#39;") == 0) {
+      out.push_back('\'');
+      i += 4;
+    } else {
+      out.push_back('&');
+    }
+  }
+  return out;
+}
+
+static std::string XmlStripTags(const std::string& s) {
+  std::string out;
+  out.reserve(s.size());
+  bool in_tag = false;
+  for (char ch : s) {
+    if (ch == '<') {
+      in_tag = true;
+      continue;
+    }
+    if (ch == '>') {
+      in_tag = false;
+      continue;
+    }
+    if (!in_tag) out.push_back(ch);
+  }
+  return XmlCollapseWs(XmlDecodeEntities(out));
+}
+
+static std::string XmlExtractTagText(const std::string& block, const char* tag) {
+  if (!tag || !*tag) return {};
+  const std::string open1 = std::string("<") + tag + ">";
+  const std::string open2 = std::string("<") + tag + " ";
+  const std::string close = std::string("</") + tag + ">";
+  size_t open = block.find(open1);
+  size_t content_start = std::string::npos;
+  if (open != std::string::npos) {
+    content_start = open + open1.size();
+  } else {
+    open = block.find(open2);
+    if (open != std::string::npos) {
+      const size_t gt = block.find('>', open);
+      if (gt != std::string::npos) content_start = gt + 1;
+    }
+  }
+  if (content_start == std::string::npos) return {};
+  const size_t end = block.find(close, content_start);
+  if (end == std::string::npos || end <= content_start) return {};
+  return XmlStripTags(block.substr(content_start, end - content_start));
+}
+
+static std::string XmlExtractAtomLink(const std::string& block) {
+  size_t pos = 0;
+  while (true) {
+    pos = block.find("<link", pos);
+    if (pos == std::string::npos) return {};
+    const size_t end = block.find('>', pos);
+    if (end == std::string::npos) return {};
+    const std::string tag = block.substr(pos, end - pos + 1);
+    const size_t href = tag.find("href=\"");
+    if (href != std::string::npos) {
+      const size_t start = href + 6;
+      const size_t stop = tag.find('"', start);
+      if (stop != std::string::npos && stop > start) {
+        return XmlDecodeEntities(tag.substr(start, stop - start));
+      }
+    }
+    pos = end + 1;
+  }
+}
+
+struct XmlFeedItem {
+  std::string title;
+  std::string link;
+  std::string published;
+  std::string summary;
+};
+
+static std::string XmlExtractFeedTitle(const std::string& xml) {
+  const size_t ch = xml.find("<channel");
+  if (ch != std::string::npos) {
+    const size_t end = xml.find("</channel>", ch);
+    const std::string block = xml.substr(ch, (end == std::string::npos) ? std::string::npos : (end - ch));
+    std::string t = XmlExtractTagText(block, "title");
+    if (!t.empty()) return t;
+  }
+  const size_t feed = xml.find("<feed");
+  if (feed != std::string::npos) {
+    const size_t end = xml.find("</feed>", feed);
+    const std::string block = xml.substr(feed, (end == std::string::npos) ? std::string::npos : (end - feed));
+    std::string t = XmlExtractTagText(block, "title");
+    if (!t.empty()) return t;
+  }
+  return {};
+}
+
+static std::vector<XmlFeedItem> XmlParseFeedItems(const std::string& xml, int limit) {
+  std::vector<XmlFeedItem> out;
+  if (limit <= 0) return out;
+
+  size_t pos = 0;
+  while (out.size() < static_cast<size_t>(limit)) {
+    const size_t item = xml.find("<item", pos);
+    const size_t entry = xml.find("<entry", pos);
+    bool atom = false;
+    size_t start = item;
+    if (entry != std::string::npos && (item == std::string::npos || entry < item)) {
+      atom = true;
+      start = entry;
+    }
+    if (start == std::string::npos) break;
+    const size_t gt = xml.find('>', start);
+    if (gt == std::string::npos) break;
+    const char* close_tag = atom ? "</entry>" : "</item>";
+    const size_t end = xml.find(close_tag, gt + 1);
+    if (end == std::string::npos) break;
+    const std::string block = xml.substr(gt + 1, end - (gt + 1));
+    pos = end + strlen(close_tag);
+
+    XmlFeedItem it;
+    it.title = XmlExtractTagText(block, "title");
+    it.link = atom ? XmlExtractAtomLink(block) : XmlExtractTagText(block, "link");
+    it.published = atom ? XmlExtractTagText(block, "updated") : XmlExtractTagText(block, "pubDate");
+    if (it.published.empty()) it.published = XmlExtractTagText(block, "published");
+    it.summary = atom ? XmlExtractTagText(block, "summary") : XmlExtractTagText(block, "description");
+    if (it.summary.empty()) it.summary = XmlExtractTagText(block, "content");
+    if (!it.title.empty()) out.push_back(std::move(it));
+  }
+  return out;
+}
+
+static int LuaXmlDecodeFeed(lua_State* L) {
+  size_t len = 0;
+  const char* s = luaL_checklstring(L, 1, &len);
+  int limit = 8;
+  if (lua_gettop(L) >= 2 && lua_isnumber(L, 2)) limit = static_cast<int>(lua_tointeger(L, 2));
+  if (!s || len == 0) {
+    lua_pushnil(L);
+    lua_pushstring(L, "empty xml");
+    return 2;
+  }
+  if (limit < 1) limit = 1;
+  if (limit > 32) limit = 32;
+
+  const std::string xml(s, len);
+  const auto items = XmlParseFeedItems(xml, limit);
+  if (items.empty()) {
+    lua_pushnil(L);
+    lua_pushstring(L, "xml parse failed");
+    return 2;
+  }
+
+  lua_newtable(L);
+  const std::string feed_title = XmlExtractFeedTitle(xml);
+  if (!feed_title.empty()) {
+    lua_pushstring(L, feed_title.c_str());
+    lua_setfield(L, -2, "title");
+  }
+  lua_newtable(L);
+  int idx = 1;
+  for (const auto& item : items) {
+    lua_newtable(L);
+    lua_pushstring(L, item.title.c_str());
+    lua_setfield(L, -2, "title");
+    if (!item.link.empty()) {
+      lua_pushstring(L, item.link.c_str());
+      lua_setfield(L, -2, "link");
+    }
+    if (!item.published.empty()) {
+      lua_pushstring(L, item.published.c_str());
+      lua_setfield(L, -2, "published");
+    }
+    if (!item.summary.empty()) {
+      lua_pushstring(L, item.summary.c_str());
+      lua_setfield(L, -2, "summary");
+    }
+    lua_rawseti(L, -2, idx++);
+  }
+  lua_setfield(L, -2, "items");
+  return 1;
+}
+
+static void PushXmlModule(lua_State* L) {
+  lua_newtable(L);
+  lua_pushcfunction(L, LuaXmlDecodeFeed);
+  lua_setfield(L, -2, "decode_feed");
+  lua_setglobal(L, "xml");
+  SetFieldFn(L, "xml", "decode_feed", LuaXmlDecodeFeed);
+}
+
 }  // namespace
 
 LuaAppRuntime::LuaAppRuntime() = default;
@@ -1416,6 +1688,7 @@ bool LuaAppRuntime::CreateState() {
   PushDataModule();
   PushNetModule(L_);
   PushJsonModule(L_);
+  PushXmlModule(L_);
   RegisterBuzzerModule(L_);
 
   // Forbid `dofile`/`loadfile` by removing them from base lib.
@@ -3053,6 +3326,8 @@ int LuaAppRuntime::LuaDataGet(lua_State* L) {
     }
     cJSON_Delete(root);
   }
+
+  if (PushBuiltInLuaDefault(L, key)) return 1;
 
   lua_pushnil(L);
   return 1;

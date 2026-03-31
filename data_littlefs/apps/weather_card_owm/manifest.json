@@ -6,5 +6,6 @@
   "min_api": "1.0",
   "entry": "main.lua",
   "layout_id": "framebuffer_rgb565",
-  "capabilities": ["network"]
+  "capabilities": ["network"],
+  "category": "weather"
 }

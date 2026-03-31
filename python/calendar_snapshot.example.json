@@ -1,0 +1,48 @@
+{
+  "timezone": "Europe/London",
+  "sources": [
+    {
+      "type": "ics",
+      "name": "work",
+      "url": "https://calendar.example.com/work.ics",
+      "default_priority": 85
+    },
+    {
+      "type": "ics",
+      "name": "personal",
+      "url": "https://calendar.example.com/personal.ics",
+      "default_priority": 65
+    },
+    {
+      "type": "json",
+      "name": "tasks",
+      "url": "https://calendar.example.com/tasks.json",
+      "kind": "task",
+      "default_priority": 75,
+      "items_path": "items"
+    },
+    {
+      "type": "static",
+      "name": "special",
+      "items": [
+        {
+          "title": "Mom Birthday",
+          "kind": "anniversary",
+          "month": 4,
+          "day": 2,
+          "priority": 100,
+          "special": true,
+          "countdown": true
+        },
+        {
+          "title": "Spring Holiday",
+          "kind": "holiday",
+          "date": "2026-04-04",
+          "priority": 80,
+          "special": true,
+          "countdown": true
+        }
+      ]
+    }
+  ]
+}

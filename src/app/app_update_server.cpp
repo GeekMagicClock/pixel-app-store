@@ -2,22 +2,30 @@
 
 #include <cerrno>
 #include <cctype>
+#include <cstdarg>
+#include <cstdint>
+#include <ctime>
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include <dirent.h>
 #include <string>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <vector>
 
 #include "cJSON.h"
 #include "app/display_control.h"
 #include "app/wifi_manager.h"
+#include "esp_timer.h"
 #include "esp_littlefs.h"
 #include "esp_ota_ops.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
 #include "esp_system.h"
 #include "f_html_gz.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "ui/lvgl_lua_app_screen.h"
 
 static const char* kTag = "app_update";
@@ -29,6 +37,151 @@ static AppUpdateReloadCallback g_reload_cb = nullptr;
 static AppUpdateSwitchCallback g_switch_cb = nullptr;
 static const char* kDefaultStoreIndexUrl =
     "http://ota.geekmagic.cc:8001/fw/pixel64x32V2/apps/apps-index.json";
+static const char* kLuaDataDir = "/littlefs/.sys";
+static const char* kLuaDataPath = "/littlefs/.sys/lua_data.json";
+static constexpr size_t kLogRingSize = 160;
+static constexpr size_t kLogTextBytes = 256;
+
+struct CapturedLogEntry {
+  uint32_t seq = 0;
+  int64_t ms = 0;
+  bool is_app = false;
+  char text[kLogTextBytes] = {};
+};
+
+static portMUX_TYPE g_log_mux = portMUX_INITIALIZER_UNLOCKED;
+static CapturedLogEntry g_log_ring[kLogRingSize] = {};
+static size_t g_log_ring_head = 0;
+static size_t g_log_ring_count = 0;
+static uint32_t g_log_last_seq = 0;
+static bool g_log_hook_installed = false;
+static vprintf_like_t g_prev_log_vprintf = nullptr;
+static SemaphoreHandle_t g_installed_apps_cache_mu = nullptr;
+static bool g_installed_apps_cache_valid = false;
+static std::string g_installed_apps_cache_body;
+
+static bool LooksLikeAppLog(const char* text) {
+  if (!text || !*text) return false;
+  return strstr(text, " lua_app:") != nullptr || strstr(text, "[lua]") != nullptr;
+}
+
+static void CaptureLogLine(const char* text) {
+  if (!text || !*text) return;
+
+  char line[kLogTextBytes] = {};
+  size_t len = strnlen(text, sizeof(line) - 1);
+  while (len > 0 && (text[len - 1] == '\n' || text[len - 1] == '\r')) len--;
+  if (len == 0) return;
+  memcpy(line, text, len);
+  line[len] = '\0';
+
+  portENTER_CRITICAL(&g_log_mux);
+  CapturedLogEntry& entry = g_log_ring[g_log_ring_head];
+  entry.seq = ++g_log_last_seq;
+  entry.ms = esp_timer_get_time() / 1000;
+  entry.is_app = LooksLikeAppLog(line);
+  memcpy(entry.text, line, len + 1);
+  g_log_ring_head = (g_log_ring_head + 1) % kLogRingSize;
+  if (g_log_ring_count < kLogRingSize) g_log_ring_count++;
+  portEXIT_CRITICAL(&g_log_mux);
+}
+
+static int CapturingVprintf(const char* fmt, va_list args) {
+  va_list capture_args;
+  va_copy(capture_args, args);
+  char line[320] = {};
+  (void)vsnprintf(line, sizeof(line), fmt, capture_args);
+  va_end(capture_args);
+  CaptureLogLine(line);
+  return g_prev_log_vprintf ? g_prev_log_vprintf(fmt, args) : vprintf(fmt, args);
+}
+
+static void EnsureLogCaptureInstalled() {
+  if (g_log_hook_installed) return;
+  g_prev_log_vprintf = esp_log_set_vprintf(CapturingVprintf);
+  g_log_hook_installed = true;
+  CaptureLogLine("I (0) app_update: runtime log capture installed");
+}
+
+struct CapturedLogSnapshot {
+  uint32_t seq = 0;
+  int64_t ms = 0;
+  bool is_app = false;
+  std::string text;
+};
+
+static std::vector<CapturedLogSnapshot> SnapshotCapturedLogs(uint32_t after_seq, size_t limit, bool app_only) {
+  std::vector<CapturedLogSnapshot> out;
+  if (limit == 0) return out;
+
+  // Keep large log copies off the HTTP handler stack; that stack is only 8 KB.
+  std::vector<CapturedLogEntry> copied(kLogRingSize);
+  size_t copied_count = 0;
+  portENTER_CRITICAL(&g_log_mux);
+  const size_t count = g_log_ring_count;
+  const size_t start = (g_log_ring_head + kLogRingSize - count) % kLogRingSize;
+  for (size_t i = 0; i < count; ++i) {
+    const CapturedLogEntry& entry = g_log_ring[(start + i) % kLogRingSize];
+    if (entry.seq <= after_seq) continue;
+    if (app_only && !entry.is_app) continue;
+    copied[copied_count++] = entry;
+  }
+  portEXIT_CRITICAL(&g_log_mux);
+
+  out.reserve(copied_count);
+  for (size_t i = 0; i < copied_count; ++i) {
+    CapturedLogSnapshot snap = {};
+    snap.seq = copied[i].seq;
+    snap.ms = copied[i].ms;
+    snap.is_app = copied[i].is_app;
+    snap.text = copied[i].text;
+    out.push_back(std::move(snap));
+  }
+
+  if (out.size() > limit) {
+    out.erase(out.begin(), out.begin() + (out.size() - limit));
+  }
+  return out;
+}
+
+static uint32_t LatestCapturedLogSeq() {
+  portENTER_CRITICAL(&g_log_mux);
+  const uint32_t seq = g_log_last_seq;
+  portEXIT_CRITICAL(&g_log_mux);
+  return seq;
+}
+
+static void LockInstalledAppsCache() {
+  if (g_installed_apps_cache_mu) (void)xSemaphoreTake(g_installed_apps_cache_mu, portMAX_DELAY);
+}
+
+static void UnlockInstalledAppsCache() {
+  if (g_installed_apps_cache_mu) (void)xSemaphoreGive(g_installed_apps_cache_mu);
+}
+
+static void InvalidateInstalledAppsCache() {
+  LockInstalledAppsCache();
+  g_installed_apps_cache_valid = false;
+  g_installed_apps_cache_body.clear();
+  UnlockInstalledAppsCache();
+}
+
+static bool ReadInstalledAppsCache(std::string* out_body) {
+  if (out_body) out_body->clear();
+  if (!out_body) return false;
+  LockInstalledAppsCache();
+  const bool ok = g_installed_apps_cache_valid;
+  if (ok) *out_body = g_installed_apps_cache_body;
+  UnlockInstalledAppsCache();
+  return ok;
+}
+
+static void WriteInstalledAppsCache(std::string body) {
+  LockInstalledAppsCache();
+  g_installed_apps_cache_body = std::move(body);
+  g_installed_apps_cache_valid = true;
+  UnlockInstalledAppsCache();
+}
 
 static bool EnsureDir(const char* path) {
   if (!path || !*path) return false;
@@ -69,11 +222,92 @@ static void SendJson(httpd_req_t* req, const char* status, const char* json) {
   httpd_resp_sendstr(req, json);
 }
 
+static bool ReadSmallFile(const std::string& path, size_t max_bytes, std::string* out);
+
+static cJSON* LoadLuaDataRootForHttp() {
+  std::string text;
+  if (!ReadSmallFile(kLuaDataPath, 16 * 1024, &text) || text.empty()) {
+    return cJSON_CreateObject();
+  }
+  cJSON* root = cJSON_ParseWithLength(text.c_str(), text.size());
+  if (!root) return cJSON_CreateObject();
+  if (!cJSON_IsObject(root)) {
+    cJSON_Delete(root);
+    return cJSON_CreateObject();
+  }
+  return root;
+}
+
+static bool SaveLuaDataRootForHttp(cJSON* root, std::string* out_err) {
+  if (out_err) out_err->clear();
+  if (!root || !cJSON_IsObject(root)) {
+    if (out_err) *out_err = "invalid root";
+    return false;
+  }
+  if (!EnsureDir(kLuaDataDir)) {
+    if (out_err) *out_err = "mkdir failed";
+    return false;
+  }
+  char* rendered = cJSON_PrintUnformatted(root);
+  if (!rendered) {
+    if (out_err) *out_err = "json render failed";
+    return false;
+  }
+  const std::string text(rendered);
+  cJSON_free(rendered);
+  const std::string tmp_path = std::string(kLuaDataPath) + ".tmp";
+  FILE* f = fopen(tmp_path.c_str(), "wb");
+  if (!f) {
+    if (out_err) *out_err = "open tmp failed";
+    return false;
+  }
+  const size_t need = text.size();
+  const size_t wrote = fwrite(text.data(), 1, need, f);
+  if (fclose(f) != 0 || wrote != need) {
+    unlink(tmp_path.c_str());
+    if (out_err) *out_err = "write tmp failed";
+    return false;
+  }
+  if (rename(tmp_path.c_str(), kLuaDataPath) != 0) {
+    unlink(tmp_path.c_str());
+    if (out_err) *out_err = "rename failed";
+    return false;
+  }
+  return true;
+}
+
+static bool IsValidLuaDataKey(const std::string& key) {
+  if (key.empty() || key.size() > 96) return false;
+  for (char ch : key) {
+    const bool ok = (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') ||
+                    ch == '_' || ch == '-' || ch == '.';
+    if (!ok) return false;
+  }
+  return true;
+}
+
 static std::string UriWithoutQuery(const char* uri) {
   if (!uri) return {};
   const char* q = strchr(uri, '?');
   if (!q) return std::string(uri);
   return std::string(uri, static_cast<size_t>(q - uri));
+}
+
+static bool ReadQueryParam(httpd_req_t* req, const char* key, std::string* out_value) {
+  if (out_value) out_value->clear();
+  if (!req || !key || !*key || !out_value) return false;
+
+  const size_t qlen = httpd_req_get_url_query_len(req);
+  if (qlen == 0) return false;
+
+  std::string query;
+  query.resize(qlen + 1, '\0');
+  if (httpd_req_get_url_query_str(req, query.data(), query.size()) != ESP_OK) return false;
+
+  char buf[64] = {};
+  if (httpd_query_key_value(query.c_str(), key, buf, sizeof(buf)) != ESP_OK) return false;
+  *out_value = buf;
+  return true;
 }
 
 static bool ParsePutUri(const char* uri, std::string* out_app_id, std::string* out_filename) {
@@ -625,6 +859,7 @@ static esp_err_t HandlePutAppFile(httpd_req_t* req) {
   }
 
   ESP_LOGI(kTag, "updated %s (%d bytes)", final_path.c_str(), wrote);
+  InvalidateInstalledAppsCache();
 
   SendJson(req, "200 OK", "{\"ok\":true}");
   return ESP_OK;
@@ -646,6 +881,7 @@ static esp_err_t HandleDeleteAppFile(httpd_req_t* req) {
     }
 
     ESP_LOGI(kTag, "uninstalled app: %s", app_only_id.c_str());
+    InvalidateInstalledAppsCache();
     SendJson(req, "200 OK", "{\"ok\":true,\"uninstalled\":true}");
     return ESP_OK;
   }
@@ -664,11 +900,13 @@ static esp_err_t HandleDeleteAppFile(httpd_req_t* req) {
   }
 
   ESP_LOGI(kTag, "deleted %s", final_path.c_str());
+  InvalidateInstalledAppsCache();
   SendJson(req, "200 OK", "{\"ok\":true,\"deleted\":true}");
   return ESP_OK;
 }
 
 static esp_err_t HandleReload(httpd_req_t* req) {
+  InvalidateInstalledAppsCache();
   NotifyReloadRequested();
   SendJson(req, "200 OK", "{\"ok\":true,\"reloaded\":true}");
   return ESP_OK;
@@ -696,11 +934,10 @@ static esp_err_t HandlePing(httpd_req_t* req) {
   return ESP_OK;
 }
 
-static esp_err_t HandleInstalledApps(httpd_req_t* req) {
+static std::string BuildInstalledAppsBody() {
   DIR* dir = opendir("/littlefs/apps");
   if (!dir) {
-    SendJson(req, "200 OK", "{\"ok\":true,\"apps\":[]}");
-    return ESP_OK;
+    return "{\"ok\":true,\"apps\":[]}";
   }
 
   std::string body = "{\"ok\":true,\"apps\":[";
@@ -746,6 +983,15 @@ static esp_err_t HandleInstalledApps(httpd_req_t* req) {
   }
   closedir(dir);
   body += "]}";
+  return body;
+}
+
+static esp_err_t HandleInstalledApps(httpd_req_t* req) {
+  std::string body;
+  if (!ReadInstalledAppsCache(&body)) {
+    body = BuildInstalledAppsBody();
+    WriteInstalledAppsCache(body);
+  }
   SendJson(req, "200 OK", body.c_str());
   return ESP_OK;
 }
@@ -781,6 +1027,10 @@ static esp_err_t HandleSystemStatus(httpd_req_t* req) {
 
   const esp_partition_t* running = esp_ota_get_running_partition();
   const esp_app_desc_t* desc = esp_app_get_description();
+  time_t now = 0;
+  time(&now);
+  struct tm local_tm = {};
+  localtime_r(&now, &local_tm);
   size_t littlefs_total = 0;
   size_t littlefs_used = 0;
   const bool littlefs_ok = esp_littlefs_info("littlefs", &littlefs_total, &littlefs_used) == ESP_OK;
@@ -805,7 +1055,23 @@ static esp_err_t HandleSystemStatus(httpd_req_t* req) {
   body += std::to_string(static_cast<unsigned long long>(littlefs_total));
   body += ",\"used_pct\":";
   body += std::to_string(littlefs_pct);
-  body += "},\"wifi\":{\"mode\":\"";
+  body += "},\"time\":{\"unix\":";
+  body += std::to_string(static_cast<long long>(now));
+  body += ",\"local\":{\"year\":";
+  body += std::to_string(local_tm.tm_year + 1900);
+  body += ",\"month\":";
+  body += std::to_string(local_tm.tm_mon + 1);
+  body += ",\"day\":";
+  body += std::to_string(local_tm.tm_mday);
+  body += ",\"hour\":";
+  body += std::to_string(local_tm.tm_hour);
+  body += ",\"min\":";
+  body += std::to_string(local_tm.tm_min);
+  body += ",\"sec\":";
+  body += std::to_string(local_tm.tm_sec);
+  body += ",\"wday\":";
+  body += std::to_string(local_tm.tm_wday + 1);
+  body += "}},\"wifi\":{\"mode\":\"";
   AppendJsonEscaped(&body, wifi.mode);
   body += "\",\"saved_ssid\":\"";
   AppendJsonEscaped(&body, wifi.saved_ssid);
@@ -928,6 +1194,162 @@ static esp_err_t HandleSystemBrightness(httpd_req_t* req) {
   return ESP_OK;
 }
 
+static esp_err_t HandleSystemLuaDataGet(httpd_req_t* req) {
+  std::string key;
+  std::string prefix;
+  (void)ReadQueryParam(req, "key", &key);
+  (void)ReadQueryParam(req, "prefix", &prefix);
+
+  cJSON* root = LoadLuaDataRootForHttp();
+  cJSON* resp = cJSON_CreateObject();
+  cJSON_AddBoolToObject(resp, "ok", 1);
+  cJSON* items = cJSON_CreateObject();
+  cJSON_AddItemToObject(resp, "items", items);
+
+  if (key.empty() && prefix.empty()) {
+    cJSON* dup = cJSON_Duplicate(root, 1);
+    if (!dup) dup = cJSON_CreateObject();
+    cJSON_ReplaceItemInObject(resp, "items", dup);
+  } else if (!key.empty()) {
+    if (!IsValidLuaDataKey(key)) {
+      cJSON_Delete(root);
+      cJSON_Delete(resp);
+      SendJson(req, "400 Bad Request", "{\"ok\":false,\"error\":\"invalid key\"}");
+      return ESP_OK;
+    }
+    cJSON* item = cJSON_GetObjectItemCaseSensitive(root, key.c_str());
+    if (item) {
+      cJSON_AddItemToObject(items, key.c_str(), cJSON_Duplicate(item, 1));
+    } else {
+      cJSON_AddNullToObject(items, key.c_str());
+    }
+  } else {
+    cJSON* child = root ? root->child : nullptr;
+    while (child) {
+      const char* name = child->string;
+      if (name && strncmp(name, prefix.c_str(), prefix.size()) == 0) {
+        cJSON_AddItemToObject(items, name, cJSON_Duplicate(child, 1));
+      }
+      child = child->next;
+    }
+  }
+
+  char* rendered = cJSON_PrintUnformatted(resp);
+  SendJson(req, "200 OK", rendered ? rendered : "{\"ok\":true,\"items\":{}}");
+  if (rendered) cJSON_free(rendered);
+  cJSON_Delete(root);
+  cJSON_Delete(resp);
+  return ESP_OK;
+}
+
+static esp_err_t HandleSystemLuaDataPost(httpd_req_t* req) {
+  std::string body;
+  if (!ReadRequestBodyToString(req, 8 * 1024, &body)) {
+    SendJson(req, "400 Bad Request", "{\"ok\":false,\"error\":\"invalid body\"}");
+    return ESP_OK;
+  }
+
+  cJSON* payload = cJSON_ParseWithLength(body.c_str(), body.size());
+  if (!payload || !cJSON_IsObject(payload)) {
+    if (payload) cJSON_Delete(payload);
+    SendJson(req, "400 Bad Request", "{\"ok\":false,\"error\":\"invalid json\"}");
+    return ESP_OK;
+  }
+
+  cJSON* root = LoadLuaDataRootForHttp();
+  bool changed = false;
+
+  cJSON* items = cJSON_GetObjectItemCaseSensitive(payload, "items");
+  if (cJSON_IsObject(items)) {
+    for (cJSON* child = items->child; child; child = child->next) {
+      if (!child->string || !IsValidLuaDataKey(child->string)) {
+        cJSON_Delete(root);
+        cJSON_Delete(payload);
+        SendJson(req, "400 Bad Request", "{\"ok\":false,\"error\":\"invalid key\"}");
+        return ESP_OK;
+      }
+      cJSON_DeleteItemFromObjectCaseSensitive(root, child->string);
+      if (!cJSON_IsNull(child)) {
+        cJSON_AddItemToObject(root, child->string, cJSON_Duplicate(child, 1));
+      }
+      changed = true;
+    }
+  } else {
+    cJSON* key_item = cJSON_GetObjectItemCaseSensitive(payload, "key");
+    const char* key = cJSON_IsString(key_item) ? key_item->valuestring : nullptr;
+    if (!key || !IsValidLuaDataKey(key)) {
+      cJSON_Delete(root);
+      cJSON_Delete(payload);
+      SendJson(req, "400 Bad Request", "{\"ok\":false,\"error\":\"invalid key\"}");
+      return ESP_OK;
+    }
+    cJSON* value_item = cJSON_GetObjectItemCaseSensitive(payload, "value");
+    cJSON_DeleteItemFromObjectCaseSensitive(root, key);
+    if (value_item && !cJSON_IsNull(value_item)) {
+      cJSON_AddItemToObject(root, key, cJSON_Duplicate(value_item, 1));
+    }
+    changed = true;
+  }
+
+  std::string err;
+  const bool ok = changed && SaveLuaDataRootForHttp(root, &err);
+  cJSON_Delete(root);
+  cJSON_Delete(payload);
+  if (!ok) {
+    std::string resp = "{\"ok\":false,\"error\":\"";
+    AppendJsonEscaped(&resp, err.empty() ? "save failed" : err);
+    resp += "\"}";
+    SendJson(req, "500 Internal Server Error", resp.c_str());
+    return ESP_OK;
+  }
+  SendJson(req, "200 OK", "{\"ok\":true}");
+  return ESP_OK;
+}
+
+static esp_err_t HandleSystemLogs(httpd_req_t* req) {
+  std::string scope;
+  const bool app_only = ReadQueryParam(req, "scope", &scope) && scope == "app";
+
+  uint32_t after_seq = 0;
+  std::string after_str;
+  if (ReadQueryParam(req, "after", &after_str)) {
+    after_seq = static_cast<uint32_t>(strtoul(after_str.c_str(), nullptr, 10));
+  }
+
+  size_t limit = 80;
+  std::string limit_str;
+  if (ReadQueryParam(req, "limit", &limit_str)) {
+    const unsigned long parsed = strtoul(limit_str.c_str(), nullptr, 10);
+    if (parsed > 0) limit = static_cast<size_t>(parsed);
+  }
+  if (limit > 120) limit = 120;
+
+  const auto entries = SnapshotCapturedLogs(after_seq, limit, app_only);
+  const uint32_t next_seq = LatestCapturedLogSeq();
+
+  std::string body = "{\"ok\":true,\"scope\":\"";
+  body += app_only ? "app" : "all";
+  body += "\",\"next_seq\":";
+  body += std::to_string(next_seq);
+  body += ",\"logs\":[";
+  for (size_t i = 0; i < entries.size(); ++i) {
+    const CapturedLogSnapshot& entry = entries[i];
+    if (i > 0) body += ",";
+    body += "{\"seq\":";
+    body += std::to_string(entry.seq);
+    body += ",\"ms\":";
+    body += std::to_string(static_cast<long long>(entry.ms));
+    body += ",\"kind\":\"";
+    body += entry.is_app ? "app" : "system";
+    body += "\",\"text\":\"";
+    AppendJsonEscaped(&body, entry.text);
+    body += "\"}";
+  }
+  body += "]}";
+  SendJson(req, "200 OK", body.c_str());
+  return ESP_OK;
+}
+
 static esp_err_t HandleStoreIndex(httpd_req_t* req) {
   std::string body = "{\"ok\":true,\"default_index_url\":\"";
   body += kDefaultStoreIndexUrl;
@@ -992,10 +1414,12 @@ bool AppUpdateServerStart(AppUpdateReloadCallback reload_cb, AppUpdateSwitchCall
   g_reload_cb = reload_cb;
   g_switch_cb = switch_cb;
   if (g_httpd) return true;
+  EnsureLogCaptureInstalled();
+  if (!g_installed_apps_cache_mu) g_installed_apps_cache_mu = xSemaphoreCreateMutex();
 
   httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
   cfg.uri_match_fn = httpd_uri_match_wildcard;
-  cfg.max_uri_handlers = 24;
+  cfg.max_uri_handlers = 30;
   cfg.stack_size = 8192;
 
   const esp_err_t start_ret = httpd_start(&g_httpd, &cfg);
@@ -1132,6 +1556,39 @@ bool AppUpdateServerStart(AppUpdateReloadCallback reload_cb, AppUpdateSwitchCall
   brightness.handler = HandleSystemBrightness;
   if (httpd_register_uri_handler(g_httpd, &brightness) != ESP_OK) {
     ESP_LOGE(kTag, "register brightness failed");
+    httpd_stop(g_httpd);
+    g_httpd = nullptr;
+    return false;
+  }
+
+  httpd_uri_t lua_data_get = {};
+  lua_data_get.uri = "/api/system/lua-data";
+  lua_data_get.method = HTTP_GET;
+  lua_data_get.handler = HandleSystemLuaDataGet;
+  if (httpd_register_uri_handler(g_httpd, &lua_data_get) != ESP_OK) {
+    ESP_LOGE(kTag, "register lua-data get failed");
+    httpd_stop(g_httpd);
+    g_httpd = nullptr;
+    return false;
+  }
+
+  httpd_uri_t lua_data_post = {};
+  lua_data_post.uri = "/api/system/lua-data";
+  lua_data_post.method = HTTP_POST;
+  lua_data_post.handler = HandleSystemLuaDataPost;
+  if (httpd_register_uri_handler(g_httpd, &lua_data_post) != ESP_OK) {
+    ESP_LOGE(kTag, "register lua-data post failed");
+    httpd_stop(g_httpd);
+    g_httpd = nullptr;
+    return false;
+  }
+
+  httpd_uri_t system_logs = {};
+  system_logs.uri = "/api/system/logs";
+  system_logs.method = HTTP_GET;
+  system_logs.handler = HandleSystemLogs;
+  if (httpd_register_uri_handler(g_httpd, &system_logs) != ESP_OK) {
+    ESP_LOGE(kTag, "register system logs failed");
     httpd_stop(g_httpd);
     g_httpd = nullptr;
     return false;

@@ -8,7 +8,7 @@ local C_MUTED = 0x9CF3
 local NEW_MOON_EPOCH = 947182440
 local SYNODIC_SEC = 29.530588853 * 86400.0
 local FRAMES = 32
-local BASE = "S:/littlefs/apps/moon_phase_png/assets/moon_phase_"
+local BASE = "S:/littlefs/apps/moon_phase_png/assets_v3/moon_phase_"
 
 local state = {
   ok_time = false,
@@ -30,6 +30,35 @@ end
 
 local function frame_path(i)
   return string.format("%s%d.png", BASE, i)
+end
+
+local function phase_frame_idx(p)
+  local illum = 0.5 * (1.0 - math.cos(2.0 * math.pi * p))
+  if illum < 0.05 then
+    return 16
+  end
+
+  if p < 0.22 then
+    if illum < 0.20 then return 29 end
+    if illum < 0.30 then return 24 end
+    return 19
+  end
+  if p < 0.28 then return 14 end
+  if p < 0.47 then
+    if illum < 0.62 then return 9 end
+    if illum < 0.80 then return 4 end
+    return 22
+  end
+  if p < 0.53 then return 27 end
+  if p < 0.72 then
+    if illum < 0.62 then return 20 end
+    if illum < 0.80 then return 25 end
+    return 0
+  end
+  if p < 0.78 then return 8 end
+  if illum < 0.20 then return 23 end
+  if illum < 0.30 then return 18 end
+  return 13
 end
 
 local function phase_lines(name)
@@ -100,8 +129,7 @@ local function update_phase()
   state.phase = p
   state.illum = 0.5 * (1.0 - math.cos(2.0 * math.pi * p))
 
-  local idx = math.floor(p * FRAMES + 0.5) % FRAMES
-  state.idx = idx
+  state.idx = phase_frame_idx(p)
 end
 
 function app.init(config)

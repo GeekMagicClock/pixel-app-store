@@ -155,8 +155,16 @@ end
 
 function app.render_fb(fb)
   fb:fill(C_BG)
+  rect_safe(fb, 0, 0, 64, 1, 0x7BEF)
+  for i = 0, 5 do
+    local sx = (i * 11 + math.floor(state.anim_ms / 36)) % 64
+    set_px_safe(fb, sx, 2 + (i % 2), 0x39E7)
+  end
   for i, m in ipairs(MUSH) do
     draw_mushroom(fb, m[1], m[2], (i % 2 == 0) and C_MCAP or C_MCAP2)
+    if (i % 3) == 0 then
+      set_px_safe(fb, m[1] + 2, m[2], 0xFFFF)
+    end
   end
   local head_step = math.floor(state.anim_ms / 110) % 96
   for i = 11, 0, -1 do
@@ -175,6 +183,11 @@ function app.render_fb(fb)
   }, {p = C_PLAYER, r = C_PLAYER_MUZZ}, 1)
   rect_safe(fb, px + 1, 17 + math.floor((state.anim_ms / 22) % 7), 1, 11, C_SHOT)
   draw_sprite(fb, 8 + math.floor(tri(1500, 0) * 46), 22, {"s..s", ".ss.", "ssss", "s..s"}, {s = C_SPIDER}, 1)
+  if blink(220, 0.5, 0) then
+    rect_safe(fb, px + 2, 24, 1, 2, 0xFD20)
+  end
+  rect_safe(fb, 46, 7, 12, 1, 0x4208)
+  rect_safe(fb, 46, 7, 3 + math.floor(cyc(3000, 0) * 8), 1, 0x07E0)
   draw_number(fb, "100", 46, 1, 1, 0xFFFF, 0x4208, 1)
 end
 

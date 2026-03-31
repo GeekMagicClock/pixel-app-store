@@ -2,10 +2,10 @@ local app = {}
 
 -- Config keys:
 --   owm.api_key = "..."
---   owm.city    = "Seoul,KR"
+--   owm.city    = "zhongshangang,cn"
 --   owm.units   = "metric" | "imperial"
 local OWM_API_KEY = data.get("owm.api_key") or "5ce216b488692ef60673d24f9583a873"
-local CITY = data.get("owm.city") or "Seoul,KR"
+local CITY = data.get("owm.city") or "zhongshangang,cn"
 local UNITS = data.get("owm.units") or "metric"
 -- Debug: "clear" | "clouds" | "cycle"; empty means use real weather mapping.
 local DEBUG_ICON = data.get("weather_card.debug_icon") or ""

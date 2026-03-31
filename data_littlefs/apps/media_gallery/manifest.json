@@ -6,5 +6,6 @@
   "min_api": "1.0",
   "entry": "main.lua",
   "layout_id": "framebuffer_rgb565",
-  "capabilities": ["media"]
+  "capabilities": ["media"],
+  "category": "media"
 }

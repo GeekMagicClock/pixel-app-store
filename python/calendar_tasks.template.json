@@ -1,0 +1,31 @@
+{
+  "items": [
+    {
+      "id": "task-001",
+      "title": "Ship v2 build",
+      "kind": "deadline",
+      "due_at": "2026-04-04T17:00:00+01:00",
+      "priority": 95,
+      "countdown": true,
+      "source": "work"
+    },
+    {
+      "id": "task-002",
+      "title": "Pay electricity bill",
+      "kind": "bill",
+      "date": "2026-04-06",
+      "priority": 80,
+      "special": true,
+      "countdown": true,
+      "source": "home"
+    },
+    {
+      "id": "task-003",
+      "title": "Buy birthday gift",
+      "kind": "task",
+      "due_at": "2026-04-01T20:00:00+01:00",
+      "priority": 70,
+      "source": "personal"
+    }
+  ]
+}

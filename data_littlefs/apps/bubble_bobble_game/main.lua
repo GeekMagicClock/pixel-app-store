@@ -127,6 +127,8 @@ local C_FRUIT = 0xFD20
 local C_FRUIT2 = 0xF800
 function app.render_fb(fb)
   fb:fill(C_BG)
+  rect_safe(fb, 1, 1, 17, 1, 0x7BEF)
+  rect_safe(fb, 46, 1, 15, 1, 0x7BEF)
   rect_safe(fb, 4, 8, 16, 1, C_PLAT)
   rect_safe(fb, 4, 9, 16, 1, C_PLAT2)
   rect_safe(fb, 24, 14, 16, 1, C_PLAT)
@@ -148,6 +150,7 @@ function app.render_fb(fb)
   }, { g = C_DRAGON, y = C_BELLY }, 1)
   rect_safe(fb, 13, 18, 1, 1, 0xFFFF)
   rect_safe(fb, 15, 18, 1, 1, 0xFFFF)
+  rect_safe(fb, 12, 24, 8, 1, 0x07E0)
   local rise = (state.anim_ms / 45) % 18
   local by1 = 18 - math.floor(rise)
   local by2 = 14 - math.floor((rise + 8) % 14)
@@ -163,6 +166,12 @@ function app.render_fb(fb)
     ".rr.",
   }, { r = C_MON }, 1)
   draw_sprite(fb, 49, 4, {'.oo.','.oo.','oooo','.rr.'}, {o=C_FRUIT,r=C_FRUIT2}, 1)
+  draw_sprite(fb, 20, 4 + math.floor(tri(1200, 200) * 2), {'.oo.','oooo','.gg.'}, {o=0xFFE0,g=0x07E0}, 1)
+  rect_safe(fb, 29, by1 - 2, 1, 1, C_BUBBLE_HL)
+  rect_safe(fb, 46, by2 - 2, 1, 1, C_BUBBLE_HL)
+  if blink(320, 0.5, 0) then
+    rect_safe(fb, 37, 11, 3, 1, 0xFFFF)
+  end
   draw_number(fb, "20", 2, 2, 1, 0xFFFF, 0x0000, 1)
 end
 

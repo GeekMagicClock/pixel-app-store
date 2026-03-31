@@ -139,6 +139,7 @@ local TARGETS = {{5,2},{4,4}}
 function app.render_fb(fb)
   fb:fill(C_BG)
   local frame = FRAMES[math.floor(state.anim_ms / 500) % #FRAMES + 1]
+  rect_safe(fb, 13, 3, 33, 1, 0x4208)
   for y = 0, 5 do
     for x = 0, 7 do
       local wx = ORGX + x * CELL
@@ -152,6 +153,9 @@ function app.render_fb(fb)
       else
         rect_safe(fb, wx, wy, CELL - 1, CELL - 1, C_FLOOR)
         if ((x + y) % 2 == 0) then rect_safe(fb, wx + 1, wy + 1, 1, 1, C_SHADOW) end
+        if ((x + y + math.floor(state.anim_ms / 400)) % 5) == 0 then
+          set_px_safe(fb, wx + 2, wy + 2, 0xFFFF)
+        end
       end
     end
   end
@@ -177,6 +181,11 @@ function app.render_fb(fb)
     ".bb.",
     "b..b",
   }, { w = C_PLAYER, b = C_PLAYER_BODY }, 1)
+  if blink(320, 0.5, 0) then
+    rect_safe(fb, ORGX + frame.p[1] * CELL + 1, ORGY + frame.p[2] * CELL + 4, 2, 1, C_SHADOW)
+  end
+  rect_safe(fb, 47, 9, 11, 1, 0x4208)
+  rect_safe(fb, 47, 9, 2 + math.floor(cyc(2200, 0) * 8), 1, C_TARGET)
   draw_number(fb, "12", 47, 3, 1, 0xFFFF, 0x0000, 1)
 end
 

@@ -133,6 +133,8 @@ function app.render_fb(fb)
   local ox = 7 + math.floor(tri(1800, 0) * 14)
   local frame = blink(420, 0.5, 0)
   draw_number(fb, '150', 2, 2, 1, 0xFFFF, 0x0000, 1)
+  rect_safe(fb, 48, 2, 11, 1, 0x39E7)
+  rect_safe(fb, 48, 2, 2 + math.floor(cyc(3200, 0) * 9), 1, 0x07E0)
   for c = 0, 5 do
     draw_sprite(fb, ox + c * 8, 5, frame and INV_A1 or INV_A2, {g=C_INV1}, 1)
   end
@@ -143,6 +145,9 @@ function app.render_fb(fb)
     draw_sprite(fb, ox + c * 8, 17, frame and INV_C1 or INV_C2, {o=C_INV3}, 1)
   end
   draw_sprite(fb, 8 + math.floor(cyc(4000,0) * 48), 1, {'rrrrrr','.rrrr.'}, {r=C_UFO}, 1)
+  if blink(360, 0.5, 0) then
+    rect_safe(fb, 11 + math.floor(cyc(4000,0) * 48), 3, 2, 1, 0xFFFF)
+  end
   rect_safe(fb, 8, 23, 10, 4, C_SHIELD)
   rect_safe(fb, 11, 25, 2, 2, 0x0000)
   rect_safe(fb, 27, 23, 10, 4, C_SHIELD)
@@ -153,6 +158,9 @@ function app.render_fb(fb)
   rect_safe(fb, 31, 14 + math.floor((state.anim_ms / 28) % 8), 1, 11, C_LASER)
   rect_safe(fb, ox + 19, 9 + math.floor((state.anim_ms / 36) % 10), 1, 9, C_LASER)
   rect_safe(fb, ox + 35, 15 + math.floor((state.anim_ms / 40) % 7), 1, 7, C_LASER)
+  if blink(210, 0.5, 0) then
+    rect_safe(fb, 30, 26, 3, 1, 0xFD20)
+  end
 end
 
 return app

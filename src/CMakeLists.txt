@@ -6,15 +6,31 @@ if(NOT CMAKE_SCRIPT_MODE_FILE)
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
   file(MAKE_DIRECTORY "${WEB_ASSET_GEN_DIR}")
-  execute_process(
+  add_custom_command(
+    OUTPUT "${F_HTML_HEADER}"
     COMMAND "${Python3_EXECUTABLE}" "${PROJECT_DIR}/scripts/embed_web_asset.py"
             --input "${F_HTML_SOURCE}"
             --output "${F_HTML_HEADER}"
             --symbol "f_html_gz"
-    RESULT_VARIABLE WEB_ASSET_RESULT
+    DEPENDS
+      "${F_HTML_SOURCE}"
+      "${PROJECT_DIR}/scripts/embed_web_asset.py"
+    COMMENT "Generating embedded web asset ${F_HTML_HEADER}"
+    VERBATIM
   )
-  if(NOT WEB_ASSET_RESULT EQUAL 0)
-    message(FATAL_ERROR "failed to generate embedded web asset: ${F_HTML_SOURCE}")
+  add_custom_target(pixel_web_asset DEPENDS "${F_HTML_HEADER}")
+
+  if(NOT EXISTS "${F_HTML_HEADER}" OR "${F_HTML_SOURCE}" IS_NEWER_THAN "${F_HTML_HEADER}")
+    execute_process(
+      COMMAND "${Python3_EXECUTABLE}" "${PROJECT_DIR}/scripts/embed_web_asset.py"
+              --input "${F_HTML_SOURCE}"
+              --output "${F_HTML_HEADER}"
+              --symbol "f_html_gz"
+      RESULT_VARIABLE WEB_ASSET_BOOTSTRAP_RESULT
+    )
+    if(NOT WEB_ASSET_BOOTSTRAP_RESULT EQUAL 0)
+      message(FATAL_ERROR "failed to bootstrap embedded web asset: ${F_HTML_SOURCE}")
+    endif()
   endif()
 endif()
 
@@ -55,5 +71,6 @@ idf_component_register(
 )
 
 if(NOT CMAKE_SCRIPT_MODE_FILE)
+  add_dependencies(${COMPONENT_LIB} pixel_web_asset)
   target_include_directories(${COMPONENT_LIB} PRIVATE "${WEB_ASSET_GEN_DIR}")
 endif()

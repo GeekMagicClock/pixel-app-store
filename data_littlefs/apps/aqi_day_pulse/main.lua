@@ -1,7 +1,7 @@
 local app = {}
 
-local LAT = tonumber(data.get("aqi.lat") or data.get("openmeteo.lat")) or 37.5665
-local LON = tonumber(data.get("aqi.lon") or data.get("openmeteo.lon")) or 126.9780
+local LAT = tonumber(data.get("aqi.lat") or data.get("openmeteo.lat")) or 22.548994
+local LON = tonumber(data.get("aqi.lon") or data.get("openmeteo.lon")) or 113.459035
 
 local font = "builtin:silkscreen_regular_8"
 
@@ -99,7 +99,17 @@ end
 local function draw_chip(fb, x, y, w, txt, bg, fg)
   rect_fill(fb, x, y, w, 8, bg)
   rect_outline(fb, x, y, w, 8, C_FRAME)
-  fb:text_box(x + 1, y, w - 2, 8, txt, fg, font, 8, "center", true)
+  fb:text_box(x + 1, y, w - 2, 8, txt, fg, font, 8, "center", false)
+end
+
+local function draw_chip_right(fb, x, y, w, txt, bg, fg)
+  rect_fill(fb, x, y, w, 8, bg)
+  rect_outline(fb, x, y, w, 8, C_FRAME)
+  fb:text_box(x + 2, y, w - 4, 8, txt, fg, font, 8, "right", false)
+end
+
+local function draw_chip_text(fb, x, y, w, txt, fg, align, text_y)
+  fb:text_box(x + 1, text_y or y, w - 2, 8, txt, fg, font, 8, align or "center", false)
 end
 
 local function current_hour_index(hourly)
@@ -214,11 +224,15 @@ function app.render_fb(fb)
     set_px_safe(fb, px + 1, 1 + (i % 2), C_FRAME)
   end
 
-  fb:text_box(1, 1, 16, 8, "AQI", C_TEXT, font, 8, "left", true)
-  fb:text_box(38, 1, 25, 8, fmt_int(current), accent, font, 8, "right", true)
-  draw_chip(fb, 1, 9, 20, aqi_label(current), accent, C_BG)
-  draw_chip(fb, 23, 9, 18, "24H", C_GRID, C_TEXT)
-  fb:text_box(43, 9, 20, 8, "PK" .. fmt_int(peak), C_MUTED, font, 8, "right", true)
+  fb:text_box(1, 1, 14, 8, "AQI", C_TEXT, font, 8, "left", false)
+  draw_chip(fb, 14, 1, 16, "24H", C_GRID, C_TEXT)
+  fb:text_box(36, 1, 27, 8, fmt_int(current), accent, font, 8, "right", false)
+  rect_fill(fb, 1, 9, 27, 8, accent)
+  rect_outline(fb, 1, 9, 27, 8, C_FRAME)
+  draw_chip_text(fb, 1, 9, 27, aqi_label(current), C_BG, "center", 8)
+  rect_fill(fb, 31, 9, 32, 8, C_GRID)
+  rect_outline(fb, 31, 9, 32, 8, C_FRAME)
+  draw_chip_text(fb, 31, 9, 32, "PK " .. fmt_int(peak), aqi_color(peak), "right", 8)
 
   rect_outline(fb, 1, 17, 62, 14, C_FRAME)
   for y = 19, 29, 4 do

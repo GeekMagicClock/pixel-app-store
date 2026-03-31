@@ -1,7 +1,7 @@
 local app = {}
 
 local OWM_API_KEY = data.get("owm.api_key") or "5ce216b488692ef60673d24f9583a873"
-local CITY = data.get("owm.city") or "Seoul,KR"
+local CITY = data.get("owm.city") or "zhongshangang,cn"
 local UNITS = data.get("owm.units") or "metric"
 
 local font = "builtin:silkscreen_regular_8"

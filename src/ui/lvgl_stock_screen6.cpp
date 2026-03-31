@@ -12,6 +12,8 @@ extern "C" {
 
 static const char *kTag = "stock_screen6";
 
+LV_FONT_DECLARE(lv_font_silkscreen_regular_8);
+
 namespace {
 
 static lv_obj_t *g_scr = nullptr;
@@ -242,7 +244,8 @@ void LvglStockScreen6PreloadFont() {
                                      LV_FONT_KERNING_NONE,
                                      64);
   if (!g_font) {
-    ESP_LOGE(kTag, "Failed to preload Silkscreen-Regular.ttf");
+    ESP_LOGW(kTag, "Failed to preload Silkscreen-Regular.ttf, fallback to builtin font");
+    g_font = const_cast<lv_font_t *>(&lv_font_silkscreen_regular_8);
   }
 }
 
@@ -293,7 +296,9 @@ void LvglStopStockScreen6() {
   StopAnimTimer();
 
   if (g_font) {
-    lv_tiny_ttf_destroy(g_font);
+    if (g_font != &lv_font_silkscreen_regular_8) {
+      lv_tiny_ttf_destroy(g_font);
+    }
     g_font = nullptr;
   }
 

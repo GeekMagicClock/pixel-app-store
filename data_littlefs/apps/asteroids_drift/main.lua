@@ -133,27 +133,47 @@ local function rock(fb, x, y, s)
 end
 function app.render_fb(fb)
   fb:fill(C_BG)
+  for x = 0, 63 do
+    if ((x + math.floor(state.anim_ms / 35)) % 17) < 8 then
+      set_px_safe(fb, x, 6 + math.floor(math.sin((x + state.anim_ms / 180) * 0.22) * 2), 0x10A2)
+    end
+  end
   for i = 0, 13 do
     set_px_safe(fb, (i * 17 + math.floor(state.anim_ms / 28)) % 64, (i * 11 + math.floor(state.anim_ms / 41)) % 32, C_STAR)
   end
+  for i = 0, 4 do
+    local dx = 52 - ((state.anim_ms / (22 + i * 3)) + i * 9) % 76
+    local dy = 4 + (i * 5) + math.floor(math.sin(state.anim_ms / 240 + i) * 2)
+    rect_safe(fb, dx, dy, 2, 1, 0x7BEF)
+  end
   draw_number(fb, '050', 3, 2, 1, 0xFFFF, 0x0000, 1)
+  rect_safe(fb, 2, 8, 12, 1, 0x2945)
+  rect_safe(fb, 2, 8, 8 + math.floor(tri(2600, 0) * 4), 1, 0x07FF)
   line_safe(fb, 28, 26, 32, 18, C_SHIP)
   line_safe(fb, 32, 18, 36, 26, C_SHIP)
   line_safe(fb, 30, 24, 34, 24, C_SHIP)
   line_safe(fb, 28, 26, 31, 24, C_SHIP)
   line_safe(fb, 36, 26, 33, 24, C_SHIP)
+  rect_safe(fb, 30, 21, 4, 1, 0x7BEF)
   if blink(180, 0.6, 0) then
     line_safe(fb, 31, 26, 32, 29, C_THRUST)
     line_safe(fb, 33, 26, 32, 29, C_THRUST)
+    rect_safe(fb, 31, 29, 3, 1, 0xFFE0)
   end
   rock(fb, 8 + math.floor(math.sin(state.anim_ms / 550) * 3), 7, 10)
   rock(fb, 44 - math.floor((state.anim_ms / 33) % 10), 8, 8)
   rock(fb, 48 - math.floor((state.anim_ms / 29) % 22), 21, 6)
+  rock(fb, 18 + math.floor(math.sin(state.anim_ms / 430 + 1.7) * 4), 20, 5)
   rect_safe(fb, 40, 4 + math.floor(math.sin(state.anim_ms / 500) * 2), 9, 3, C_UFO)
   rect_safe(fb, 42, 3 + math.floor(math.sin(state.anim_ms / 500) * 2), 5, 1, C_UFO)
   rect_safe(fb, 32, 14, 1, 5, C_SHOT)
   rect_safe(fb, 33, 10, 1, 2, C_SHOT)
   rect_safe(fb, 38, 18, 5, 1, C_SHOT)
+  rect_safe(fb, 34, 13, 3, 1, C_SHOT)
+  rect_safe(fb, 41, 17, 3, 1, C_SHOT)
+  burst_x = 50 - math.floor((state.anim_ms / 34) % 30)
+  rect_safe(fb, burst_x, 23, 2, 2, 0xF800)
+  rect_safe(fb, burst_x - 1, 24, 4, 1, 0xFD20)
 end
 
 return app

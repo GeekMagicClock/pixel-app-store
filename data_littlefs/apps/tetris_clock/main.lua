@@ -1,55 +1,217 @@
 local app = {}
 
+-- Port of the falling-block timing/layout from witnessmenow/WiFi-Tetris-Clock
+-- and the underlying TetrisAnimation instruction tables, adapted to this repo's
+-- Lua framebuffer app runtime.
+
 local FONT_UI = "builtin:silkscreen_regular_8"
 
-local C_BG = 0x0001
-local C_GRID = 0x1082
-local C_GRID_DIM = 0x0821
-local C_TEXT = 0xFFFF
-local C_TEXT_DIM = 0x94B2
-local C_CYAN = 0x4E7F
-local C_CYAN_HI = 0xB7FF
-local C_CYAN_SH = 0x0450
-local C_YEL = 0xFE40
-local C_YEL_HI = 0xFFE0
-local C_YEL_SH = 0xB3A0
-local C_PUR = 0xC1DF
-local C_PUR_HI = 0xF3FF
-local C_PUR_SH = 0x600B
-local C_RED = 0xF965
-local C_RED_HI = 0xFD8E
-local C_RED_SH = 0x9800
-local C_BAR = 0x07E0
+local C_BG = 0x0000
+local C_WHITE = 0xFFFF
+local C_RED = 0xF800
+local C_GREEN = 0x07E0
+local C_BLUE = 0x325F
+local C_YELLOW = 0xFFE0
+local C_CYAN = 0x07FF
+local C_MAGENTA = 0xF81F
+local C_ORANGE = 0xFB00
 
-local WEEKDAYS = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"}
-local DIGITS = {
-  ["0"] = {"111", "101", "101", "101", "111"},
-  ["1"] = {"010", "110", "010", "010", "111"},
-  ["2"] = {"111", "001", "111", "100", "111"},
-  ["3"] = {"111", "001", "111", "001", "111"},
-  ["4"] = {"101", "101", "111", "001", "001"},
-  ["5"] = {"111", "100", "111", "001", "111"},
-  ["6"] = {"111", "100", "111", "101", "111"},
-  ["7"] = {"111", "001", "010", "010", "010"},
-  ["8"] = {"111", "101", "111", "101", "111"},
-  ["9"] = {"111", "101", "111", "001", "111"},
+local TETRIS_DISTANCE_BETWEEN_DIGITS = 7
+local TETRIS_Y_DROP_DEFAULT = 16
+local DIGIT_SCALE = 2
+local DIGIT_Y_FINISH = 26
+local DIGIT_X_24H = 2
+local DIGIT_X_12H = -6
+local LETTER_X = 56
+local LETTER_TOP_Y_FINISH = 15
+local LETTER_BOTTOM_Y_FINISH = 25
+
+local TETRIS_COLORS = {
+  [0] = C_RED,
+  [1] = C_GREEN,
+  [2] = C_BLUE,
+  [3] = C_WHITE,
+  [4] = C_YELLOW,
+  [5] = C_CYAN,
+  [6] = C_MAGENTA,
+  [7] = C_ORANGE,
+  [8] = C_BG,
 }
 
-local TETROMINOES = {
-  {{0,0},{1,0},{2,0},{3,0}},
-  {{0,0},{0,1},{1,1},{2,1}},
-  {{2,0},{0,1},{1,1},{2,1}},
-  {{0,0},{1,0},{0,1},{1,1}},
-  {{1,0},{2,0},{0,1},{1,1}},
-  {{1,0},{0,1},{1,1},{2,1}},
-  {{0,0},{1,0},{1,1},{2,1}},
+local SHAPE_CELLS = {
+  [0] = {
+    {{0, 0}, {1, 0}, {0, -1}, {1, -1}},
+    {{0, 0}, {1, 0}, {0, -1}, {1, -1}},
+    {{0, 0}, {1, 0}, {0, -1}, {1, -1}},
+    {{0, 0}, {1, 0}, {0, -1}, {1, -1}},
+  },
+  [1] = {
+    {{0, 0}, {1, 0}, {0, -1}, {0, -2}},
+    {{0, 0}, {0, -1}, {1, -1}, {2, -1}},
+    {{1, 0}, {1, -1}, {1, -2}, {0, -2}},
+    {{0, 0}, {1, 0}, {2, 0}, {2, -1}},
+  },
+  [2] = {
+    {{0, 0}, {1, 0}, {1, -1}, {1, -2}},
+    {{0, 0}, {1, 0}, {2, 0}, {0, -1}},
+    {{0, 0}, {0, -1}, {0, -2}, {1, -2}},
+    {{0, -1}, {1, -1}, {2, -1}, {2, 0}},
+  },
+  [3] = {
+    {{0, 0}, {1, 0}, {2, 0}, {3, 0}},
+    {{0, 0}, {0, -1}, {0, -2}, {0, -3}},
+    {{0, 0}, {1, 0}, {2, 0}, {3, 0}},
+    {{0, 0}, {0, -1}, {0, -2}, {0, -3}},
+  },
+  [4] = {
+    {{1, 0}, {0, -1}, {1, -1}, {0, -2}},
+    {{0, 0}, {1, 0}, {1, -1}, {2, -1}},
+    {{1, 0}, {0, -1}, {1, -1}, {0, -2}},
+    {{0, 0}, {1, 0}, {1, -1}, {2, -1}},
+  },
+  [5] = {
+    {{0, 0}, {0, -1}, {1, -1}, {1, -2}},
+    {{1, 0}, {2, 0}, {0, -1}, {1, -1}},
+    {{0, 0}, {0, -1}, {1, -1}, {1, -2}},
+    {{1, 0}, {2, 0}, {0, -1}, {1, -1}},
+  },
+  [6] = {
+    {{0, 0}, {1, 0}, {2, 0}, {1, -1}},
+    {{0, 0}, {0, -1}, {0, -2}, {1, -1}},
+    {{1, 0}, {0, -1}, {1, -1}, {2, -1}},
+    {{1, 0}, {0, -1}, {1, -1}, {1, -2}},
+  },
+  [7] = {
+    {{0, 0}, {1, 0}, {0, -1}},
+    {{0, 0}, {0, -1}, {1, -1}},
+    {{1, 0}, {1, -1}, {0, -1}},
+    {{0, 0}, {1, 0}, {1, -1}},
+  },
 }
 
-local state = { anim_ms = 0 }
+local DIGIT_INSTRUCTIONS = {
+  [0] = {
+    {2, 5, 4, 16, 0}, {4, 7, 2, 16, 1}, {3, 4, 0, 16, 1}, {6, 6, 1, 16, 1},
+    {5, 1, 4, 14, 0}, {6, 6, 0, 13, 3}, {5, 1, 4, 12, 0}, {5, 1, 0, 11, 0},
+    {6, 6, 4, 10, 1}, {6, 6, 0, 9, 1}, {5, 1, 1, 8, 1}, {2, 5, 3, 8, 3},
+  },
+  [1] = {
+    {2, 5, 4, 16, 0}, {3, 4, 4, 15, 1}, {3, 4, 5, 13, 3}, {2, 5, 4, 11, 2},
+    {0, 0, 4, 8, 0},
+  },
+  [2] = {
+    {0, 0, 4, 16, 0}, {3, 4, 0, 16, 1}, {1, 2, 1, 16, 3}, {1, 2, 1, 15, 0},
+    {3, 4, 1, 12, 2}, {1, 2, 0, 12, 1}, {2, 5, 3, 12, 3}, {0, 0, 4, 10, 0},
+    {3, 4, 1, 8, 0}, {2, 5, 3, 8, 3}, {1, 2, 0, 8, 1},
+  },
+  [3] = {
+    {1, 2, 3, 16, 3}, {2, 5, 0, 16, 1}, {3, 4, 1, 15, 2}, {0, 0, 4, 14, 0},
+    {3, 4, 1, 12, 2}, {1, 2, 0, 12, 1}, {3, 4, 5, 12, 3}, {2, 5, 3, 11, 0},
+    {3, 4, 1, 8, 0}, {1, 2, 0, 8, 1}, {2, 5, 3, 8, 3},
+  },
+  [4] = {
+    {0, 0, 4, 16, 0}, {0, 0, 4, 14, 0}, {3, 4, 1, 12, 0}, {1, 2, 0, 12, 1},
+    {2, 5, 0, 10, 0}, {2, 5, 3, 12, 3}, {3, 4, 4, 10, 3}, {2, 5, 0, 9, 2},
+    {3, 4, 5, 10, 1},
+  },
+  [5] = {
+    {0, 0, 0, 16, 0}, {2, 5, 2, 16, 1}, {2, 5, 3, 15, 0}, {3, 4, 5, 16, 1},
+    {3, 4, 1, 12, 0}, {1, 2, 0, 12, 1}, {2, 5, 3, 12, 3}, {0, 0, 0, 10, 0},
+    {3, 4, 1, 8, 2}, {1, 2, 0, 8, 1}, {2, 5, 3, 8, 3},
+  },
+  [6] = {
+    {2, 5, 0, 16, 1}, {5, 1, 2, 16, 1}, {6, 6, 0, 15, 3}, {6, 6, 4, 16, 3},
+    {5, 1, 4, 14, 0}, {3, 4, 1, 12, 2}, {2, 5, 0, 13, 2}, {3, 4, 2, 11, 0},
+    {0, 0, 0, 10, 0}, {3, 4, 1, 8, 0}, {1, 2, 0, 8, 1}, {2, 5, 3, 8, 3},
+  },
+  [7] = {
+    {0, 0, 4, 16, 0}, {1, 2, 4, 14, 0}, {3, 4, 5, 13, 1}, {2, 5, 4, 11, 2},
+    {3, 4, 1, 8, 2}, {2, 5, 3, 8, 3}, {1, 2, 0, 8, 1},
+  },
+  [8] = {
+    {3, 4, 1, 16, 0}, {6, 6, 0, 16, 1}, {3, 4, 5, 16, 1}, {1, 2, 2, 15, 3},
+    {4, 7, 0, 14, 0}, {1, 2, 1, 12, 3}, {6, 6, 4, 13, 1}, {2, 5, 0, 11, 1},
+    {4, 7, 0, 10, 0}, {4, 7, 4, 11, 0}, {5, 1, 0, 8, 1}, {5, 1, 2, 8, 1},
+    {1, 2, 4, 9, 2},
+  },
+  [9] = {
+    {0, 0, 0, 16, 0}, {3, 4, 2, 16, 0}, {1, 2, 2, 15, 3}, {1, 2, 4, 15, 2},
+    {3, 4, 1, 12, 2}, {3, 4, 5, 12, 3}, {5, 1, 0, 12, 0}, {1, 2, 2, 11, 3},
+    {5, 1, 4, 9, 0}, {6, 6, 0, 10, 1}, {5, 1, 0, 8, 1}, {6, 6, 2, 8, 2},
+  },
+}
+
+local LETTER_INSTRUCTIONS = {
+  [string.byte("A")] = {
+    {0, 2, 0, 16, 0}, {0, 1, 4, 16, 0}, {5, 5, 3, 14, 1}, {4, 2, 0, 14, 1},
+    {4, 1, 4, 13, 0}, {5, 0, 0, 13, 0}, {4, 3, 4, 11, 0}, {5, 2, 0, 11, 0},
+    {0, 1, 2, 10, 0},
+  },
+  [string.byte("M")] = {
+    {1, 0, 0, 16, 0}, {2, 1, 4, 16, 0}, {1, 3, 0, 15, 2}, {2, 3, 4, 15, 2},
+    {0, 5, 2, 13, 0}, {4, 6, 0, 12, 1}, {5, 2, 3, 12, 3}, {6, 2, 4, 11, 3},
+    {6, 1, 0, 11, 1},
+  },
+  [string.byte("P")] = {
+    {0, 6, 0, 16, 0}, {4, 2, 0, 14, 1}, {5, 4, 2, 13, 3}, {7, 5, 4, 12, 0},
+    {6, 0, 0, 13, 1}, {4, 1, 0, 11, 0}, {7, 2, 4, 11, 2}, {3, 4, 1, 9, 0},
+  },
+}
+
+local state = {
+  anim_ms = 0,
+  drop_step_ms = 100,
+  twelve_hour = true,
+  force_refresh = true,
+  time_ready = false,
+  last_time = "",
+  last_ampm = "",
+  show_colon = true,
+  digits = nil,
+  ampm_top = nil,
+  ampm_bottom = nil,
+}
 
 local function rect_safe(fb, x, y, w, h, c)
   if w <= 0 or h <= 0 then return end
   fb:rect(x, y, w, h, c)
+end
+
+local function draw_block(fb, x, y, size, color)
+  rect_safe(fb, x, y, size, size, color)
+end
+
+local function draw_shape(fb, blocktype, color, x_pos, y_pos, rotation, scale)
+  local variants = SHAPE_CELLS[blocktype]
+  if not variants then return end
+  local cells = variants[(rotation % 4) + 1] or variants[1]
+  if not cells then return end
+  for i = 1, #cells do
+    local cell = cells[i]
+    draw_block(fb, x_pos + cell[1] * scale, y_pos + cell[2] * scale, scale, color)
+  end
+end
+
+local function read_setting(key)
+  if data and data.get then return data.get(key) end
+  return nil
+end
+
+local function read_bool(key, default)
+  local raw = read_setting(key)
+  if raw == nil then return default end
+  local value = string.lower(tostring(raw))
+  if value == "1" or value == "true" or value == "yes" or value == "on" then return true end
+  if value == "0" or value == "false" or value == "no" or value == "off" then return false end
+  return default
+end
+
+local function read_int(key, default)
+  local raw = tonumber(read_setting(key))
+  if raw == nil then return default end
+  raw = math.floor(raw)
+  if raw <= 0 then return default end
+  return raw
 end
 
 local function civil_from_days(days)
@@ -70,12 +232,15 @@ local function fallback_local_time()
   local unix = 0
   if sys and sys.unix_time then unix = tonumber(sys.unix_time()) or 0 end
   if unix < 1600000000 then return nil end
-  local offset_hours = tonumber(data.get("clock.utc_offset_hours") or 8) or 8
+  local offset_hours = tonumber(read_setting("clock.utc_offset_hours") or 8) or 8
   local local_unix = unix + math.floor(offset_hours * 3600)
   local day_sec = ((local_unix % 86400) + 86400) % 86400
   local days = math.floor(local_unix / 86400)
-  local _, _, _ = civil_from_days(days)
+  local y, m, d = civil_from_days(days)
   return {
+    year = y,
+    month = m,
+    day = d,
     hour = math.floor(day_sec / 3600),
     min = math.floor((day_sec % 3600) / 60),
     sec = math.floor(day_sec % 60),
@@ -91,83 +256,249 @@ local function get_local_time()
   return fallback_local_time()
 end
 
-local function draw_block(fb, x, y, s, c, hi, sh)
-  rect_safe(fb, x, y, s, s, c)
-  rect_safe(fb, x, y, s, 1, hi)
-  rect_safe(fb, x, y, 1, s, hi)
-  rect_safe(fb, x + s - 1, y + 1, 1, s - 1, sh)
-  rect_safe(fb, x + 1, y + s - 1, s - 1, 1, sh)
+local function new_item()
+  return { value = -1, block_index = 1, fall_index = 0, x_shift = 0 }
 end
 
-local function draw_digit(fb, ch, x, y, s, c, hi, sh)
-  local pat = DIGITS[ch]
-  if not pat then return end
-  for row = 1, #pat do
-    local line = pat[row]
-    for col = 1, #line do
-      if string.sub(line, col, col) == "1" then
-        draw_block(fb, x + (col - 1) * s, y + (row - 1) * s, s, c, hi, sh)
+local function new_sequence(kind, scale, count)
+  local seq = { kind = kind, scale = scale, items = {} }
+  for i = 1, count do
+    seq.items[i] = new_item()
+  end
+  return seq
+end
+
+local function reset_item(item, value, x_shift)
+  item.value = value
+  item.block_index = 1
+  item.fall_index = 0
+  item.x_shift = x_shift or 0
+end
+
+local function get_instructions(kind, value)
+  if value == nil or value < 0 then return nil end
+  if kind == "digit" then return DIGIT_INSTRUCTIONS[value] end
+  if kind == "letter" then return LETTER_INSTRUCTIONS[value] end
+  return nil
+end
+
+local function digit_x_shift(index, scale)
+  local x_shift = (index - 1) * TETRIS_DISTANCE_BETWEEN_DIGITS * scale
+  if index >= 3 then x_shift = x_shift + (3 * scale) end
+  return x_shift
+end
+
+local function queue_values(seq, values, force_refresh, x_shift_fn)
+  for i = 1, #seq.items do
+    local value = values[i] or -1
+    local x_shift = x_shift_fn(i, seq.scale)
+    local item = seq.items[i]
+    if force_refresh or item.value ~= value then
+      reset_item(item, value, x_shift)
+    else
+      item.x_shift = x_shift
+    end
+  end
+end
+
+local function format_time_target(t, twelve_hour)
+  local hour = tonumber(t.hour or 0) or 0
+  local minute = tonumber(t.min or 0) or 0
+  if twelve_hour then
+    local ap = hour >= 12 and "PM" or "AM"
+    local hour12 = hour % 12
+    if hour12 == 0 then hour12 = 12 end
+    local hour_str = tostring(hour12)
+    if #hour_str == 1 then hour_str = " " .. hour_str end
+    return hour_str .. string.format("%02d", minute), ap
+  end
+  return string.format("%02d%02d", hour, minute), nil
+end
+
+local function parse_digit_chars(text)
+  local values = {}
+  for i = 1, #text do
+    local ch = string.sub(text, i, i)
+    if ch == " " then
+      values[i] = -1
+    else
+      values[i] = tonumber(ch) or -1
+    end
+  end
+  return values
+end
+
+local function update_targets(t)
+  local digits_text, ap = format_time_target(t, state.twelve_hour)
+  if digits_text ~= state.last_time then
+    state.last_time = digits_text
+    queue_values(state.digits, parse_digit_chars(digits_text), state.force_refresh, digit_x_shift)
+  end
+
+  if state.twelve_hour then
+    if ap ~= state.last_ampm then
+      state.last_ampm = ap
+      queue_values(state.ampm_top, { string.byte(string.sub(ap, 1, 1)) }, true, function() return 0 end)
+      queue_values(state.ampm_bottom, { string.byte("M") }, true, function() return 0 end)
+    end
+  else
+    state.last_ampm = ""
+    queue_values(state.ampm_top, { -1 }, false, function() return 0 end)
+    queue_values(state.ampm_bottom, { -1 }, false, function() return 0 end)
+  end
+end
+
+local function animated_rotation(base_rotation, fall_index, y_stop)
+  local rotation = base_rotation or 0
+  if rotation == 1 then
+    if fall_index < math.floor(y_stop / 2) then rotation = 0 end
+  elseif rotation == 2 then
+    if fall_index < math.floor(y_stop / 3) then
+      rotation = 0
+    elseif fall_index < math.floor((y_stop / 3) * 2) then
+      rotation = 1
+    end
+  elseif rotation == 3 then
+    if fall_index < math.floor(y_stop / 4) then
+      rotation = 0
+    elseif fall_index < math.floor((y_stop / 4) * 2) then
+      rotation = 1
+    elseif fall_index < math.floor((y_stop / 4) * 3) then
+      rotation = 2
+    end
+  end
+  return rotation
+end
+
+local function step_sequence(seq)
+  for i = 1, #seq.items do
+    local item = seq.items[i]
+    local instructions = get_instructions(seq.kind, item.value)
+    if instructions and item.block_index <= #instructions then
+      local current = instructions[item.block_index]
+      local y_stop = current[4]
+      if item.fall_index >= y_stop then
+        item.fall_index = 0
+        item.block_index = item.block_index + 1
+      else
+        item.fall_index = item.fall_index + 1
       end
     end
   end
 end
 
-local function draw_piece(fb, piece, x, y, s, c, hi, sh)
-  for i = 1, #piece do
-    local cell = piece[i]
-    draw_block(fb, x + cell[1] * s, y + cell[2] * s, s, c, hi, sh)
+local function draw_sequence(fb, seq, x, y_finish)
+  local finished = true
+  local scaled_y_offset = seq.scale > 1 and seq.scale or 1
+  local y = y_finish - (TETRIS_Y_DROP_DEFAULT * seq.scale)
+
+  for i = 1, #seq.items do
+    local item = seq.items[i]
+    local instructions = get_instructions(seq.kind, item.value)
+    if instructions then
+      local settled = item.block_index - 1
+      if settled > #instructions then settled = #instructions end
+
+      for idx = 1, settled do
+        local instr = instructions[idx]
+        draw_shape(
+          fb,
+          instr[1],
+          TETRIS_COLORS[instr[2]] or C_WHITE,
+          x + (instr[3] * seq.scale) + item.x_shift,
+          y + (instr[4] * scaled_y_offset) - scaled_y_offset,
+          instr[5],
+          seq.scale
+        )
+      end
+
+      if item.block_index <= #instructions then
+        finished = false
+        local current = instructions[item.block_index]
+        draw_shape(
+          fb,
+          current[1],
+          TETRIS_COLORS[current[2]] or C_WHITE,
+          x + (current[3] * seq.scale) + item.x_shift,
+          y + (item.fall_index * scaled_y_offset) - scaled_y_offset,
+          animated_rotation(current[5], item.fall_index, current[4]),
+          seq.scale
+        )
+      end
+    end
   end
+
+  return finished
+end
+
+local function draw_colon(fb, x, y, scale, color)
+  local colon_size = 2 * scale
+  local x_pos = x + (TETRIS_DISTANCE_BETWEEN_DIGITS * 2 * scale)
+  rect_safe(fb, x_pos, y + (12 * scale), colon_size, colon_size, color)
+  rect_safe(fb, x_pos, y + (8 * scale), colon_size, colon_size, color)
+end
+
+local function digits_origin_x()
+  return state.twelve_hour and DIGIT_X_12H or DIGIT_X_24H
 end
 
 function app.init()
   state.anim_ms = 0
+  state.drop_step_ms = read_int("tetris_clock.step_ms", 100)
+  state.twelve_hour = read_bool("tetris_clock.twelve_hour", true)
+  state.force_refresh = read_bool("tetris_clock.force_refresh", true)
+  state.time_ready = false
+  state.last_time = ""
+  state.last_ampm = ""
+  state.show_colon = true
+  state.digits = new_sequence("digit", DIGIT_SCALE, 4)
+  state.ampm_top = new_sequence("letter", 1, 1)
+  state.ampm_bottom = new_sequence("letter", 1, 1)
 end
 
 function app.tick(dt_ms)
-  state.anim_ms = (state.anim_ms + (dt_ms or 0)) % 60000
+  state.anim_ms = state.anim_ms + (dt_ms or 0)
+
+  local t = get_local_time()
+  if not t then
+    state.time_ready = false
+    return
+  end
+
+  state.time_ready = true
+  state.show_colon = ((tonumber(t.sec or 0) or 0) % 2) == 0
+  update_targets(t)
+
+  while state.anim_ms >= state.drop_step_ms do
+    state.anim_ms = state.anim_ms - state.drop_step_ms
+    step_sequence(state.digits)
+    if state.twelve_hour then
+      step_sequence(state.ampm_top)
+      step_sequence(state.ampm_bottom)
+    end
+  end
 end
 
 function app.render_fb(fb)
   fb:fill(C_BG)
-  for x = 1, 62, 6 do
-    rect_safe(fb, x, 8, 1, 20, C_GRID_DIM)
-  end
-  for y = 8, 28, 4 do
-    rect_safe(fb, 0, y, 64, 1, C_GRID_DIM)
-  end
 
-  local t = get_local_time()
-  if not t then
-    fb:text_box(0, 10, 64, 8, "TETRIS", C_TEXT, FONT_UI, 8, "center", true)
-    fb:text_box(0, 19, 64, 8, "--:--", C_TEXT, FONT_UI, 8, "center", true)
+  if not state.time_ready then
+    fb:text_box(0, 8, 64, 8, "TETRIS", C_WHITE, FONT_UI, 8, "center", true)
+    fb:text_box(0, 18, 64, 8, "WAIT NTP", C_YELLOW, FONT_UI, 8, "center", true)
     return
   end
 
-  local wday = WEEKDAYS[tonumber(t.wday or 1) or 1] or "SUN"
-  fb:text_box(2, 0, 38, 8, "TETRIS", C_TEXT, FONT_UI, 8, "left", true)
-  fb:text_box(42, 0, 20, 8, wday, C_TEXT_DIM, FONT_UI, 8, "right", true)
+  local digit_x = digits_origin_x()
+  local digit_y = DIGIT_Y_FINISH - (TETRIS_Y_DROP_DEFAULT * DIGIT_SCALE)
 
-  local digits = string.format("%02d%02d", tonumber(t.hour or 0) or 0, tonumber(t.min or 0) or 0)
-  draw_digit(fb, string.sub(digits, 1, 1), 4, 9, 3, C_CYAN, C_CYAN_HI, C_CYAN_SH)
-  draw_digit(fb, string.sub(digits, 2, 2), 16, 9, 3, C_YEL, C_YEL_HI, C_YEL_SH)
-  draw_block(fb, 30, 14, 3, C_RED, C_RED_HI, C_RED_SH)
-  draw_block(fb, 30, 20, 3, C_RED, C_RED_HI, C_RED_SH)
-  draw_digit(fb, string.sub(digits, 3, 3), 37, 9, 3, C_PUR, C_PUR_HI, C_PUR_SH)
-  draw_digit(fb, string.sub(digits, 4, 4), 49, 9, 3, C_RED, C_RED_HI, C_RED_SH)
+  draw_sequence(fb, state.digits, digit_x, DIGIT_Y_FINISH)
+  if state.twelve_hour then
+    draw_sequence(fb, state.ampm_bottom, LETTER_X, LETTER_BOTTOM_Y_FINISH)
+    draw_sequence(fb, state.ampm_top, LETTER_X, LETTER_TOP_Y_FINISH)
+  end
 
-  local sec = tonumber(t.sec or 0) or 0
-  local piece = TETROMINOES[(math.floor(sec / 9) % #TETROMINOES) + 1]
-  local drop = math.floor((sec % 9) * 2)
-  draw_piece(fb, piece, 53, 4 + drop, 2, C_CYAN, C_CYAN_HI, C_CYAN_SH)
-
-  local fill = math.floor((sec / 59) * 10 + 0.5)
-  for i = 0, 9 do
-    local x = 2 + i * 6
-    if i < fill then
-      draw_block(fb, x, 29, 4, C_BAR, 0x7FEF, 0x03E0)
-    else
-      rect_safe(fb, x, 29, 4, 2, C_GRID)
-    end
+  if state.show_colon then
+    draw_colon(fb, digit_x, digit_y, DIGIT_SCALE, C_WHITE)
   end
 end
 

@@ -140,10 +140,15 @@ function app.render_fb(fb)
   for i = 0, 11 do
     set_px_safe(fb, (i * 19 + math.floor(state.anim_ms / 60)) % 64, (i * 7 + i) % 18, C_STAR)
   end
+  for i = 0, 5 do
+    set_px_safe(fb, 8 + i * 9, 14 + ((i + math.floor(state.anim_ms / 700)) % 3), 0x39E7)
+  end
   rect_safe(fb, 2, 2, 18, 2, C_HUD)
   rect_safe(fb, 3, 3, 1 + math.floor((1 - cyc(4300, 0)) * 15), 1, C_FLAME)
   draw_number(fb, "82", 3, 6, 1, C_HUD, 0x0000, 1)
   draw_number(fb, "32", 46, 2, 1, C_HUD, 0x4208, 1)
+  rect_safe(fb, 46, 6, 12, 1, 0x39E7)
+  rect_safe(fb, 46, 6, 4 + math.floor((1 - cyc(4300, 0)) * 8), 1, 0xFFE0)
 
   for x = 0, 63 do
     local y = terrain_y(x)
@@ -157,6 +162,10 @@ function app.render_fb(fb)
   if blink(240, 0.5, 0) then
     rect_safe(fb, 29, 20, 1, 1, C_PAD_BLINK)
     rect_safe(fb, 38, 20, 1, 1, C_PAD_BLINK)
+  end
+  if blink(180, 0.5, 90) then
+    rect_safe(fb, 28, 23, 2, 1, 0x7BEF)
+    rect_safe(fb, 38, 23, 2, 1, 0x7BEF)
   end
 
   local p = cyc(4300, 0)
@@ -174,6 +183,7 @@ function app.render_fb(fb)
   rect_safe(fb, lx + 2, ly + 4, 1, 2, C_LANDER)
   if blink(160, 0.65, 0) then
     rect_safe(fb, lx + 2, ly + 5, 2, 4, C_FLAME)
+    rect_safe(fb, lx + 1, ly + 8, 4, 1, 0xFFE0)
   end
 
   rect_safe(fb, 47, 7, 10, 1, C_HUD)

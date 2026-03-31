@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "generated_at": "2026-03-27T07:42:44.014936+00:00",
+  "category_order": [
+    "weather"
+  ],
+  "category_labels": {
+    "weather": "Weather"
+  },
+  "apps": [
+    {
+      "id": "owm_hourly_strip",
+      "name": "Hourly Weather Strip",
+      "version": "1.0.2",
+      "category": "weather",
+      "description": "",
+      "zip_url": "http://ota.geekmagic.cc:8001/fw/pixel64x32V2/apps/owm_hourly_strip-1.0.2.zip",
+      "thumbnail_url": "http://ota.geekmagic.cc:8001/fw/pixel64x32V2/apps/thumbs/owm_hourly_strip.png",
+      "sha256": "433e7e1d1b07a74396b848270bd1c90e9242a04129c9178db36c17907984031b",
+      "size": 8630,
+      "lua_bytecode": true,
+      "entry": "app.bin",
+      "compiler": "Lua 5.4.7  Copyright (C) 1994-2024 Lua.org, PUC-Rio"
+    }
+  ]
+}

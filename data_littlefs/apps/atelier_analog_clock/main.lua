@@ -1,0 +1,304 @@
+local app = {}
+
+local C_BG = 0x1146
+local C_PANEL = 0x1062
+local C_PANEL_EDGE = 0x4A49
+local C_SHADOW = 0x0000
+local C_RING_OUTER = 0xA514
+local C_RING_INNER = 0x3186
+local C_FACE = 0x18E3
+local C_FACE_CORE = 0x10A2
+local C_TICK_DIM = 0x39C7
+local C_TICK_BOLD = 0xC638
+local C_HOUR = 0xFEF7
+local C_MINUTE = 0x5F7F
+local C_SECOND = 0xF9A6
+local C_CENTER = 0xFD20
+local C_TEXT = 0xFFDF
+local C_TEXT_DIM = 0xBDD7
+local C_ACCENT = 0x07FF
+local C_TEXT_SHADOW = 0x0000
+
+local WEEKDAYS = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"}
+local MONTHS = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"}
+
+local FONT = {
+  ["0"] = {"111", "101", "101", "101", "111"},
+  ["1"] = {"010", "110", "010", "010", "111"},
+  ["2"] = {"111", "001", "111", "100", "111"},
+  ["3"] = {"111", "001", "111", "001", "111"},
+  ["4"] = {"101", "101", "111", "001", "001"},
+  ["5"] = {"111", "100", "111", "001", "111"},
+  ["6"] = {"111", "100", "111", "101", "111"},
+  ["7"] = {"111", "001", "010", "010", "010"},
+  ["8"] = {"111", "101", "111", "101", "111"},
+  ["9"] = {"111", "101", "111", "001", "111"},
+  ["A"] = {"010", "101", "111", "101", "101"},
+  ["C"] = {"011", "100", "100", "100", "011"},
+  ["D"] = {"110", "101", "101", "101", "110"},
+  ["E"] = {"111", "100", "110", "100", "111"},
+  ["F"] = {"111", "100", "110", "100", "100"},
+  ["H"] = {"101", "101", "111", "101", "101"},
+  ["I"] = {"111", "010", "010", "010", "111"},
+  ["J"] = {"001", "001", "001", "101", "010"},
+  ["M"] = {"101", "111", "111", "101", "101"},
+  ["N"] = {"101", "111", "111", "111", "101"},
+  ["O"] = {"111", "101", "101", "101", "111"},
+  ["R"] = {"110", "101", "110", "101", "101"},
+  ["S"] = {"011", "100", "111", "001", "110"},
+  ["T"] = {"111", "010", "010", "010", "010"},
+  ["U"] = {"101", "101", "101", "101", "111"},
+  ["W"] = {"101", "101", "111", "111", "101"},
+  [":"] = {"000", "010", "000", "010", "000"},
+  [" "] = {"000", "000", "000", "000", "000"},
+}
+
+local state = {
+  anim_ms = 0,
+}
+
+local function set_px_safe(fb, x, y, c)
+  if x < 0 or x >= 64 or y < 0 or y >= 32 then return end
+  fb:set_px(x, y, c)
+end
+
+local function rect_safe(fb, x, y, w, h, c)
+  if w <= 0 or h <= 0 then return end
+  fb:rect(x, y, w, h, c)
+end
+
+local function line_safe(fb, x0, y0, x1, y1, c)
+  local dx = math.abs(x1 - x0)
+  local sx = x0 < x1 and 1 or -1
+  local dy = -math.abs(y1 - y0)
+  local sy = y0 < y1 and 1 or -1
+  local err = dx + dy
+  while true do
+    set_px_safe(fb, x0, y0, c)
+    if x0 == x1 and y0 == y1 then break end
+    local e2 = err * 2
+    if e2 >= dy then
+      err = err + dy
+      x0 = x0 + sx
+    end
+    if e2 <= dx then
+      err = err + dx
+      y0 = y0 + sy
+    end
+  end
+end
+
+local function civil_from_days(days)
+  local z = days + 719468
+  local era = math.floor(z / 146097)
+  local doe = z - era * 146097
+  local yoe = math.floor((doe - math.floor(doe / 1460) + math.floor(doe / 36524) - math.floor(doe / 146096)) / 365)
+  local y = yoe + era * 400
+  local doy = doe - (365 * yoe + math.floor(yoe / 4) - math.floor(yoe / 100))
+  local mp = math.floor((5 * doy + 2) / 153)
+  local d = doy - math.floor((153 * mp + 2) / 5) + 1
+  local m = mp + (mp < 10 and 3 or -9)
+  if m <= 2 then y = y + 1 end
+  return y, m, d
+end
+
+local function fallback_local_time()
+  local unix = 0
+  if sys and sys.unix_time then unix = tonumber(sys.unix_time()) or 0 end
+  if unix < 1600000000 then return nil end
+  local offset_hours = tonumber(data.get("clock.utc_offset_hours") or 8) or 8
+  local local_unix = unix + math.floor(offset_hours * 3600)
+  local day_sec = ((local_unix % 86400) + 86400) % 86400
+  local days = math.floor(local_unix / 86400)
+  local year, month, day = civil_from_days(days)
+  return {
+    year = year,
+    month = month,
+    day = day,
+    hour = math.floor(day_sec / 3600),
+    min = math.floor((day_sec % 3600) / 60),
+    sec = math.floor(day_sec % 60),
+    wday = ((days + 4) % 7) + 1,
+  }
+end
+
+local function get_local_time()
+  if sys and sys.local_time then
+    local t = sys.local_time()
+    if t and tonumber(t.year or 0) >= 2024 then return t end
+  end
+  return fallback_local_time()
+end
+
+local function draw_circle_points(fb, cx, cy, x, y, c)
+  set_px_safe(fb, cx + x, cy + y, c)
+  set_px_safe(fb, cx - x, cy + y, c)
+  set_px_safe(fb, cx + x, cy - y, c)
+  set_px_safe(fb, cx - x, cy - y, c)
+  set_px_safe(fb, cx + y, cy + x, c)
+  set_px_safe(fb, cx - y, cy + x, c)
+  set_px_safe(fb, cx + y, cy - x, c)
+  set_px_safe(fb, cx - y, cy - x, c)
+end
+
+local function draw_circle_outline(fb, cx, cy, r, c)
+  local x = r
+  local y = 0
+  local err = 1 - x
+  while x >= y do
+    draw_circle_points(fb, cx, cy, x, y, c)
+    y = y + 1
+    if err < 0 then
+      err = err + 2 * y + 1
+    else
+      x = x - 1
+      err = err + 2 * (y - x + 1)
+    end
+  end
+end
+
+local function fill_circle(fb, cx, cy, r, c)
+  for y = -r, r do
+    for x = -r, r do
+      if x * x + y * y <= r * r then
+        set_px_safe(fb, cx + x, cy + y, c)
+      end
+    end
+  end
+end
+
+local function draw_glyph(fb, ch, x, y, color, scale)
+  local pat = FONT[ch] or FONT[" "]
+  local s = scale or 1
+  for row = 1, #pat do
+    local line = pat[row]
+    for col = 1, #line do
+      if string.sub(line, col, col) == "1" then
+        rect_safe(fb, x + (col - 1) * s, y + (row - 1) * s, s, s, color)
+      end
+    end
+  end
+end
+
+local function draw_text(fb, text, x, y, color, spacing, scale)
+  local cursor = x
+  local gap = spacing or 1
+  local s = scale or 1
+  for i = 1, #text do
+    local ch = string.sub(text, i, i)
+    draw_glyph(fb, ch, cursor, y, color, s)
+    cursor = cursor + 3 * s + gap
+  end
+end
+
+local function draw_text_shadow(fb, text, x, y, color, shadow, spacing, scale)
+  draw_text(fb, text, x + 1, y + 1, shadow or C_TEXT_SHADOW, spacing, scale)
+  draw_text(fb, text, x, y, color, spacing, scale)
+end
+
+local function endpoint(cx, cy, radius, angle_deg)
+  local rad = math.rad(angle_deg - 90)
+  local x = math.floor(cx + math.cos(rad) * radius + 0.5)
+  local y = math.floor(cy + math.sin(rad) * radius + 0.5)
+  return x, y
+end
+
+local function draw_hand(fb, cx, cy, angle_deg, radius, color, width)
+  local x1, y1 = endpoint(cx, cy, radius, angle_deg)
+  line_safe(fb, cx, cy, x1, y1, color)
+  if width and width > 1 then
+    local perp = angle_deg + 90
+    local ox, oy = endpoint(0, 0, math.floor(width / 2), perp)
+    line_safe(fb, cx + ox, cy + oy, x1 + ox, y1 + oy, color)
+    line_safe(fb, cx - ox, cy - oy, x1 - ox, y1 - oy, color)
+  end
+end
+
+local function draw_ticks(fb, cx, cy, r)
+  for i = 0, 11 do
+    local angle = i * 30
+    local inner = r - (i % 3 == 0 and 4 or 3)
+    local outer = r - 1
+    local x0, y0 = endpoint(cx, cy, inner, angle)
+    local x1, y1 = endpoint(cx, cy, outer, angle)
+    line_safe(fb, x0, y0, x1, y1, (i % 3 == 0) and C_TICK_BOLD or C_TICK_DIM)
+  end
+end
+
+local function draw_sidebar(fb, t)
+  rect_safe(fb, 41, 3, 21, 26, C_PANEL)
+  rect_safe(fb, 41, 3, 21, 1, C_PANEL_EDGE)
+  rect_safe(fb, 41, 28, 21, 1, C_PANEL_EDGE)
+  rect_safe(fb, 41, 3, 1, 26, C_PANEL_EDGE)
+
+  local wday = tonumber(t.wday or 1) or 1
+  if wday < 1 or wday > 7 then wday = 1 end
+  local month = tonumber(t.month or 1) or 1
+  if month < 1 or month > 12 then month = 1 end
+
+  draw_text_shadow(fb, WEEKDAYS[wday], 45, 6, C_TEXT, C_TEXT_SHADOW, 1, 1)
+
+  local hh = tonumber(t.hour or 0) or 0
+  local mm = tonumber(t.min or 0) or 0
+  local clock_s = string.format("%02d:%02d", hh, mm)
+  draw_text_shadow(fb, clock_s, 43, 14, C_TEXT, C_TEXT_SHADOW, 1, 1)
+
+  local md = string.format("%02d", tonumber(t.day or 1) or 1)
+  draw_text_shadow(fb, MONTHS[month], 43, 21, C_TEXT_DIM, C_TEXT_SHADOW, 0, 1)
+  draw_text_shadow(fb, md, 55, 21, C_TEXT, C_TEXT_SHADOW, 0, 1)
+
+  local sec = tonumber(t.sec or 0) or 0
+  rect_safe(fb, 45, 27, 12, 1, C_RING_INNER)
+  rect_safe(fb, 45, 27, math.floor((sec / 59) * 12 + 0.5), 1, C_ACCENT)
+end
+
+local function draw_clock(fb, t)
+  local cx = 20
+  local cy = 16
+  local r = 15
+
+  rect_safe(fb, 0, 0, 64, 32, C_BG)
+  fill_circle(fb, cx + 1, cy + 1, r, C_SHADOW)
+  fill_circle(fb, cx, cy, r, C_FACE)
+  fill_circle(fb, cx, cy, r - 2, C_FACE_CORE)
+  draw_circle_outline(fb, cx, cy, r, C_RING_OUTER)
+  draw_circle_outline(fb, cx, cy, r - 1, C_RING_INNER)
+  draw_ticks(fb, cx, cy, r)
+
+  local hour = tonumber(t.hour or 0) or 0
+  local minute = tonumber(t.min or 0) or 0
+  local second = tonumber(t.sec or 0) or 0
+  local hour_angle = ((hour % 12) + minute / 60 + second / 3600) * 30
+  local minute_angle = (minute + second / 60) * 6
+  local second_angle = second * 6
+
+  draw_hand(fb, cx, cy, minute_angle, 11, C_MINUTE, 1)
+  draw_hand(fb, cx, cy, hour_angle, 8, C_HOUR, 1)
+  draw_hand(fb, cx, cy, second_angle, 12, C_SECOND, 1)
+  fill_circle(fb, cx, cy, 1, C_CENTER)
+
+  draw_sidebar(fb, t)
+end
+
+function app.init(config)
+  sys.log("atelier_analog_clock init")
+  state.anim_ms = 0
+end
+
+function app.tick(dt_ms)
+  state.anim_ms = (state.anim_ms + (dt_ms or 0)) % 60000
+end
+
+function app.render_fb(fb)
+  local t = get_local_time()
+  if not t then
+    rect_safe(fb, 0, 0, 64, 32, C_BG)
+    draw_text(fb, "ATELIER", 8, 9, C_TEXT, 1, 1)
+    draw_text(fb, "CLOCK", 14, 17, C_TEXT_DIM, 1, 1)
+    draw_text(fb, "WAIT", 18, 25, C_SECOND, 1, 1)
+    return
+  end
+  draw_clock(fb, t)
+end
+
+return app

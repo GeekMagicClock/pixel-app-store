@@ -8,12 +8,13 @@ local C_CLOUD = 0xFFFF
 local C_HUD = 0xFFE0
 local C_TEXT = 0xFFFF
 local C_TEXT_DIM = 0xBDF7
+local C_COLON = C_TEXT_DIM
 local C_BLOCK = 0xFD20
 local C_BLOCK_LIGHT = 0xFFE2
 local C_BLOCK_DARK = 0xB2A0
 local C_BLOCK_GLOW = 0xFEA0
 local C_DIGIT = 0xFFFF
-local C_DIGIT_SHADOW = 0x2800
+local C_DIGIT_SHADOW = 0x0000
 local C_GROUND = 0xA145
 local C_GROUND_DARK = 0x6924
 local C_GRASS = 0x07E0
@@ -32,26 +33,36 @@ local C_MARIO_BROWN = 0x79E0
 local C_WARN = 0xF920
 
 local WEEKDAYS = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"}
-local BLOCK_X = {5, 17, 37, 49}
-local BLOCK_Y = 8
-local BLOCK_W = 10
-local BLOCK_H = 9
-local HERO_X = {6, 18, 38, 50}
-local HERO_STAND_Y = 20
+local BLOCK_X = {3, 17, 35, 49}
+local BLOCK_Y = 7
+local BLOCK_W = 12
+local BLOCK_H = 11
+local HERO_X = {5, 19, 37, 51}
+local HERO_STAND_Y = 21
 local HERO_JUMP_MS = 880
+local HERO_JUMP_PX = 8
+local HERO_TOP_LIMIT_Y = BLOCK_Y + 5
 local IDLE_BOB_MS = 340
+local GROUND_GRASS_Y = 28
+local GROUND_DIRT_Y = 29
+local COIN_SOUND_TRIGGER_P = 0.42
+-- Berkeley Super Mario Coin Bank:
+-- q_dollar[] = {b5, e6}, q_beats[] = {8, 40}, tempo = 10000.
+local COIN_SOUND_NOTES = {988, 1319}
+local COIN_SOUND_DURS = {80, 400}
+local COIN_SOUND_GAPS = {0, 0}
 
 local DIGITS = {
-  ["0"] = {"111", "101", "101", "101", "111"},
-  ["1"] = {"010", "110", "010", "010", "111"},
-  ["2"] = {"111", "001", "111", "100", "111"},
-  ["3"] = {"111", "001", "111", "001", "111"},
-  ["4"] = {"101", "101", "111", "001", "001"},
-  ["5"] = {"111", "100", "111", "001", "111"},
-  ["6"] = {"111", "100", "111", "101", "111"},
-  ["7"] = {"111", "001", "010", "010", "010"},
-  ["8"] = {"111", "101", "111", "101", "111"},
-  ["9"] = {"111", "101", "111", "001", "111"},
+  ["0"] = {"11111", "10001", "10001", "10001", "10001", "10001", "11111"},
+  ["1"] = {"00100", "01100", "00100", "00100", "00100", "00100", "01110"},
+  ["2"] = {"11111", "00001", "00001", "11111", "10000", "10000", "11111"},
+  ["3"] = {"11111", "00001", "00001", "01111", "00001", "00001", "11111"},
+  ["4"] = {"10001", "10001", "10001", "11111", "00001", "00001", "00001"},
+  ["5"] = {"11111", "10000", "10000", "11111", "00001", "00001", "11111"},
+  ["6"] = {"11111", "10000", "10000", "11111", "10001", "10001", "11111"},
+  ["7"] = {"11111", "00001", "00010", "00100", "00100", "00100", "00100"},
+  ["8"] = {"11111", "10001", "10001", "11111", "10001", "10001", "11111"},
+  ["9"] = {"11111", "10001", "10001", "11111", "00001", "00001", "11111"},
 }
 
 local MARIO_STAND = {
@@ -84,6 +95,7 @@ local state = {
   last_minute_key = nil,
   jump_start_ms = -100000,
   hit_slot = 4,
+  coin_sound_played = true,
 }
 
 local function set_px_safe(fb, x, y, c)
@@ -164,17 +176,17 @@ local function draw_pipe(fb, x, y)
 end
 
 local function draw_ground(fb)
-  rect_safe(fb, 0, 27, 64, 1, C_GRASS)
-  rect_safe(fb, 0, 28, 64, 4, C_GROUND)
-  for y = 28, 31, 4 do
+  rect_safe(fb, 0, GROUND_GRASS_Y, 64, 1, C_GRASS)
+  rect_safe(fb, 0, GROUND_DIRT_Y, 64, 32 - GROUND_DIRT_Y, C_GROUND)
+  for y = GROUND_DIRT_Y, 31, 4 do
     rect_safe(fb, 0, y, 64, 1, C_GROUND_DARK)
   end
   for x = 0, 63, 8 do
-    rect_safe(fb, x, 28, 1, 4, C_GROUND_DARK)
+    rect_safe(fb, x, GROUND_DIRT_Y, 1, 32 - GROUND_DIRT_Y, C_GROUND_DARK)
   end
-  rect_safe(fb, 3, 27, 4, 1, C_GRASS_DARK)
-  rect_safe(fb, 22, 27, 4, 1, C_GRASS_DARK)
-  rect_safe(fb, 43, 27, 5, 1, C_GRASS_DARK)
+  rect_safe(fb, 3, GROUND_GRASS_Y, 4, 1, C_GRASS_DARK)
+  rect_safe(fb, 22, GROUND_GRASS_Y, 4, 1, C_GRASS_DARK)
+  rect_safe(fb, 43, GROUND_GRASS_Y, 5, 1, C_GRASS_DARK)
 end
 
 local function draw_digit(fb, ch, x, y, scale, c)
@@ -192,7 +204,9 @@ local function draw_digit(fb, ch, x, y, scale, c)
 end
 
 local function draw_digit_with_shadow(fb, ch, x, y)
+  draw_digit(fb, ch, x - 1, y, 1, C_DIGIT_SHADOW)
   draw_digit(fb, ch, x + 1, y, 1, C_DIGIT_SHADOW)
+  draw_digit(fb, ch, x, y - 1, 1, C_DIGIT_SHADOW)
   draw_digit(fb, ch, x, y + 1, 1, C_DIGIT_SHADOW)
   draw_digit(fb, ch, x + 1, y + 1, 1, C_DIGIT_SHADOW)
   draw_digit(fb, ch, x, y, 1, C_DIGIT)
@@ -227,31 +241,35 @@ local function draw_block(fb, slot, ch)
   rect_safe(fb, x + BLOCK_W - 1, y, 1, BLOCK_H, C_BLOCK_DARK)
   rect_safe(fb, x, y + BLOCK_H - 1, BLOCK_W, 1, C_BLOCK_DARK)
 
-  set_px_safe(fb, x + 2, y + 2, C_BLOCK_LIGHT)
-  set_px_safe(fb, x + 7, y + 2, C_BLOCK_LIGHT)
-  set_px_safe(fb, x + 2, y + 6, C_BLOCK_DARK)
-  set_px_safe(fb, x + 7, y + 6, C_BLOCK_DARK)
+  set_px_safe(fb, x + 3, y + 2, C_BLOCK_LIGHT)
+  set_px_safe(fb, x + BLOCK_W - 4, y + 2, C_BLOCK_LIGHT)
+  set_px_safe(fb, x + 3, y + BLOCK_H - 3, C_BLOCK_DARK)
+  set_px_safe(fb, x + BLOCK_W - 4, y + BLOCK_H - 3, C_BLOCK_DARK)
 
-  draw_digit_with_shadow(fb, ch, x + 3, y + 1)
+  draw_digit_with_shadow(fb, ch, x + 3, y + 2)
 end
 
 local function draw_colon(fb, sec)
-  local c = (sec % 2 == 0) and C_COIN or C_TEXT_DIM
-  rect_safe(fb, 32, 12, 2, 2, C_DIGIT_SHADOW)
-  rect_safe(fb, 32, 16, 2, 2, C_DIGIT_SHADOW)
-  rect_safe(fb, 31, 11, 2, 2, c)
-  rect_safe(fb, 31, 15, 2, 2, c)
+  rect_safe(fb, 31, 12, 2, 2, C_COLON)
+  rect_safe(fb, 31, 17, 2, 2, C_COLON)
 end
 
 local function hero_y()
   local p = jump_progress()
   if p then
     local arc = 4 * p * (1 - p)
-    return HERO_STAND_Y - math.floor(arc * 11 + 0.5)
+    local y = HERO_STAND_Y - math.floor(arc * HERO_JUMP_PX + 0.5)
+    if y < HERO_TOP_LIMIT_Y then return HERO_TOP_LIMIT_Y end
+    return y
   end
   local bob = state.anim_ms % IDLE_BOB_MS
   if bob > (IDLE_BOB_MS / 2) then return HERO_STAND_Y + 1 end
   return HERO_STAND_Y
+end
+
+local function play_coin_sound()
+  if not (buzzer and buzzer.play_sequence) then return end
+  buzzer.play_sequence(COIN_SOUND_NOTES, COIN_SOUND_DURS, COIN_SOUND_GAPS)
 end
 
 local function hero_sprite()
@@ -288,10 +306,10 @@ end
 local function draw_coin(fb)
   local p = jump_progress()
   if not p then return end
-  if p < 0.46 or p > 0.88 then return end
-  local local_p = (p - 0.46) / 0.42
-  local x = BLOCK_X[state.hit_slot] + 4
-  local y = BLOCK_Y - 6 - math.floor(local_p * 8 + 0.5)
+  if p < COIN_SOUND_TRIGGER_P or p > 0.86 then return end
+  local local_p = (p - COIN_SOUND_TRIGGER_P) / 0.44
+  local x = BLOCK_X[state.hit_slot] + math.floor((BLOCK_W - 3) / 2)
+  local y = BLOCK_Y - 5 - math.floor(local_p * 9 + 0.5)
   rect_safe(fb, x, y, 3, 5, C_COIN)
   rect_safe(fb, x + 1, y + 1, 1, 3, C_COIN_DARK)
 end
@@ -322,14 +340,7 @@ local function update_digits_from_time(t)
     state.hit_slot = hit_slot
     state.hero_target_x = HERO_X[hit_slot]
     state.jump_start_ms = state.anim_ms
-
-    -- Play Mario coin sound on buzzer (notes in Hz, durations in ms)
-    if buzzer and buzzer.play_sequence then
-      -- Classic Mario coin: E7 (2637 Hz, 100 ms), G7 (3136 Hz, 100 ms)
-      local notes = {2637, 3136}
-      local durs = {100, 100}
-      buzzer.play_sequence(notes, durs)
-    end
+    state.coin_sound_played = false
     return
   end
 
@@ -343,6 +354,7 @@ function app.init(config)
   state.hero_target_x = HERO_X[4]
   state.jump_start_ms = -100000
   state.hit_slot = 4
+  state.coin_sound_played = true
 
   local t = get_local_time()
   if t then
@@ -361,6 +373,12 @@ function app.tick(dt_ms)
   local t = get_local_time()
   if t then update_digits_from_time(t) end
 
+  local p = jump_progress()
+  if p and p >= COIN_SOUND_TRIGGER_P and not state.coin_sound_played then
+    play_coin_sound()
+    state.coin_sound_played = true
+  end
+
   local max_step = dt * 0.03
   if max_step < 0.5 then max_step = 0.5 end
   local dx = state.hero_target_x - state.hero_x
@@ -374,8 +392,8 @@ function app.render_fb(fb)
   draw_cloud(fb, 3 + cloud_shift, 4)
   draw_cloud(fb, 41 - cloud_shift, 5)
 
-  draw_bush(fb, 1, 22)
-  draw_pipe(fb, 56, 20)
+  draw_bush(fb, 1, 23)
+  draw_pipe(fb, 56, 21)
   draw_ground(fb)
 
   local t = get_local_time()
@@ -396,8 +414,8 @@ function app.render_fb(fb)
   local digits = state.current_digits or string.format("%02d%02d", tonumber(t.hour or 0) or 0, tonumber(t.min or 0) or 0)
 
   local date_txt = string.format("%d-%02d", month, day)
-  fb:text_box(3, -1, 22, 8, date_txt, C_GROUND_DARK, FONT_UI, 8, "left", true)
-  fb:text_box(2, -2, 22, 8, date_txt, C_HUD, FONT_UI, 8, "left", true)
+  fb:text_box(3, -2, 22, 8, date_txt, C_GROUND_DARK, FONT_UI, 8, "left", true)
+  fb:text_box(2, -3, 22, 8, date_txt, C_HUD, FONT_UI, 8, "left", true)
   fb:text_box(42, -2, 20, 8, WEEKDAYS[wday], C_GROUND_DARK, FONT_UI, 8, "right", true)
   fb:text_box(41, -3, 21, 8, WEEKDAYS[wday], C_TEXT, FONT_UI, 8, "right", true)
 

@@ -157,6 +157,7 @@ function app.render_fb(fb)
   rect_safe(fb, 0, 0, 64, 18, C_SKY)
   rect_safe(fb, 0, 18, 64, 4, C_TREE)
   rect_safe(fb, 0, 22, 64, 10, C_GRASS)
+  rect_safe(fb, 0, 17, 64, 1, 0x7BEF)
   draw_sprite(fb, 4, 3, {".ccc..","cccccc",".cccc."}, { c = C_CLOUD }, 1)
   draw_sprite(fb, 43, 2, {".ccc..","cccccc",".cccc."}, { c = C_CLOUD }, 1)
   rect_safe(fb, 54, 4, 5, 5, C_SUN)
@@ -171,12 +172,19 @@ function app.render_fb(fb)
   local y2 = 10 + math.sin(state.anim_ms / 220 + 1.4) * 4
   duck(fb, math.floor(x1), math.floor(y1), blink(220, 0.5, 0))
   duck(fb, math.floor(x2), math.floor(y2), blink(180, 0.5, 80))
+  line_safe(fb, math.floor(x1) - 3, math.floor(y1) + 2, math.floor(x1) - 7, math.floor(y1) + 1, 0xFFFF)
+  line_safe(fb, math.floor(x2) + 7, math.floor(y2) + 2, math.floor(x2) + 10, math.floor(y2) + 1, 0xFFFF)
   dog(fb, 6, 23)
 
   local cx = x1 + (x2 - x1) * 0.35
   local cy = y1 + (y2 - y1) * 0.35
   rect_safe(fb, math.floor(cx) - 3, math.floor(cy), 7, 1, C_CROSS)
   rect_safe(fb, math.floor(cx), math.floor(cy) - 3, 1, 7, C_CROSS)
+  if blink(260, 0.4, 0) then
+    rect_safe(fb, math.floor(cx) - 1, math.floor(cy) - 1, 3, 3, 0xFFE0)
+  end
+  rect_safe(fb, 50, 12, 10, 1, 0x7BEF)
+  rect_safe(fb, 50, 12, 6 + math.floor(tri(2400, 0) * 4), 1, 0xF800)
   draw_number(fb, "10", 50, 1, 1, 0xFFFF, 0x0000, 1)
 end
 

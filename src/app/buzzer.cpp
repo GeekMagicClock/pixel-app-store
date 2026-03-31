@@ -15,6 +15,7 @@ static constexpr ledc_timer_t kLedcTimer = LEDC_TIMER_0;
 static constexpr ledc_channel_t kLedcChannel = LEDC_CHANNEL_0;
 static constexpr ledc_timer_bit_t kDutyResolution = LEDC_TIMER_10_BIT;
 static constexpr uint32_t kDuty = (1U << 9);  // 50% duty for a passive buzzer.
+static constexpr uint32_t kDefaultInterNoteGapMs = 30;
 
 struct ToneStep {
   uint32_t freq_hz;
@@ -105,12 +106,26 @@ void BuzzerPlayTone(unsigned freq_hz, unsigned duration_ms) {
 }
 
 void BuzzerPlaySequence(const unsigned* freq_hz, const unsigned* duration_ms, unsigned count) {
+  BuzzerPlaySequenceWithGap(freq_hz, duration_ms, nullptr, count);
+}
+
+void BuzzerPlaySequenceWithGap(const unsigned* freq_hz, const unsigned* duration_ms,
+                               const unsigned* gap_ms, unsigned count) {
   ConfigureChannel();
   for (unsigned i = 0; i < count; ++i) {
-    if (StartTone(freq_hz[i])) {
+    if (freq_hz[i] == 0) {
+      StopTone();
+      if (duration_ms[i] > 0) {
+        vTaskDelay(pdMS_TO_TICKS(duration_ms[i]));
+      }
+    } else if (StartTone(freq_hz[i])) {
       vTaskDelay(pdMS_TO_TICKS(duration_ms[i]));
       StopTone();
-      vTaskDelay(pdMS_TO_TICKS(30));
+    }
+
+    const unsigned gap = gap_ms ? gap_ms[i] : kDefaultInterNoteGapMs;
+    if (gap > 0) {
+      vTaskDelay(pdMS_TO_TICKS(gap));
     }
   }
   gpio_reset_pin(kBuzzerGpio);

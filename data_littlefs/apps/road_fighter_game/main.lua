@@ -174,6 +174,11 @@ function app.render_fb(fb)
       line_safe(fb, mid - 1, y, mid + 1, y, C_LINE)
     end
   end
+  for i = 0, 3 do
+    local mx = 5 + i * 16
+    rect_safe(fb, mx, 4 + (i % 2), 2, 4, 0x4208)
+    rect_safe(fb, mx, 3 + (i % 2), 2, 1, 0xBDF7)
+  end
 
   for y = 2, 28, 6 do
     local left, right = road_bounds(y + 10)
@@ -186,12 +191,17 @@ function app.render_fb(fb)
   draw_car(fb, lane_x(math.floor((state.anim_ms / 34) % 42) - 8, 0.28), math.floor((state.anim_ms / 34) % 42) - 8, C_CAR1, 0x03EF)
   draw_car(fb, lane_x(math.floor((state.anim_ms / 30 + 12) % 46) - 9, 0.73), math.floor((state.anim_ms / 30 + 12) % 46) - 9, C_CAR2, 0x781F)
   draw_car(fb, lane_x(math.floor((state.anim_ms / 27 + 26) % 48) - 9, 0.50), math.floor((state.anim_ms / 27 + 26) % 48) - 9, C_CAR3, 0xFBE0)
+  if blink(260, 0.5, 0) then
+    rect_safe(fb, lane_x(24, 0.50 + sway) + 1, 20, 1, 2, 0xFD20)
+    rect_safe(fb, lane_x(24, 0.50 + sway) + 4, 20, 1, 2, 0xFD20)
+  end
 
   rect_safe(fb, 3, 3, 11, 5, 0x0000)
   draw_number(fb, string.format("%03d", 180 + math.floor(cyc(5000, 0) * 60)), 4, 4, 1, C_HUD, 0x0000, 1)
   rect_safe(fb, 49, 3, 11, 4, 0x0000)
   rect_safe(fb, 50, 4, 9, 2, 0x4208)
   rect_safe(fb, 50, 4, 1 + math.floor(cyc(6200, 0) * 8), 2, C_BAR)
+  rect_safe(fb, 48, 8, 12, 1, 0x39E7)
   rect_safe(fb, 2, 28, 8, 2, 0x0000)
   draw_number(fb, "12", 3, 28, 1, 0xFFFF, 0x0000, 1)
 end

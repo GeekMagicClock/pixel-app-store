@@ -144,6 +144,10 @@ function app.render_fb(fb)
   fb:fill(C_BG)
   local hop = math.floor(state.anim_ms / 420) % #PATH + 1
   for i, n in ipairs(NODES) do cube(fb, n[1], n[2], i <= hop) end
+  for i = 1, hop do
+    local n = NODES[PATH[i]]
+    set_px_safe(fb, n[1], n[2] - 1, 0xFFFF)
+  end
   local node = NODES[PATH[hop]]
   local bob = math.floor(math.abs(math.sin(state.anim_ms / 140)) * 2)
   draw_sprite(fb, node[1] - 3, node[2] - 7 - bob, {
@@ -162,6 +166,11 @@ function app.render_fb(fb)
     "..pp.",
   }, { p = C_ENEMY2 }, 1)
   rect_safe(fb, enemy[1] - 1, enemy[2] - 3 + bob, 1, 1, C_EYE)
+  if blink(260, 0.5, 90) then
+    rect_safe(fb, enemy[1] + 1, enemy[2] - 1 + bob, 1, 1, C_ENEMY)
+  end
+  rect_safe(fb, 46, 2, 12, 1, 0x4208)
+  rect_safe(fb, 46, 2, 4 + math.floor(cyc(2600, 0) * 7), 1, 0xFFE0)
   draw_number(fb, "50", 2, 2, 1, 0xFFFF, 0x0000, 1)
 end
 

@@ -1,7 +1,7 @@
 {
   "app_id": "owm_hourly_strip",
-  "name": "OWM Hourly Strip",
-  "version": "1.0.1",
+  "name": "Hourly Weather Strip",
+  "version": "1.0.2",
   "min_fw": "0.0.0",
   "min_api": "1.0",
   "entry": "main.lua",

@@ -1,0 +1,14 @@
+{
+  "app_id": "digit_3d_lab",
+  "name": "Digit 3D Lab",
+  "version": "1.0.0",
+  "min_fw": "0.0.0",
+  "min_api": "1.0",
+  "entry": "main.lua",
+  "layout_id": "framebuffer_rgb565",
+  "category": "time",
+  "capabilities": [
+    "time"
+  ],
+  "description": "Voxel-based rotating 3D digit transform study."
+}

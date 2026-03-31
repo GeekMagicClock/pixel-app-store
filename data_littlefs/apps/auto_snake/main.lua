@@ -22,6 +22,8 @@ local C_FOOD = 0xFD20
 local C_FOOD_GLOW = 0xFFE0
 local C_DEAD = 0x8000
 local C_DEAD_ACCENT = 0xF8C4
+local C_TRAIL = 0x0B83
+local C_ROUTE = 0x6DF7
 
 local DIRS = {
   {x = 1, y = 0},
@@ -240,6 +242,27 @@ local function draw_food(fb)
     set_px_safe(fb, x, y + 2, C_FOOD_GLOW)
     set_px_safe(fb, x + 3, y + 2, C_FOOD_GLOW)
   end
+  if #state.snake > 0 then
+    local head = state.snake[1]
+    local hx = head.x * CELL + 2
+    local hy = HUD_H + head.y * CELL + 2
+    if math.abs(head.x - state.food.x) + math.abs(head.y - state.food.y) < 7 then
+      local fx = x + 2
+      local fy = y + 2
+      local dx = fx > hx and 1 or -1
+      for px = hx, fx, dx do
+        if ((px + math.floor(state.run_ms / 80)) % 3) == 0 then
+          set_px_safe(fb, px, hy, C_ROUTE)
+        end
+      end
+      local dy = fy > hy and 1 or -1
+      for py = hy, fy, dy do
+        if ((py + math.floor(state.run_ms / 80)) % 3) == 0 then
+          set_px_safe(fb, fx, py, C_ROUTE)
+        end
+      end
+    end
+  end
 end
 
 local function draw_snake(fb)
@@ -255,6 +278,10 @@ local function draw_snake(fb)
     end
     rect_safe(fb, x, y, CELL, CELL, color)
     rect_safe(fb, x + 1, y + 1, CELL - 2, CELL - 2, color)
+    if i > 1 and i < #state.snake then
+      set_px_safe(fb, x, y + 3, C_TRAIL)
+      set_px_safe(fb, x + 3, y, C_TRAIL)
+    end
     if i == 1 then
       if state.dir.x > 0 then
         set_px_safe(fb, x + 2, y + 1, 0xFFFF)
@@ -294,6 +321,7 @@ local function draw_hud(fb)
   fb:text_box(36, 0, 27, 8, right, C_TEXT, FONT_UI, 8, "right", true)
   if not state.dead then
     fb:text_box(18, 0, 20, 8, string.format("%02d", #state.snake), C_MUTED, FONT_UI, 8, "center", true)
+    rect_safe(fb, 0, 7, math.min(64, #state.snake * 3), 1, C_SNAKE_HEAD)
   end
 end
 

@@ -1,7 +1,7 @@
 local app = {}
 
-local LAT = tonumber(data.get("openmeteo.lat")) or 37.5665
-local LON = tonumber(data.get("openmeteo.lon")) or 126.9780
+local LAT = tonumber(data.get("openmeteo.lat")) or 22.548994
+local LON = tonumber(data.get("openmeteo.lon")) or 113.459035
 local TEMP_UNIT = data.get("openmeteo.temp_unit") or "celsius" -- fahrenheit/celsius
 
 local font = "builtin:silkscreen_regular_8"

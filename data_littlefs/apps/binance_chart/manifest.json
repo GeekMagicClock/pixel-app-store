@@ -6,5 +6,6 @@
   "min_api": "1.0",
   "entry": "main.lua",
   "layout_id": "framebuffer_rgb565",
-  "capabilities": ["net", "crypto"]
+  "capabilities": ["net", "crypto"],
+  "category": "finance"
 }

@@ -159,6 +159,11 @@ function app.render_fb(fb)
   for y = 1, 11, 3 do
     line_safe(fb, 0, y, 63, y, C_WATER2)
   end
+  for x = 0, 63, 9 do
+    if ((x + math.floor(state.anim_ms / 45)) % 18) < 9 then
+      rect_safe(fb, x, 11, 3, 1, 0x03EF)
+    end
+  end
   rect_safe(fb, 0, 12, 64, 4, C_GRASS)
   rect_safe(fb, 0, 16, 64, 12, C_ROAD)
   rect_safe(fb, 0, 28, 64, 4, C_GRASS2)
@@ -167,6 +172,9 @@ function app.render_fb(fb)
   for i = 0, 4 do
     rect_safe(fb, 4 + i * 12, 1, 8, 3, C_HOME)
     rect_safe(fb, 6 + i * 12, 2, 4, 1, 0x0000)
+    if blink(420, 0.45, i * 90) then
+      rect_safe(fb, 5 + i * 12, 4, 6, 1, 0x07E0)
+    end
   end
   for i = 0, 2 do
     local x = (math.floor(state.anim_ms / 35) + i * 22) % 86 - 18
@@ -202,6 +210,10 @@ function app.render_fb(fb)
   rect_safe(fb, fx + 2, fy, 1, 1, 0xFFFF)
   rect_safe(fb, fx + 1, fy + 3, 1, 1, C_FROG2)
   rect_safe(fb, fx + 2, fy + 3, 1, 1, C_FROG2)
+  if blink(240, 0.5, 0) then
+    rect_safe(fb, fx - 1, fy + 1, 1, 1, C_FROG)
+    rect_safe(fb, fx + 4, fy + 1, 1, 1, C_FROG)
+  end
   draw_number(fb, "03", 53, 29, 1, 0xFFFF, 0x0000, 1)
 end
 

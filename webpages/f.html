@@ -541,6 +541,18 @@
       margin-top: 18px;
     }
 
+    .log-split {
+      display: grid;
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    @media (min-width: 1120px) {
+      .log-split {
+        grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+      }
+    }
+
     .log {
       min-height: 130px;
       max-height: 280px;
@@ -553,6 +565,28 @@
 
     .log-line + .log-line {
       margin-top: 6px;
+    }
+
+    .log-device {
+      background: rgba(27, 31, 38, 0.94);
+      color: #dbe7f5;
+      border-top-color: rgba(255, 255, 255, 0.08);
+    }
+
+    .log-device .log-line.runtime-app {
+      color: #8fe9a5;
+    }
+
+    .log-device .log-line.runtime-warn {
+      color: #ffd286;
+    }
+
+    .log-device .log-line.runtime-bad {
+      color: #ff9a9a;
+    }
+
+    .log-empty {
+      color: var(--muted);
     }
 
     .code-note {
@@ -894,15 +928,38 @@
       </div>
     </section>
 
-    <article class="panel log-panel">
-      <div class="panel-inner">
-        <div class="panel-head">
-          <h2 class="panel-title">Activity Log</h2>
-          <button class="ghost" id="clearLogBtn" type="button">Clear</button>
+    <section class="log-split">
+      <article class="panel log-panel">
+        <div class="panel-inner">
+          <div class="panel-head">
+            <h2 class="panel-title">Activity Log</h2>
+            <button class="ghost" id="clearLogBtn" type="button">Clear</button>
+          </div>
         </div>
-      </div>
-      <div class="log" id="log"></div>
-    </article>
+        <div class="log" id="log"></div>
+      </article>
+
+      <article class="panel log-panel">
+        <div class="panel-inner">
+          <div class="panel-head">
+            <h2 class="panel-title">Device Runtime Log</h2>
+            <div class="toolbar">
+              <select id="deviceLogScope">
+                <option value="all">All Logs</option>
+                <option value="app">App Only</option>
+              </select>
+              <label class="check"><input id="deviceLogAuto" type="checkbox" checked /> Auto Refresh</label>
+              <button class="ghost" id="refreshRuntimeLogBtn" type="button">Refresh</button>
+              <button class="ghost" id="clearRuntimeLogBtn" type="button">Clear View</button>
+            </div>
+          </div>
+          <p class="panel-note">Streaming from <code>/api/system/logs</code>. <code>App Only</code> focuses on Lua runtime and <code>sys.log()</code> output.</p>
+        </div>
+        <div class="log log-device" id="runtimeLog">
+          <div class="log-line log-empty">Waiting for runtime logs...</div>
+        </div>
+      </article>
+    </section>
   </div>
 
   <script>
@@ -913,9 +970,26 @@
       storeApps: [],
       categoryOrder: [],
       categoryLabels: {},
+      runtimeLogSeq: 0,
+      runtimeLogLoading: false,
+      runtimeLogError: "",
+      installedAppsLoaded: false,
+      storeAppsLoaded: false,
+      renderTokenInstalled: 0,
+      renderTokenStore: 0,
+      inflightInstalled: null,
+      inflightStore: null,
+      thumbObserver: null,
     };
 
     const LS_KEY = "pixel_store_index_url";
+    const CACHE_SCHEMA = 2;
+    const INSTALLED_CACHE_KEY = "pixel_installed_apps_cache";
+    const STORE_CACHE_PREFIX = "pixel_store_index_cache:";
+    const INSTALLED_CACHE_TTL_MS = 10 * 60 * 1000;
+    const STORE_CACHE_TTL_MS = 30 * 60 * 1000;
+    const INSTALLED_RENDER_BATCH = 12;
+    const STORE_RENDER_BATCH = 10;
     const FORCED_STORE_INDEX_URL = "http://ota.geekmagic.cc:8001/fw/pixel64x32V2/apps/apps-index.json";
     const logEl = document.getElementById("log");
     const badgeVersionEl = document.getElementById("badgeVersion");
@@ -934,6 +1008,9 @@
     const firmwareFileEl = document.getElementById("firmwareFile");
     const uploadFirmwareBtnEl = document.getElementById("uploadFirmwareBtn");
     const rebootBtnEl = document.getElementById("rebootBtn");
+    const runtimeLogEl = document.getElementById("runtimeLog");
+    const deviceLogScopeEl = document.getElementById("deviceLogScope");
+    const deviceLogAutoEl = document.getElementById("deviceLogAuto");
     const otaOverlayEl = document.getElementById("otaOverlay");
     const otaTitleEl = document.getElementById("otaTitle");
     const otaDetailEl = document.getElementById("otaDetail");
@@ -961,6 +1038,136 @@
       }
       line.textContent = "[" + new Date().toLocaleTimeString() + "] " + message;
       logEl.prepend(line);
+    }
+
+    function scheduleChunk(fn) {
+      if ("requestIdleCallback" in window) {
+        window.requestIdleCallback(() => fn(), { timeout: 120 });
+      } else {
+        window.requestAnimationFrame(() => fn());
+      }
+    }
+
+    function readCachedJson(key, ttlMs) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || parsed.schema !== CACHE_SCHEMA) return null;
+        if (ttlMs > 0 && (Date.now() - Number(parsed.ts || 0)) > ttlMs) return null;
+        return parsed.data ?? null;
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function writeCachedJson(key, data) {
+      try {
+        localStorage.setItem(key, JSON.stringify({
+          schema: CACHE_SCHEMA,
+          ts: Date.now(),
+          data,
+        }));
+      } catch (error) {
+      }
+    }
+
+    function storeCacheKey(url) {
+      return STORE_CACHE_PREFIX + String(url || "");
+    }
+
+    function ensureThumbObserver() {
+      if (state.thumbObserver || !("IntersectionObserver" in window)) return;
+      state.thumbObserver = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const img = entry.target;
+          const src = img.dataset.src;
+          if (src && !img.src) {
+            img.src = src;
+          }
+          img.removeAttribute("data-src");
+          state.thumbObserver.unobserve(img);
+        }
+      }, { rootMargin: "240px 0px" });
+    }
+
+    function hydrateLazyThumbs(root) {
+      const scope = root || document;
+      ensureThumbObserver();
+      const imgs = scope.querySelectorAll("img[data-src]");
+      for (const img of imgs) {
+        img.decoding = "async";
+        if (state.thumbObserver) {
+          state.thumbObserver.observe(img);
+        } else if (img.dataset.src && !img.src) {
+          img.src = img.dataset.src;
+          img.removeAttribute("data-src");
+        }
+      }
+    }
+
+    function thumbMarkup(title, fallbackKey, thumb) {
+      if (!thumb) {
+        return `<div class="thumb-fallback">${esc((fallbackKey || "?").toUpperCase())}</div>`;
+      }
+      return `<img loading="lazy" decoding="async" data-src="${esc(thumb)}" alt="${esc(title)}" />`;
+    }
+
+    function runtimeLogPlaceholder(message) {
+      runtimeLogEl.innerHTML = "";
+      const line = document.createElement("div");
+      line.className = "log-line log-empty";
+      line.textContent = message;
+      runtimeLogEl.appendChild(line);
+    }
+
+    function runtimeLogClass(entry) {
+      const text = String(entry?.text || "");
+      if (text.startsWith("E (") || text.includes(" E (")) return "runtime-bad";
+      if (text.startsWith("W (") || text.includes(" W (")) return "runtime-warn";
+      if (entry?.kind === "app") return "runtime-app";
+      return "";
+    }
+
+    function appendRuntimeLogs(entries, reset) {
+      const lines = Array.isArray(entries) ? entries : [];
+      const nearBottom =
+        runtimeLogEl.scrollHeight - (runtimeLogEl.scrollTop + runtimeLogEl.clientHeight) < 24;
+
+      if (reset) {
+        runtimeLogEl.innerHTML = "";
+      }
+
+      if (!lines.length) {
+        if (!runtimeLogEl.childElementCount) {
+          runtimeLogPlaceholder("No runtime logs yet.");
+        }
+        return;
+      }
+
+      if (runtimeLogEl.querySelector(".log-empty")) {
+        runtimeLogEl.innerHTML = "";
+      }
+
+      for (const entry of lines) {
+        const line = document.createElement("div");
+        line.className = "log-line";
+        const extraClass = runtimeLogClass(entry);
+        if (extraClass) {
+          line.classList.add(extraClass);
+        }
+        line.textContent = String(entry?.text || "");
+        runtimeLogEl.appendChild(line);
+      }
+
+      while (runtimeLogEl.childElementCount > 320) {
+        runtimeLogEl.removeChild(runtimeLogEl.firstChild);
+      }
+
+      if (nearBottom || reset) {
+        runtimeLogEl.scrollTop = runtimeLogEl.scrollHeight;
+      }
     }
 
     function formatBytes(bytes) {
@@ -1073,6 +1280,36 @@
       const body = payload === undefined ? undefined : JSON.stringify(payload);
       const response = await api(method, path, body, payload === undefined ? undefined : "application/json");
       return response.json().catch(() => ({}));
+    }
+
+    async function loadRuntimeLogs(options) {
+      const reset = !!options?.reset;
+      if (state.runtimeLogLoading) return;
+      state.runtimeLogLoading = true;
+      try {
+        const scope = deviceLogScopeEl.value === "app" ? "app" : "all";
+        const after = reset ? 0 : Number(state.runtimeLogSeq || 0);
+        const limit = reset ? 100 : 80;
+        const json = await apiJson(
+          "GET",
+          "/api/system/logs?scope=" + encodeURIComponent(scope) + "&after=" + after + "&limit=" + limit
+        );
+        const entries = Array.isArray(json?.logs) ? json.logs : [];
+        appendRuntimeLogs(entries, reset);
+        state.runtimeLogSeq = Number(json?.next_seq || state.runtimeLogSeq || 0);
+        state.runtimeLogError = "";
+      } catch (error) {
+        const message = String(error.message || error);
+        if (state.runtimeLogError !== message) {
+          state.runtimeLogError = message;
+          log("runtime log fetch failed: " + message, "status-bad");
+        }
+        if (reset) {
+          runtimeLogPlaceholder("Runtime log unavailable: " + message);
+        }
+      } finally {
+        state.runtimeLogLoading = false;
+      }
     }
 
     function normalizeApps(json) {
@@ -1242,7 +1479,128 @@
       }
     }
 
+    function createInstalledCard(item) {
+      const id = String(item.id || "");
+      const title = String(item.name || id || "Unknown");
+      const version = String(item.version || "");
+      const thumb = pickThumbUrl(item, id);
+      const card = document.createElement("div");
+      card.className = "app-card";
+      card.innerHTML = `
+        <div class="thumb">${thumbMarkup(title, title[0] || id[0], thumb)}</div>
+        <div class="app-top">
+          <div>
+            <p class="app-name">${esc(title)}</p>
+            <p class="app-meta">${esc(appVersionMeta(version))}</p>
+          </div>
+        </div>
+        <div class="status-row"><span class="status-ok">Ready</span></div>
+        <div class="toolbar">
+          <button type="button" data-a="run">Run</button>
+          <button class="bad" type="button" data-a="uninstall">Uninstall</button>
+        </div>
+      `;
+      const runBtn = card.querySelector('[data-a="run"]');
+      const uninstallBtn = card.querySelector('[data-a="uninstall"]');
+      runBtn.onclick = async () => {
+        runBtn.disabled = true;
+        try {
+          await runApp(id);
+        } catch (error) {
+          log(String(error.message || error), "status-bad");
+        } finally {
+          runBtn.disabled = false;
+        }
+      };
+      uninstallBtn.onclick = async () => {
+        uninstallBtn.disabled = true;
+        try {
+          await uninstallApp(id);
+        } catch (error) {
+          log(String(error.message || error), "status-bad");
+        } finally {
+          uninstallBtn.disabled = false;
+        }
+      };
+      return card;
+    }
+
+    function createStoreCard(item) {
+      const id = String(item.id || item.app_id || "");
+      const titleText = String(item.name || id || "Unknown");
+      const desc = String(item.description || "");
+      const version = String(item.version || "");
+      const thumb = pickThumbUrl(item, id);
+      const local = state.installedById[id];
+      const installLabel = !local
+        ? "Install"
+        : version && semverCmp(version, local.version) > 0
+          ? "Update"
+          : "Reinstall";
+      const descHtml = desc ? `<p class="app-desc">${esc(desc)}</p>` : "";
+
+      const card = document.createElement("div");
+      card.className = "app-card";
+      card.innerHTML = `
+        <div class="thumb">${thumbMarkup(titleText, titleText[0] || id[0], thumb)}</div>
+        <div class="app-top">
+          <div>
+            <p class="app-name">${esc(titleText)}</p>
+            <p class="app-meta">${esc(appVersionMeta(version))}</p>
+          </div>
+        </div>
+        ${descHtml}
+        <div class="status-row">${appStatus(item)}</div>
+        <div class="toolbar">
+          <button type="button" data-a="install">${esc(installLabel)}</button>
+          <button class="secondary" type="button" data-a="run">Run</button>
+          <button class="bad" type="button" data-a="uninstall">Uninstall</button>
+        </div>
+      `;
+
+      const installBtn = card.querySelector('[data-a="install"]');
+      const runBtn = card.querySelector('[data-a="run"]');
+      const uninstallBtn = card.querySelector('[data-a="uninstall"]');
+      runBtn.disabled = !local;
+      uninstallBtn.disabled = !local;
+
+      installBtn.onclick = async () => {
+        installBtn.disabled = true;
+        try {
+          await installApp(item);
+        } catch (error) {
+          log(String(error.message || error), "status-bad");
+        } finally {
+          installBtn.disabled = false;
+        }
+      };
+
+      runBtn.onclick = async () => {
+        runBtn.disabled = true;
+        try {
+          await runApp(id);
+        } catch (error) {
+          log(String(error.message || error), "status-bad");
+        } finally {
+          runBtn.disabled = false;
+        }
+      };
+
+      uninstallBtn.onclick = async () => {
+        uninstallBtn.disabled = true;
+        try {
+          await uninstallApp(id);
+        } catch (error) {
+          log(String(error.message || error), "status-bad");
+        } finally {
+          uninstallBtn.disabled = false;
+        }
+      };
+      return card;
+    }
+
     function renderInstalledApps() {
+      const token = ++state.renderTokenInstalled;
       installedAppsGridEl.innerHTML = "";
       const items = state.installedApps.slice().sort((a, b) =>
         String(a.name || a.id || "").localeCompare(String(b.name || b.id || ""))
@@ -1251,60 +1609,26 @@
         installedAppsGridEl.innerHTML = '<div class="muted">No installed apps</div>';
         return;
       }
-      for (const item of items) {
-        const id = String(item.id || "");
-        const title = String(item.name || id || "Unknown");
-        const version = String(item.version || "");
-        const thumb = pickThumbUrl(item, id);
-        const card = document.createElement("div");
-        card.className = "app-card";
-        card.innerHTML = `
-          <div class="thumb">${thumb ? `<img loading="lazy" src="${esc(thumb)}" alt="${esc(title)}" />` : `<div class="thumb-fallback">${esc((title[0] || id[0] || "?").toUpperCase())}</div>`}</div>
-          <div class="app-top">
-            <div>
-              <p class="app-name">${esc(title)}</p>
-              <p class="app-meta">${esc(appVersionMeta(version))}</p>
-            </div>
-          </div>
-          <div class="status-row"><span class="status-ok">Ready</span></div>
-          <div class="toolbar">
-            <button type="button" data-a="run">Run</button>
-            <button class="bad" type="button" data-a="uninstall">Uninstall</button>
-          </div>
-        `;
-        const runBtn = card.querySelector('[data-a="run"]');
-        const uninstallBtn = card.querySelector('[data-a="uninstall"]');
-        runBtn.onclick = async () => {
-          runBtn.disabled = true;
-          try {
-            await runApp(id);
-          } catch (error) {
-            log(String(error.message || error), "status-bad");
-          } finally {
-            runBtn.disabled = false;
-          }
-        };
-        uninstallBtn.onclick = async () => {
-          uninstallBtn.disabled = true;
-          try {
-            await uninstallApp(id);
-          } catch (error) {
-            log(String(error.message || error), "status-bad");
-          } finally {
-            uninstallBtn.disabled = false;
-          }
-        };
-        installedAppsGridEl.appendChild(card);
-      }
+
+      let index = 0;
+      const pump = () => {
+        if (token !== state.renderTokenInstalled) return;
+        const frag = document.createDocumentFragment();
+        let count = 0;
+        while (index < items.length && count < INSTALLED_RENDER_BATCH) {
+          frag.appendChild(createInstalledCard(items[index++]));
+          count += 1;
+        }
+        installedAppsGridEl.appendChild(frag);
+        hydrateLazyThumbs(installedAppsGridEl);
+        if (index < items.length) {
+          scheduleChunk(pump);
+        }
+      };
+      pump();
     }
 
-    function renderStoreApps() {
-      storeAppsEl.innerHTML = "";
-      if (!state.storeApps.length) {
-        storeAppsEl.innerHTML = '<div class="muted">No catalog loaded.</div>';
-        return;
-      }
-
+    function buildStoreGroups() {
       const groups = {};
       const discovered = [];
       for (const item of state.storeApps) {
@@ -1325,94 +1649,69 @@
         if (!order.includes(key)) order.push(key);
       }
 
-      for (const key of order) {
-        const section = document.createElement("section");
-        section.className = "store-group";
-        const title = document.createElement("h3");
-        title.className = "group-title";
-        title.textContent = categoryLabel(key) + " (" + groups[key].length + ")";
-        const grid = document.createElement("div");
-        grid.className = "card-grid";
-        section.appendChild(title);
-        section.appendChild(grid);
+      return order.map((key) => ({
+        key,
+        label: categoryLabel(key),
+        items: groups[key] || [],
+      }));
+    }
 
-        for (const item of groups[key]) {
-          const id = String(item.id || item.app_id || "");
-          const titleText = String(item.name || id || "Unknown");
-          const desc = String(item.description || "");
-          const version = String(item.version || "");
-          const thumb = pickThumbUrl(item, id);
-          const local = state.installedById[id];
-          const installLabel = !local
-            ? "Install"
-            : version && semverCmp(version, local.version) > 0
-              ? "Update"
-              : "Reinstall";
-          const descHtml = desc ? `<p class="app-desc">${esc(desc)}</p>` : "";
+    function createStoreSection(group) {
+      const section = document.createElement("section");
+      section.className = "store-group";
+      const title = document.createElement("h3");
+      title.className = "group-title";
+      title.textContent = group.label + " (" + group.items.length + ")";
+      const grid = document.createElement("div");
+      grid.className = "card-grid";
+      section.appendChild(title);
+      section.appendChild(grid);
+      return { section, grid };
+    }
 
-          const card = document.createElement("div");
-          card.className = "app-card";
-          card.innerHTML = `
-            <div class="thumb">${thumb ? `<img loading="lazy" src="${esc(thumb)}" alt="${esc(titleText)}" />` : `<div class="thumb-fallback">${esc((titleText[0] || id[0] || "?").toUpperCase())}</div>`}</div>
-            <div class="app-top">
-              <div>
-                <p class="app-name">${esc(titleText)}</p>
-                <p class="app-meta">${esc(appVersionMeta(version))}</p>
-              </div>
-            </div>
-            ${descHtml}
-            <div class="status-row">${appStatus(item)}</div>
-            <div class="toolbar">
-              <button type="button" data-a="install">${esc(installLabel)}</button>
-              <button class="secondary" type="button" data-a="run">Run</button>
-              <button class="bad" type="button" data-a="uninstall">Uninstall</button>
-            </div>
-          `;
-
-          const installBtn = card.querySelector('[data-a="install"]');
-          const runBtn = card.querySelector('[data-a="run"]');
-          const uninstallBtn = card.querySelector('[data-a="uninstall"]');
-          runBtn.disabled = !local;
-          uninstallBtn.disabled = !local;
-
-          installBtn.onclick = async () => {
-            installBtn.disabled = true;
-            try {
-              await installApp(item);
-            } catch (error) {
-              log(String(error.message || error), "status-bad");
-            } finally {
-              installBtn.disabled = false;
-            }
-          };
-
-          runBtn.onclick = async () => {
-            runBtn.disabled = true;
-            try {
-              await runApp(id);
-            } catch (error) {
-              log(String(error.message || error), "status-bad");
-            } finally {
-              runBtn.disabled = false;
-            }
-          };
-
-          uninstallBtn.onclick = async () => {
-            uninstallBtn.disabled = true;
-            try {
-              await uninstallApp(id);
-            } catch (error) {
-              log(String(error.message || error), "status-bad");
-            } finally {
-              uninstallBtn.disabled = false;
-            }
-          };
-
-          grid.appendChild(card);
+    function renderStoreGroup(group, grid, token) {
+      let index = 0;
+      const pump = () => {
+        if (token !== state.renderTokenStore) return;
+        const frag = document.createDocumentFragment();
+        let count = 0;
+        while (index < group.items.length && count < STORE_RENDER_BATCH) {
+          frag.appendChild(createStoreCard(group.items[index++]));
+          count += 1;
         }
+        grid.appendChild(frag);
+        hydrateLazyThumbs(grid);
+        if (index < group.items.length) {
+          scheduleChunk(pump);
+        } else {
+          scheduleChunk(renderNext);
+        }
+      };
 
-        storeAppsEl.appendChild(section);
+      const renderNext = group.onDone || (() => {});
+      pump();
+    }
+
+    function renderStoreApps() {
+      const token = ++state.renderTokenStore;
+      storeAppsEl.innerHTML = "";
+      if (!state.storeApps.length) {
+        storeAppsEl.innerHTML = '<div class="muted">No catalog loaded.</div>';
+        return;
       }
+
+      const groups = buildStoreGroups();
+      let groupIndex = 0;
+      const renderNextGroup = () => {
+        if (token !== state.renderTokenStore) return;
+        if (groupIndex >= groups.length) return;
+        const group = groups[groupIndex++];
+        const built = createStoreSection(group);
+        storeAppsEl.appendChild(built.section);
+        group.onDone = renderNextGroup;
+        renderStoreGroup(group, built.grid, token);
+      };
+      renderNextGroup();
     }
 
     async function loadSystemStatus() {
@@ -1422,16 +1721,59 @@
       return status;
     }
 
-    async function refreshInstalledApps() {
-      const json = await apiJson("GET", "/api/apps/list");
+    function applyInstalledAppsJson(json, source) {
       state.installedApps = normalizeApps(json).slice();
       state.installedById = toInstalledMap(state.installedApps);
+      state.installedAppsLoaded = true;
       renderInstalledApps();
       renderStoreApps();
-      log("installed apps: " + state.installedApps.length, "status-ok");
+      if (source === "network") {
+        log("installed apps: " + state.installedApps.length, "status-ok");
+      }
     }
 
-    async function loadStoreIndex() {
+    function hydrateInstalledAppsFromCache() {
+      const cached = readCachedJson(INSTALLED_CACHE_KEY, INSTALLED_CACHE_TTL_MS);
+      if (!cached) return false;
+      applyInstalledAppsJson(cached, "cache");
+      return true;
+    }
+
+    async function refreshInstalledApps(options) {
+      const opts = options || {};
+      if (state.inflightInstalled && !opts.force) return state.inflightInstalled;
+      state.inflightInstalled = (async () => {
+        const json = await apiJson("GET", "/api/apps/list");
+        writeCachedJson(INSTALLED_CACHE_KEY, json);
+        applyInstalledAppsJson(json, "network");
+        return json;
+      })().finally(() => {
+        state.inflightInstalled = null;
+      });
+      return state.inflightInstalled;
+    }
+
+    function applyStoreIndexJson(json, url, source) {
+      state.storeApps = normalizeApps(json);
+      state.categoryOrder = Array.isArray(json?.category_order) ? json.category_order.slice() : [];
+      state.categoryLabels = json?.category_labels && typeof json.category_labels === "object" ? json.category_labels : {};
+      state.storeAppsLoaded = true;
+      storeMetaEl.textContent = "Loaded " + state.storeApps.length + " app(s) from " + url;
+      renderStoreApps();
+      if (source === "network") {
+        log("catalog loaded: " + state.storeApps.length + " apps", "status-ok");
+      }
+    }
+
+    function hydrateStoreIndexFromCache(url) {
+      const cached = readCachedJson(storeCacheKey(url), STORE_CACHE_TTL_MS);
+      if (!cached) return false;
+      applyStoreIndexJson(cached, url, "cache");
+      return true;
+    }
+
+    async function loadStoreIndex(options) {
+      const opts = options || {};
       const url = FORCED_STORE_INDEX_URL;
       if (indexUrlEl.value !== url) {
         indexUrlEl.value = url;
@@ -1444,19 +1786,24 @@
       }
 
       localStorage.setItem(LS_KEY, url);
-      log("loading catalog " + url);
-      const fullUrl = url + (url.includes("?") ? "&" : "?") + "_ts=" + Date.now();
-      const response = await fetch(fullUrl, { cache: "no-store" });
-      if (!response.ok) {
-        throw new Error("catalog fetch failed: HTTP " + response.status);
+      if (state.inflightStore && !opts.force) return state.inflightStore;
+      if (!opts.silent) {
+        log("loading catalog " + url);
       }
-      const json = await response.json();
-      state.storeApps = normalizeApps(json);
-      state.categoryOrder = Array.isArray(json?.category_order) ? json.category_order.slice() : [];
-      state.categoryLabels = json?.category_labels && typeof json.category_labels === "object" ? json.category_labels : {};
-      storeMetaEl.textContent = "Loaded " + state.storeApps.length + " app(s) from " + url;
-      renderStoreApps();
-      log("catalog loaded: " + state.storeApps.length + " apps", "status-ok");
+      state.inflightStore = (async () => {
+        const fullUrl = url + (url.includes("?") ? "&" : "?") + "_ts=" + Date.now();
+        const response = await fetch(fullUrl, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("catalog fetch failed: HTTP " + response.status);
+        }
+        const json = await response.json();
+        writeCachedJson(storeCacheKey(url), json);
+        applyStoreIndexJson(json, url, "network");
+        return json;
+      })().finally(() => {
+        state.inflightStore = null;
+      });
+      return state.inflightStore;
     }
 
     async function loadWifiScan() {
@@ -1687,7 +2034,7 @@
 
       document.getElementById("refreshInstalledBtn").onclick = async () => {
         try {
-          await refreshInstalledApps();
+          await refreshInstalledApps({ force: true });
         } catch (error) {
           log(String(error.message || error), "status-bad");
         }
@@ -1705,7 +2052,7 @@
 
       document.getElementById("loadStoreBtn").onclick = async () => {
         try {
-          await loadStoreIndex();
+          await loadStoreIndex({ force: true });
         } catch (error) {
           log(String(error.message || error), "status-bad");
         }
@@ -1713,6 +2060,28 @@
 
       document.getElementById("clearLogBtn").onclick = () => {
         logEl.innerHTML = "";
+      };
+
+      document.getElementById("refreshRuntimeLogBtn").onclick = async () => {
+        try {
+          await loadRuntimeLogs({ reset: true });
+        } catch (error) {
+          log(String(error.message || error), "status-bad");
+        }
+      };
+
+      document.getElementById("clearRuntimeLogBtn").onclick = () => {
+        runtimeLogPlaceholder("Runtime log view cleared.");
+      };
+
+      deviceLogScopeEl.onchange = async () => {
+        state.runtimeLogSeq = 0;
+        runtimeLogPlaceholder("Loading runtime logs...");
+        try {
+          await loadRuntimeLogs({ reset: true });
+        } catch (error) {
+          log(String(error.message || error), "status-bad");
+        }
       };
     }
 
@@ -1727,25 +2096,30 @@
         log("failed to apply forced store index: " + String(error.message || error), "status-bad");
       }
 
-      try {
-        await loadSystemStatus();
-      } catch (error) {
-        log(String(error.message || error), "status-bad");
-      }
+      runtimeLogPlaceholder("Loading runtime logs...");
+      const hadInstalledCache = hydrateInstalledAppsFromCache();
+      const hadStoreCache = indexUrlEl.value ? hydrateStoreIndexFromCache(indexUrlEl.value) : false;
 
-      try {
-        await refreshInstalledApps();
-      } catch (error) {
-        log(String(error.message || error), "status-bad");
-      }
-
+      const startupTasks = [
+        loadSystemStatus(),
+        refreshInstalledApps({ silent: hadInstalledCache }),
+        loadRuntimeLogs({ reset: true }),
+      ];
       if (indexUrlEl.value) {
-        try {
-          await loadStoreIndex();
-        } catch (error) {
-          log(String(error.message || error), "status-bad");
+        startupTasks.push(loadStoreIndex({ silent: hadStoreCache }));
+      }
+
+      const results = await Promise.allSettled(startupTasks);
+      for (const result of results) {
+        if (result.status === "rejected") {
+          log(String(result.reason?.message || result.reason || "startup failed"), "status-bad");
         }
       }
+
+      window.setInterval(() => {
+        if (!deviceLogAutoEl.checked) return;
+        void loadRuntimeLogs({ reset: false });
+      }, 2000);
     }
 
     init();

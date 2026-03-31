@@ -136,6 +136,8 @@ function app.render_fb(fb)
   for i = 0, 8 do
     set_px_safe(fb, (i * 19 + math.floor(state.anim_ms / 80)) % 64, (i * 7) % 12 + 1, C_STAR)
   end
+  rect_safe(fb, 1, 2, 16, 1, 0x3186)
+  rect_safe(fb, 19, 2, 8 + math.floor(tri(2200, 0) * 8), 1, 0x07FF)
   line_safe(fb, 0, 26, 12, 23, C_HILL)
   line_safe(fb, 12, 23, 24, 26, C_HILL)
   line_safe(fb, 24, 26, 38, 22, C_HILL)
@@ -145,6 +147,9 @@ function app.render_fb(fb)
     rect_safe(fb, 4 + i * 10, 27, 6, 3, C_CITY)
     rect_safe(fb, 5 + i * 10, 26, 1, 1, C_CITY)
     rect_safe(fb, 8 + i * 10, 26, 1, 1, C_CITY)
+    if i == 1 or i == 4 then
+      rect_safe(fb, 4 + i * 10, 28, 6, 1, 0xF800)
+    end
   end
   draw_sprite(fb, 3, 22, {".bb.","bbbb","b..b"}, {b=C_BASE}, 1)
   draw_sprite(fb, 29, 22, {".bb.","bbbb","b..b"}, {b=C_BASE}, 1)
@@ -153,12 +158,15 @@ function app.render_fb(fb)
   line_safe(fb, 30, 0, 27, 24 - math.floor((state.anim_ms / 46) % 6), C_MISSILE)
   line_safe(fb, 58, 0, 44, 24 - math.floor((state.anim_ms / 40) % 8), C_MISSILE)
   line_safe(fb, 45, 2, 36, 24 - math.floor((state.anim_ms / 38) % 7), C_MISSILE)
+  line_safe(fb, 56, 24, 40, 8, C_DEF)
   line_safe(fb, 7, 24, 18, 12, C_DEF)
   line_safe(fb, 32, 24, 28, 10, C_DEF)
   line_safe(fb, 57, 24, 44, 14, C_DEF)
   burst(fb, 18, 12, 1 + math.floor(tri(900, 0) * 3))
   burst(fb, 28, 10, 1 + math.floor(tri(700, 200) * 2))
   burst(fb, 44, 14, 1 + math.floor(tri(1100, 120) * 3))
+  burst(fb, 40, 8, 1 + math.floor(tri(800, 60) * 2))
+  rect_safe(fb, 30, 21, 4, 1, 0x7BEF)
   draw_number(fb, "12", 53, 1, 1, 0xFFFF, 0x0000, 1)
 end
 
