@@ -1,0 +1,73 @@
+{
+  "ok": true,
+  "scope": "app",
+  "next_seq": 817,
+  "logs": [
+    {
+      "seq": 789,
+      "ms": 543695,
+      "kind": "app",
+      "text": "\u001b[0;32mI (543698) lua_app: app entry resolved: /littlefs/apps/sports_scoreboard/app.bin\u001b[0m"
+    },
+    {
+      "seq": 790,
+      "ms": 543716,
+      "kind": "app",
+      "text": "\u001b[0;32mI (543718) lua_app: entry loaded bytecode (/littlefs/apps/sports_scoreboard/app.bin) size=12337 head_hex=1b 4c 75 61 54 00 19 93 0d 0a 1a 0a 04 04 08 78 56 00 00 00 00 00 00 00\u001b[0m"
+    },
+    {
+      "seq": 791,
+      "ms": 543722,
+      "kind": "app",
+      "text": "\u001b[0;32mI (543718) lua_app: bytecode abi: cint=4 sizet=4 instr=8 int=120 num=86 ; runtime int=4 num=8\u001b[0m"
+    },
+    {
+      "seq": 792,
+      "ms": 543731,
+      "kind": "app",
+      "text": "\u001b[0;32mI (543728) lua_app: LoadMain: before lua_load (/littlefs/apps/sports_scoreboard/app.bin)\u001b[0m"
+    },
+    {
+      "seq": 793,
+      "ms": 543746,
+      "kind": "app",
+      "text": "\u001b[0;32mI (543748) lua_app: LoadMain: after lua_load ret=0\u001b[0m"
+    },
+    {
+      "seq": 794,
+      "ms": 543747,
+      "kind": "app",
+      "text": "\u001b[0;32mI (543748) lua_app: LoadMain: before pcall\u001b[0m"
+    },
+    {
+      "seq": 795,
+      "ms": 543825,
+      "kind": "app",
+      "text": "\u001b[0;32mI (543828) lua_app: LoadMain: after pcall ret=0\u001b[0m"
+    },
+    {
+      "seq": 812,
+      "ms": 545761,
+      "kind": "app",
+      "text": "\u001b[0;32mI (545758) lua_app: http req done id=35 status=200 body_len=115551 elapsed_ms=8072 body_truncated={\"leagues\":[{\"id\":\"46\",\"uid\":\"s:40~l:46\",\"name\":\"National Basketball Association\",\"abbreviation\"\u001b[0m"
+    },
+    {
+      "seq": 813,
+      "ms": 545780,
+      "kind": "app",
+      "text": "\u001b[0;32mI (545778) lua_app: http req start id=36 timeout=8000 max_body=393216 queue_wait_ms=1889 url=https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=20260402\u001b[0m"
+    },
+    {
+      "seq": 814,
+      "ms": 545787,
+      "kind": "app",
+      "text": "\u001b[0;32mI (545788) lua_app: http req dns id=36 host=site.api.espn.com addr=184.27.122.58\u001b[0m"
+    },
+    {
+      "seq": 816,
+      "ms": 547284,
+      "kind": "app",
+      "text": "\u001b[0;32mI (547278) lua_app: http req headers id=36 fetch_ret=0 status=200 content_len=-1 chunked=1 elapsed_ms=3393\u001b[0m"
+    }
+  ]
+}

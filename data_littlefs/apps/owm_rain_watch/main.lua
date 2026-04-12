@@ -1,9 +1,17 @@
 local app = {}
 
 local OWM_API_KEY = data.get("owm.api_key") or "5ce216b488692ef60673d24f9583a873"
-local CITY = data.get("hourly_rain_watch.city") or "zhongshangang,cn"
+local DEFAULT_CITY = "zhongshangang,cn"
+local DEFAULT_REFRESH_MS = 5 * 60 * 1000
 local TZ_NAME = data.get("weather.timezone") or "Asia/Shanghai"
 local TZ_OFFSET_HOURS = tonumber(data.get("clock.utc_offset_hours") or 8) or 8
+
+local function cfg_refresh_ms()
+  local n = tonumber(data.get("owm_rain_watch.refresh_ms") or data.get("hourly_rain_watch.refresh_ms") or data.get("owm_rain_watch.refresh_interval_ms") or data.get("hourly_rain_watch.refresh_interval_ms") or DEFAULT_REFRESH_MS) or DEFAULT_REFRESH_MS
+  if n < 15000 then n = 15000 end
+  if n > 3600000 then n = 3600000 end
+  return math.floor(n)
+end
 
 local font = "builtin:silkscreen_regular_8"
 
@@ -202,6 +210,16 @@ local function url_encode(s)
   return table.concat(out)
 end
 
+local function current_city()
+  local raw = data.get("owm_rain_watch.city") or data.get("hourly_rain_watch.city") or data.get("owm.city") or DEFAULT_CITY
+  local city = tostring(raw or "")
+  city = string.gsub(city, "%s+", " ")
+  city = string.gsub(city, "^%s+", "")
+  city = string.gsub(city, "%s+$", "")
+  if city == "" then city = DEFAULT_CITY end
+  return city
+end
+
 local function set_error(msg)
   state.err = tostring(msg or "ERR")
 end
@@ -301,7 +319,7 @@ local function process_response(kind, status, body)
         "https://api.open-meteo.com/v1/forecast?latitude=%s&longitude=%s&hourly=precipitation_probability,precipitation,weather_code&forecast_days=2&timezone=%s",
         tostring(state.lat), tostring(state.lon), url_encode(TZ_NAME)
       )
-      local id, body2, age_ms, err = net.cached_get(wx_url, 5 * 60 * 1000, 6000, 16384)
+      local id, body2, age_ms, err = net.cached_get(wx_url, cfg_refresh_ms(), 6000, 16384)
       if err then
         set_error(err)
         return
@@ -334,9 +352,10 @@ local function start_request()
     return
   end
 
+  local city = current_city()
   local geo_url = string.format(
     "https://api.openweathermap.org/geo/1.0/direct?q=%s&limit=1&appid=%s",
-    url_encode(CITY), OWM_API_KEY
+    url_encode(city), OWM_API_KEY
   )
 
   local id, body, age_ms, err = net.cached_get(geo_url, 12 * 60 * 60 * 1000, 6000, 4096)
@@ -389,7 +408,7 @@ function app.tick(dt_ms)
     end
     return
   end
-  local interval = state.err and 30000 or (10 * 60 * 1000)
+  local interval = state.err and 30000 or cfg_refresh_ms()
   if now_ms() - state.last_req_ms >= interval then start_request() end
 end
 

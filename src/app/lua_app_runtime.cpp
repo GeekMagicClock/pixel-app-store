@@ -8,6 +8,7 @@ extern "C" {
 #include <cstdio>
 #include <ctime>
 #include <cstring>
+#include <strings.h>
 #include <cstdint>
 #include <climits>
 #include <cerrno>
@@ -29,6 +30,7 @@ extern "C" {
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_netif.h"
+#include "miniz.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/idf_additions.h"
@@ -66,7 +68,132 @@ static constexpr const char* kRegistryAppKey = "__app";
 static constexpr const char* kRegistryRenderKey = "__render";
 static constexpr const char* kLuaDataDir = "/littlefs/.sys";
 static constexpr const char* kLuaDataPath = "/littlefs/.sys/lua_data.json";
+// Allow larger ESPN payloads (scoreboard/standings/schedule) while still capping
+// request memory to a safe bound for this device class.
+static constexpr int kLuaHttpMaxBodyBytes = 1024 * 1024;
 static void ReleaseGifPlayerForState(lua_State* L);
+
+static bool NeedsHttpUrlSanitize(const std::string& url) {
+  for (unsigned char ch : url) {
+    if (ch <= 0x20 || ch == 0x7f) return true;
+  }
+  return false;
+}
+
+static std::string SanitizeHttpUrl(const std::string& url) {
+  if (!NeedsHttpUrlSanitize(url)) return url;
+  std::string out;
+  out.reserve(url.size() + 8);
+  for (unsigned char ch : url) {
+    if (ch == ' ') {
+      out += "%20";
+    } else if (ch == '\t') {
+      out += "%09";
+    } else if (ch == '\r') {
+      out += "%0D";
+    } else if (ch == '\n') {
+      out += "%0A";
+    } else if (ch == 0x7f) {
+      out += "%7F";
+    } else {
+      out.push_back(static_cast<char>(ch));
+    }
+  }
+  return out;
+}
+
+static bool ParseGzipHeader(const uint8_t* src, size_t src_len, size_t* out_payload_off) {
+  if (out_payload_off) *out_payload_off = 0;
+  if (!src || src_len < 18) return false;
+  if (src[0] != 0x1f || src[1] != 0x8b) return false;
+  if (src[2] != 8) return false;  // deflate
+  const uint8_t flg = src[3];
+  size_t off = 10;
+  if (flg & 0x04) {  // FEXTRA
+    if (off + 2 > src_len) return false;
+    const size_t xlen = static_cast<size_t>(src[off]) | (static_cast<size_t>(src[off + 1]) << 8);
+    off += 2;
+    if (off + xlen > src_len) return false;
+    off += xlen;
+  }
+  if (flg & 0x08) {  // FNAME
+    while (off < src_len && src[off] != 0) off++;
+    if (off >= src_len) return false;
+    off++;
+  }
+  if (flg & 0x10) {  // FCOMMENT
+    while (off < src_len && src[off] != 0) off++;
+    if (off >= src_len) return false;
+    off++;
+  }
+  if (flg & 0x02) {  // FHCRC
+    if (off + 2 > src_len) return false;
+    off += 2;
+  }
+  if (off + 8 > src_len) return false;  // gzip trailer
+  if (out_payload_off) *out_payload_off = off;
+  return true;
+}
+
+static bool TryGunzipToBuffer(const uint8_t* src,
+                              size_t src_len,
+                              uint8_t* out,
+                              size_t out_cap,
+                              size_t* out_len) {
+  if (out_len) *out_len = 0;
+  size_t payload_off = 0;
+  if (!ParseGzipHeader(src, src_len, &payload_off)) return false;
+  if (!out || out_cap == 0) return false;
+  if (src_len < payload_off + 8) return false;
+
+  const size_t deflate_len = src_len - payload_off - 8;
+  const uint8_t* in_ptr = src + payload_off;
+
+  // Keep decompressor state off task stack; lua_http task stack is only 8KB.
+  tinfl_decompressor* inflator =
+      static_cast<tinfl_decompressor*>(LvglAllocPreferPsram(sizeof(tinfl_decompressor)));
+  if (!inflator) return false;
+  memset(inflator, 0, sizeof(*inflator));
+  tinfl_init(inflator);
+
+  size_t in_ofs = 0;
+  size_t out_ofs = 0;
+  int loops = 0;
+  bool ok = false;
+  while (true) {
+    if (out_ofs >= out_cap) break;
+    size_t in_bytes = deflate_len - in_ofs;
+    size_t out_bytes = out_cap - out_ofs;
+    mz_uint32 flags = TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF;
+    if (in_ofs + in_bytes < deflate_len) flags |= TINFL_FLAG_HAS_MORE_INPUT;
+    const tinfl_status st = tinfl_decompress(inflator,
+                                             in_ptr + in_ofs,
+                                             &in_bytes,
+                                             out,
+                                             out + out_ofs,
+                                             &out_bytes,
+                                             flags);
+    in_ofs += in_bytes;
+    out_ofs += out_bytes;
+    loops++;
+    if ((loops & 0x1F) == 0) vTaskDelay(0);
+    if (st == TINFL_STATUS_DONE) {
+      ok = true;
+      break;
+    }
+    if (st == TINFL_STATUS_NEEDS_MORE_INPUT) {
+      if (in_ofs >= deflate_len) break;
+      continue;
+    }
+    if (st == TINFL_STATUS_HAS_MORE_OUTPUT) continue;
+    break;
+  }
+
+  LvglFreePreferPsram(inflator);
+  if (!ok) return false;
+  if (out_len) *out_len = out_ofs;
+  return true;
+}
 
 static bool TryParseLineIndex(const std::string& key, int* out_idx_1based) {
   if (out_idx_1based) *out_idx_1based = 0;
@@ -184,6 +311,73 @@ static bool SaveLuaDataRoot(cJSON* root, std::string* out_err) {
   return WriteStringToFile(kLuaDataPath, text, out_err);
 }
 
+static LuaAppRuntime* RuntimeFromLuaState(lua_State* L) {
+  if (!L) return nullptr;
+  return *reinterpret_cast<LuaAppRuntime**>(lua_getextraspace(L));
+}
+
+static std::string AppIdFromDirPath(const std::string& app_dir) {
+  if (app_dir.empty()) return "";
+  const size_t pos = app_dir.find_last_of('/');
+  if (pos == std::string::npos) return app_dir;
+  if (pos + 1 >= app_dir.size()) return "";
+  return app_dir.substr(pos + 1);
+}
+
+static std::string MockEnabledKeyForApp(const std::string& app_id) {
+  return std::string("mock.") + app_id + ".enabled";
+}
+
+static std::string MockDataKeyForApp(const std::string& app_id) {
+  return std::string("mock.") + app_id + ".data";
+}
+
+static cJSON* FindMockDataItemForApp(cJSON* root, const std::string& app_id) {
+  if (!root || app_id.empty()) return nullptr;
+  const std::string key = MockDataKeyForApp(app_id);
+  return cJSON_GetObjectItemCaseSensitive(root, key.c_str());
+}
+
+static bool LoadMockStateForApp(const std::string& app_id, cJSON** out_root, cJSON** out_data) {
+  if (out_root) *out_root = nullptr;
+  if (out_data) *out_data = nullptr;
+  if (app_id.empty()) return false;
+
+  cJSON* root = LoadLuaDataRoot();
+  if (!root) return false;
+
+  const std::string enabled_key = MockEnabledKeyForApp(app_id);
+  cJSON* enabled = cJSON_GetObjectItemCaseSensitive(root, enabled_key.c_str());
+  const bool is_enabled = cJSON_IsTrue(enabled);
+  if (!is_enabled) {
+    cJSON_Delete(root);
+    return false;
+  }
+
+  if (out_data) *out_data = FindMockDataItemForApp(root, app_id);
+  if (out_root) {
+    *out_root = root;
+  } else {
+    cJSON_Delete(root);
+  }
+  return true;
+}
+
+static cJSON* FindMockPathItem(cJSON* root, const char* path) {
+  if (!root || !cJSON_IsObject(root) || !path || !*path) return root;
+  const char* cur = path;
+  cJSON* node = root;
+  while (cur && *cur) {
+    const char* dot = strchr(cur, '.');
+    std::string part = dot ? std::string(cur, dot - cur) : std::string(cur);
+    if (part.empty() || !node || !cJSON_IsObject(node)) return nullptr;
+    node = cJSON_GetObjectItemCaseSensitive(node, part.c_str());
+    if (!dot) break;
+    cur = dot + 1;
+  }
+  return node;
+}
+
 static bool PushBuiltInLuaDefault(lua_State* L, const char* key) {
   if (!L || !key || !*key) return false;
 
@@ -212,30 +406,19 @@ struct HttpReq {
   std::string url;
   int timeout_ms = 5000;
   int max_body_bytes = 4096;
+  std::vector<std::pair<std::string, std::string>> headers;
   bool done = false;
   bool abandoned = false;
   int64_t done_ms = 0;
   int status = 0;
   std::string body_or_err;
+  std::string resp_set_cookie;
 };
 
 static int64_t NowMs() { return esp_timer_get_time() / 1000; }
 
 class HttpClientMgr;
 static HttpClientMgr& HttpMgr();
-
-static std::string UrlHost(const std::string& url) {
-  const size_t scheme = url.find("://");
-  const size_t host_start = (scheme == std::string::npos) ? 0 : (scheme + 3);
-  if (host_start >= url.size()) return {};
-  size_t host_end = url.find('/', host_start);
-  if (host_end == std::string::npos) host_end = url.size();
-  const size_t at = url.find('@', host_start);
-  const size_t authority_start = (at != std::string::npos && at < host_end) ? (at + 1) : host_start;
-  size_t port = url.find(':', authority_start);
-  if (port == std::string::npos || port > host_end) port = host_end;
-  return url.substr(authority_start, port - authority_start);
-}
 
 static std::string PrintablePreview(const char* data, size_t len) {
   if (!data || len == 0) return {};
@@ -247,44 +430,6 @@ static std::string PrintablePreview(const char* data, size_t len) {
     out.push_back(std::isprint(ch) ? static_cast<char>(ch) : ' ');
   }
   return out;
-}
-
-static void LogHttpResolve(const HttpReq* req) {
-  if (!req) return;
-  const std::string host = UrlHost(req->url);
-  if (host.empty()) return;
-
-  struct addrinfo hints = {};
-  hints.ai_socktype = SOCK_STREAM;
-  struct addrinfo* result = nullptr;
-  const int rc = getaddrinfo(host.c_str(), nullptr, &hints, &result);
-  if (rc != 0 || !result) {
-    ESP_LOGW(kTag, "http req dns failed id=%d host=%s rc=%d", req->id, host.c_str(), rc);
-    if (result) freeaddrinfo(result);
-    return;
-  }
-
-  char addr_buf[64] = {};
-  bool logged = false;
-  for (struct addrinfo* it = result; it; it = it->ai_next) {
-    void* src = nullptr;
-    if (it->ai_family == AF_INET) {
-      src = &reinterpret_cast<struct sockaddr_in*>(it->ai_addr)->sin_addr;
-    } else if (it->ai_family == AF_INET6) {
-      src = &reinterpret_cast<struct sockaddr_in6*>(it->ai_addr)->sin6_addr;
-    } else {
-      continue;
-    }
-    if (inet_ntop(it->ai_family, src, addr_buf, sizeof(addr_buf))) {
-      ESP_LOGI(kTag, "http req dns id=%d host=%s addr=%s", req->id, host.c_str(), addr_buf);
-      logged = true;
-      break;
-    }
-  }
-  if (!logged) {
-    ESP_LOGW(kTag, "http req dns unresolved id=%d host=%s", req->id, host.c_str());
-  }
-  freeaddrinfo(result);
 }
 
 class HttpClientMgr {
@@ -304,6 +449,7 @@ class HttpClientMgr {
   int StartGet(const std::string& url,
                int timeout_ms,
                int max_body_bytes,
+               const std::vector<std::pair<std::string, std::string>>& headers,
                uintptr_t owner,
                std::string* out_err) {
     if (out_err) out_err->clear();
@@ -322,24 +468,55 @@ class HttpClientMgr {
     req->url = url;
     req->timeout_ms = timeout_ms;
     req->max_body_bytes = max_body_bytes;
+    req->headers = headers;
 
     Lock();
     ReapDoneLocked(NowMs());
     reqs_[req->id] = req;
     Unlock();
 
-    const BaseType_t ok = xTaskCreateWithCaps(&HttpTaskTrampoline,
-                                              "lua_http",
-                                              8192,
-                                              req,
-                                              tskIDLE_PRIORITY + 1,
-                                              nullptr,
-                                              MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    BaseType_t ok = xTaskCreateWithCaps(&HttpTaskTrampoline,
+                                        "lua_http",
+                                        8192,
+                                        req,
+                                        tskIDLE_PRIORITY + 1,
+                                        nullptr,
+                                        MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (ok != pdPASS) {
+      ESP_LOGW(kTag, "http task create failed (stack=8192 caps=SPIRAM|8BIT), retrying smaller stack");
+      ok = xTaskCreateWithCaps(&HttpTaskTrampoline,
+                               "lua_http",
+                               6144,
+                               req,
+                               tskIDLE_PRIORITY + 1,
+                               nullptr,
+                               MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    }
+    if (ok != pdPASS) {
+      ESP_LOGW(kTag, "http task create failed (stack=6144 caps=SPIRAM|8BIT), retrying 8BIT only");
+      ok = xTaskCreateWithCaps(&HttpTaskTrampoline,
+                               "lua_http",
+                               6144,
+                               req,
+                               tskIDLE_PRIORITY + 1,
+                               nullptr,
+                               MALLOC_CAP_8BIT);
+    }
+    if (ok != pdPASS) {
+      ESP_LOGW(kTag, "http task create failed (stack=6144 caps=8BIT), retrying plain xTaskCreate");
+      ok = xTaskCreate(&HttpTaskTrampoline,
+                       "lua_http",
+                       6144,
+                       req,
+                       tskIDLE_PRIORITY + 1,
+                       nullptr);
+    }
     if (ok != pdPASS) {
       Lock();
       reqs_.erase(req->id);
       Unlock();
       delete req;
+      ESP_LOGW(kTag, "http task create failed after all retries");
       if (out_err) *out_err = "xTaskCreate failed";
       return 0;
     }
@@ -370,6 +547,42 @@ class HttpClientMgr {
     if (out_done) *out_done = true;
     if (out_status) *out_status = req->status;
     if (out_body_or_err) *out_body_or_err = std::move(req->body_or_err);
+
+    reqs_.erase(it);
+    Unlock();
+    delete req;
+    return true;
+  }
+
+  bool PollAndPopEx(int id,
+                    bool* out_done,
+                    int* out_status,
+                    std::string* out_body_or_err,
+                    std::string* out_set_cookie) {
+    if (out_done) *out_done = false;
+    if (out_status) *out_status = 0;
+    if (out_body_or_err) out_body_or_err->clear();
+    if (out_set_cookie) out_set_cookie->clear();
+    if (!mu_) return false;
+
+    Lock();
+    ReapDoneLocked(NowMs());
+    auto it = reqs_.find(id);
+    if (it == reqs_.end()) {
+      Unlock();
+      return false;
+    }
+    HttpReq* req = it->second;
+    const bool abandoned = req->abandoned;
+    if (!req->done || abandoned) {
+      Unlock();
+      return !abandoned;
+    }
+
+    if (out_done) *out_done = true;
+    if (out_status) *out_status = req->status;
+    if (out_body_or_err) *out_body_or_err = std::move(req->body_or_err);
+    if (out_set_cookie) *out_set_cookie = std::move(req->resp_set_cookie);
 
     reqs_.erase(it);
     Unlock();
@@ -541,17 +754,44 @@ class HttpClientMgr {
       }
     }
 
+    const std::string request_url = SanitizeHttpUrl(url);
+    if (request_url != url) {
+      ESP_LOGW(kTag, "http url sanitized id=%d original=%s sanitized=%s", req_id, url.c_str(), request_url.c_str());
+    }
+
     ESP_LOGI(kTag,
              "http req start id=%d timeout=%d max_body=%d queue_wait_ms=%lld url=%s",
              req_id,
              timeout_ms,
              max_body_bytes,
              static_cast<long long>(queue_wait_ms),
-             url.c_str());
-    LogHttpResolve(req);
+             request_url.c_str());
+    // Avoid an extra resolver round-trip here; under FD pressure this can make
+    // connect failures happen earlier and adds little value for normal flow.
+
+    struct HttpRespMeta {
+      std::string set_cookie;
+    } resp_meta;
+
+    auto on_http_event = [](esp_http_client_event_t* evt) -> esp_err_t {
+      if (!evt || !evt->user_data) return ESP_OK;
+      HttpRespMeta* meta = static_cast<HttpRespMeta*>(evt->user_data);
+      if (!meta) return ESP_OK;
+      if (evt->event_id == HTTP_EVENT_ON_HEADER && evt->header_key && evt->header_value) {
+        const char* key = evt->header_key;
+        if (strcasecmp(key, "set-cookie") == 0) {
+          const char* val = evt->header_value;
+          if (val && *val) {
+            if (!meta->set_cookie.empty()) meta->set_cookie += "; ";
+            meta->set_cookie += val;
+          }
+        }
+      }
+      return ESP_OK;
+    };
 
     esp_http_client_config_t cfg = {};
-    cfg.url = url.c_str();
+    cfg.url = request_url.c_str();
     cfg.timeout_ms = timeout_ms;
     cfg.method = HTTP_METHOD_GET;
     cfg.crt_bundle_attach = esp_crt_bundle_attach;
@@ -560,18 +800,27 @@ class HttpClientMgr {
     cfg.keep_alive_enable = false;
     cfg.buffer_size = 4096;
     cfg.buffer_size_tx = 2048;
+    cfg.event_handler = on_http_event;
+    cfg.user_data = &resp_meta;
 
     esp_http_client_handle_t client = esp_http_client_init(&cfg);
     if (!client) {
-      ESP_LOGW(kTag, "http init failed url=%s timeout=%d max_body=%d", url.c_str(), timeout_ms, max_body_bytes);
+      ESP_LOGW(kTag, "http init failed url=%s timeout=%d max_body=%d", request_url.c_str(), timeout_ms, max_body_bytes);
       mem_snapshot();
       HttpMgr().FinishById(req_id, 0, "http init failed");
       return;
     }
 
     esp_http_client_set_header(client, "Accept", "application/json");
+    esp_http_client_set_header(client, "Accept-Encoding", "gzip");
     esp_http_client_set_header(client, "Cache-Control", "no-cache");
     esp_http_client_set_header(client, "Connection", "close");
+    for (size_t i = 0; i < req->headers.size(); ++i) {
+      const std::string& hk = req->headers[i].first;
+      const std::string& hv = req->headers[i].second;
+      if (hk.empty()) continue;
+      esp_http_client_set_header(client, hk.c_str(), hv.c_str());
+    }
 
     esp_err_t err = esp_http_client_open(client, 0);
     if (err != ESP_OK) {
@@ -582,11 +831,15 @@ class HttpClientMgr {
                static_cast<unsigned>(err),
                saved_errno,
                strerror(saved_errno),
-               url.c_str(),
+               request_url.c_str(),
                timeout_ms,
                max_body_bytes,
                static_cast<long long>(NowMs() - request_start_ms));
+      if (saved_errno == EMFILE) {
+        ESP_LOGW(kTag, "http fd exhausted (EMFILE): sockets/files reached limit, forcing close+cleanup");
+      }
       mem_snapshot();
+      (void)esp_http_client_close(client);
       esp_http_client_cleanup(client);
       HttpMgr().FinishById(req_id, 0, esp_err_to_name(err));
       return;
@@ -658,7 +911,74 @@ class HttpClientMgr {
       memcpy(body + total, buf, static_cast<size_t>(r));
       total += r;
     }
-    body[total] = '\0';
+
+    // If server returned gzip content, inflate before exposing body to Lua JSON parser.
+    // Auto-grow decode buffer up to 500KB to avoid surfacing transient "gzip decode failed"
+    // when compressed payload inflates beyond the initial max_body setting.
+    static constexpr size_t kGzipDecodeCapMax = 500U * 1024U;
+    static constexpr size_t kGzipDecodeCapStep = 64U * 1024U;
+    if (total >= 18 && static_cast<uint8_t>(body[0]) == 0x1f && static_cast<uint8_t>(body[1]) == 0x8b) {
+      size_t decode_cap = static_cast<size_t>(cap);
+      if (decode_cap < 256U) decode_cap = 256U;
+      if (decode_cap > kGzipDecodeCapMax) decode_cap = kGzipDecodeCapMax;
+      char* decoded = nullptr;
+      size_t decoded_len = 0;
+      bool ok = false;
+      while (true) {
+        decoded = static_cast<char*>(LvglAllocPreferPsram(decode_cap + 1));
+        if (!decoded) {
+          ESP_LOGW(kTag, "http gzip decode alloc failed id=%d cap=%u url=%s", req_id, static_cast<unsigned>(decode_cap),
+                   url.c_str());
+          if (decode_cap >= kGzipDecodeCapMax) break;
+          const size_t next_cap = std::min(kGzipDecodeCapMax, decode_cap + kGzipDecodeCapStep);
+          if (next_cap == decode_cap) break;
+          decode_cap = next_cap;
+          continue;
+        }
+        ok = TryGunzipToBuffer(reinterpret_cast<const uint8_t*>(body),
+                               static_cast<size_t>(total),
+                               reinterpret_cast<uint8_t*>(decoded),
+                               decode_cap,
+                               &decoded_len);
+        if (ok) break;
+        LvglFreePreferPsram(decoded);
+        decoded = nullptr;
+        if (decode_cap >= kGzipDecodeCapMax) break;
+        const size_t next_cap = std::min(kGzipDecodeCapMax, decode_cap + kGzipDecodeCapStep);
+        if (next_cap == decode_cap) break;
+        ESP_LOGW(kTag,
+                 "http gzip decode retry id=%d cap=%u->%u compressed_len=%d url=%s",
+                 req_id,
+                 static_cast<unsigned>(decode_cap),
+                 static_cast<unsigned>(next_cap),
+                 total,
+                 url.c_str());
+        decode_cap = next_cap;
+      }
+      if (!ok || !decoded) {
+        ESP_LOGW(kTag, "http gzip decode failed id=%d cap=%u compressed_len=%d url=%s", req_id,
+                 static_cast<unsigned>(decode_cap), total, url.c_str());
+        mem_snapshot();
+        if (decoded) LvglFreePreferPsram(decoded);
+        LvglFreePreferPsram(body);
+        (void)esp_http_client_close(client);
+        esp_http_client_cleanup(client);
+        HttpMgr().FinishById(req_id, 0, "gzip decode failed");
+        return;
+      }
+      decoded[decoded_len] = '\0';
+      ESP_LOGI(kTag,
+               "http gzip decoded id=%d compressed_len=%d decoded_len=%d decode_cap=%u",
+               req_id,
+               total,
+               static_cast<int>(decoded_len),
+               static_cast<unsigned>(decode_cap));
+      LvglFreePreferPsram(body);
+      body = decoded;
+      total = static_cast<int>(decoded_len);
+    } else {
+      body[total] = '\0';
+    }
 
     (void)esp_http_client_close(client);
     esp_http_client_cleanup(client);
@@ -682,6 +1002,7 @@ class HttpClientMgr {
                static_cast<long long>(NowMs() - request_start_ms),
                body_truncated.empty() ? "<empty>" : body_truncated.c_str());
     }
+    req->resp_set_cookie = resp_meta.set_cookie;
     HttpMgr().FinishById(req_id, http_status, std::string(body, static_cast<size_t>(total)));
     LvglFreePreferPsram(body);
   }
@@ -802,7 +1123,8 @@ class CachedHttpMgr {
 
     // Start a new request (outside lock).
     std::string start_err;
-    const int id = HttpMgr().StartGet(url, timeout_ms, max_body_bytes, owner, &start_err);
+    const std::vector<std::pair<std::string, std::string>> no_headers;
+    const int id = HttpMgr().StartGet(url, timeout_ms, max_body_bytes, no_headers, owner, &start_err);
     if (id <= 0) {
       if (out_err) *out_err = start_err.empty() ? "http_get failed" : start_err;
       return false;
@@ -1041,15 +1363,25 @@ static int LuaNetHttpGet(lua_State* L) {
   const char* url = luaL_checkstring(L, 1);
   int timeout_ms = 5000;
   int max_body = 4096;
+  std::vector<std::pair<std::string, std::string>> headers;
   if (lua_gettop(L) >= 2 && lua_isnumber(L, 2)) timeout_ms = static_cast<int>(lua_tointeger(L, 2));
   if (lua_gettop(L) >= 3 && lua_isnumber(L, 3)) max_body = static_cast<int>(lua_tointeger(L, 3));
+  if (lua_gettop(L) >= 4 && lua_istable(L, 4)) {
+    lua_pushnil(L);
+    while (lua_next(L, 4) != 0) {
+      const char* k = lua_tostring(L, -2);
+      const char* v = lua_tostring(L, -1);
+      if (k && *k && v) headers.emplace_back(std::string(k), std::string(v));
+      lua_pop(L, 1);
+    }
+  }
   if (timeout_ms < 500) timeout_ms = 500;
   if (max_body < 256) max_body = 256;
-  if (max_body > 64 * 1024) max_body = 64 * 1024;
+  if (max_body > kLuaHttpMaxBodyBytes) max_body = kLuaHttpMaxBodyBytes;
 
   std::string err;
   const int id =
-      HttpMgr().StartGet(url ? url : "", timeout_ms, max_body, reinterpret_cast<uintptr_t>(L), &err);
+      HttpMgr().StartGet(url ? url : "", timeout_ms, max_body, headers, reinterpret_cast<uintptr_t>(L), &err);
   if (id <= 0) {
     lua_pushnil(L);
     lua_pushstring(L, err.empty() ? "http_get failed" : err.c_str());
@@ -1064,7 +1396,8 @@ static int LuaNetHttpPoll(lua_State* L) {
   bool done = false;
   int status = 0;
   std::string body;
-  const bool ok = HttpMgr().PollAndPop(id, &done, &status, &body);
+  std::string set_cookie;
+  const bool ok = HttpMgr().PollAndPopEx(id, &done, &status, &body, &set_cookie);
   if (!ok) {
     lua_pushboolean(L, 1);
     lua_pushinteger(L, 0);
@@ -1077,7 +1410,12 @@ static int LuaNetHttpPoll(lua_State* L) {
 
   lua_pushinteger(L, static_cast<lua_Integer>(status));
   lua_pushlstring(L, body.data(), body.size());
-  return 3;
+  lua_newtable(L);
+  if (!set_cookie.empty()) {
+    lua_pushstring(L, set_cookie.c_str());
+    lua_setfield(L, -2, "set-cookie");
+  }
+  return 4;
 }
 
 static int LuaNetCachedGet(lua_State* L) {
@@ -1090,7 +1428,7 @@ static int LuaNetCachedGet(lua_State* L) {
   if (ttl_ms < 0) ttl_ms = 0;
   if (timeout_ms < 500) timeout_ms = 500;
   if (max_body < 256) max_body = 256;
-  if (max_body > 64 * 1024) max_body = 64 * 1024;
+  if (max_body > kLuaHttpMaxBodyBytes) max_body = kLuaHttpMaxBodyBytes;
 
   int req_id = 0;
   std::string body;
@@ -1686,6 +2024,7 @@ bool LuaAppRuntime::CreateState() {
 
   PushSysModule();
   PushDataModule();
+  PushMockModule();
   PushNetModule(L_);
   PushJsonModule(L_);
   PushXmlModule(L_);
@@ -3372,6 +3711,64 @@ int LuaAppRuntime::LuaDataSet(lua_State* L) {
   return 1;
 }
 
+int LuaAppRuntime::LuaMockEnabled(lua_State* L) {
+  LuaAppRuntime* runtime = RuntimeFromLuaState(L);
+  const std::string app_id = runtime ? AppIdFromDirPath(runtime->app_dir()) : "";
+  cJSON* root = nullptr;
+  const bool enabled = LoadMockStateForApp(app_id, &root, nullptr);
+  if (root) cJSON_Delete(root);
+  lua_pushboolean(L, enabled ? 1 : 0);
+  return 1;
+}
+
+int LuaAppRuntime::LuaMockData(lua_State* L) {
+  LuaAppRuntime* runtime = RuntimeFromLuaState(L);
+  const std::string app_id = runtime ? AppIdFromDirPath(runtime->app_dir()) : "";
+  cJSON* root = nullptr;
+  cJSON* data = nullptr;
+  if (!LoadMockStateForApp(app_id, &root, &data) || !data) {
+    if (root) cJSON_Delete(root);
+    lua_pushnil(L);
+    return 1;
+  }
+
+  JsonToLua(L, data, 0);
+  cJSON_Delete(root);
+  return 1;
+}
+
+int LuaAppRuntime::LuaMockGet(lua_State* L) {
+  const char* path = lua_tostring(L, 1);
+  LuaAppRuntime* runtime = RuntimeFromLuaState(L);
+  const std::string app_id = runtime ? AppIdFromDirPath(runtime->app_dir()) : "";
+  cJSON* root = nullptr;
+  cJSON* data = nullptr;
+  if (!LoadMockStateForApp(app_id, &root, &data) || !data) {
+    if (root) cJSON_Delete(root);
+    if (lua_gettop(L) >= 2) {
+      lua_pushvalue(L, 2);
+    } else {
+      lua_pushnil(L);
+    }
+    return 1;
+  }
+
+  cJSON* item = FindMockPathItem(data, path);
+  if (!item) {
+    cJSON_Delete(root);
+    if (lua_gettop(L) >= 2) {
+      lua_pushvalue(L, 2);
+    } else {
+      lua_pushnil(L);
+    }
+    return 1;
+  }
+
+  JsonToLua(L, item, 0);
+  cJSON_Delete(root);
+  return 1;
+}
+
 void LuaAppRuntime::PushSysModule() {
   if (!L_) return;
 
@@ -3408,4 +3805,21 @@ void LuaAppRuntime::PushDataModule() {
 
   SetFieldFn(L_, "data", "get", LuaDataGet);
   SetFieldFn(L_, "data", "set", LuaDataSet);
+}
+
+void LuaAppRuntime::PushMockModule() {
+  if (!L_) return;
+
+  lua_newtable(L_);
+  lua_pushcfunction(L_, LuaMockEnabled);
+  lua_setfield(L_, -2, "enabled");
+  lua_pushcfunction(L_, LuaMockData);
+  lua_setfield(L_, -2, "data");
+  lua_pushcfunction(L_, LuaMockGet);
+  lua_setfield(L_, -2, "get");
+  lua_setglobal(L_, "mock");
+
+  SetFieldFn(L_, "mock", "enabled", LuaMockEnabled);
+  SetFieldFn(L_, "mock", "data", LuaMockData);
+  SetFieldFn(L_, "mock", "get", LuaMockGet);
 }

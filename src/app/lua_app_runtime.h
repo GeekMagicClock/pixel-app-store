@@ -82,9 +82,13 @@ class LuaAppRuntime {
   static int LuaSysListDir(lua_State* L);
   static int LuaDataGet(lua_State* L);
   static int LuaDataSet(lua_State* L);
+  static int LuaMockEnabled(lua_State* L);
+  static int LuaMockData(lua_State* L);
+  static int LuaMockGet(lua_State* L);
 
   void PushDataModule();
   void PushSysModule();
+  void PushMockModule();
 
   lua_State* L_ = nullptr;
   bool loaded_ = false;

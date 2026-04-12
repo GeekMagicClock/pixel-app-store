@@ -1,6 +1,6 @@
 local app = {}
 
-local symbols = {
+local DEFAULT_SYMBOLS = {
   "BTCUSDT",
   "ETHUSDT",
   "BNBUSDT",
@@ -13,13 +13,58 @@ local symbols = {
   "DOTUSDT",
 }
 
+local SUPPORTED_SYMBOLS = {}
+for i = 1, #DEFAULT_SYMBOLS do
+  SUPPORTED_SYMBOLS[DEFAULT_SYMBOLS[i]] = true
+end
+
+local function normalize_symbols(raw)
+  local out = {}
+  local seen = {}
+
+  local function add_symbol(sym)
+    local s = string.upper(tostring(sym or ""))
+    s = string.gsub(s, "%s+", "")
+    if s ~= "" and SUPPORTED_SYMBOLS[s] and not seen[s] then
+      out[#out + 1] = s
+      seen[s] = true
+    end
+  end
+
+  if type(raw) == "table" then
+    for i = 1, #raw do
+      add_symbol(raw[i])
+    end
+  else
+    local text = tostring(raw or "")
+    for token in string.gmatch(text, "[^,]+") do
+      add_symbol(token)
+    end
+  end
+
+  if #out == 0 then
+    for i = 1, #DEFAULT_SYMBOLS do
+      out[#out + 1] = DEFAULT_SYMBOLS[i]
+    end
+  end
+  return out
+end
+
+local symbols = normalize_symbols(data.get("binance_chart.symbols"))
+
 local SYMBOL = tostring(data.get("binance_chart.symbol") or symbols[1])
+if not SUPPORTED_SYMBOLS[SYMBOL] then
+  SYMBOL = symbols[1]
+end
 local INTERVAL = tostring(data.get("binance_chart.interval") or "1m")
 local KLIMIT = tonumber(data.get("binance_chart.limit") or 64) or 64
 local CHART_TYPE = string.lower(tostring(data.get("binance_chart.chart_type") or "mountain"))
 if CHART_TYPE ~= "line" and CHART_TYPE ~= "mountain" then
   CHART_TYPE = "line"
 end
+local ROTATE_INTERVAL_MS = tonumber(data.get("binance_chart.rotate_interval_ms") or 10000) or 10000
+if ROTATE_INTERVAL_MS < 5000 then ROTATE_INTERVAL_MS = 5000 end
+if ROTATE_INTERVAL_MS > 600000 then ROTATE_INTERVAL_MS = 600000 end
 if KLIMIT < 16 then KLIMIT = 16 end
 if KLIMIT > 64 then KLIMIT = 64 end
 
@@ -32,7 +77,9 @@ local C_LINE = 0x07FF
 local C_MTN = 0x0410
 
 local FONT = "builtin:silkscreen_regular_8"
-local MIN_REFRESH_MS = 10000
+local MIN_REFRESH_MS = tonumber(data.get("binance_chart.refresh_interval_ms") or 10000) or 10000
+if MIN_REFRESH_MS < 10000 then MIN_REFRESH_MS = 10000 end
+if MIN_REFRESH_MS > 600000 then MIN_REFRESH_MS = 600000 end
 local CACHE_KEY = "binance_chart.cache.v1"
 
 local HOSTS = {
@@ -42,7 +89,7 @@ local HOSTS = {
 local state = {
   idx = 1,
   last_rotate_ms = 0,
-  rotate_interval_ms = 10000,
+  rotate_interval_ms = ROTATE_INTERVAL_MS,
   pending_symbol = nil,
   fetch_symbol = SYMBOL,
   last_req_start_ms = 0,
@@ -797,7 +844,7 @@ function app.init(config)
     end
   end
   state.last_rotate_ms = now_ms()
-  state.rotate_interval_ms = 10000
+  state.rotate_interval_ms = ROTATE_INTERVAL_MS
   state.pending_symbol = nil
   state.fetch_symbol = SYMBOL
   state.last_req_start_ms = 0

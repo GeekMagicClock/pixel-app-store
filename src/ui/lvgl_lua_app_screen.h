@@ -32,6 +32,11 @@ void LvglLuaAppScreenPrewarm();
 // Returns false if no active Lua app canvas is available.
 bool LvglCaptureLuaAppFrameRgb565(uint16_t* out_pixels, size_t pixel_count, size_t* out_width, size_t* out_height);
 
+// Query currently running Lua app info.
+// Returns true when there is an active app id.
+// Any output pointer may be nullptr; corresponding size must be >0 when pointer is non-null.
+bool LvglGetCurrentLuaAppInfo(char* out_app_id, size_t app_id_size, char* out_app_dir, size_t app_dir_size);
+
 // OTA overlay shown on the pixel screen while firmware upload is in progress.
 void LvglOtaOverlayBegin(size_t total_bytes);
 void LvglOtaOverlayUpdate(size_t written_bytes, size_t total_bytes);

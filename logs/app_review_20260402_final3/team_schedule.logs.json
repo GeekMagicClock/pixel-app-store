@@ -1,0 +1,73 @@
+{
+  "ok": true,
+  "scope": "app",
+  "next_seq": 885,
+  "logs": [
+    {
+      "seq": 857,
+      "ms": 555968,
+      "kind": "app",
+      "text": "\u001b[0;32mI (555968) lua_app: app entry resolved: /littlefs/apps/team_schedule/app.bin\u001b[0m"
+    },
+    {
+      "seq": 858,
+      "ms": 555992,
+      "kind": "app",
+      "text": "\u001b[0;32mI (555988) lua_app: entry loaded bytecode (/littlefs/apps/team_schedule/app.bin) size=14560 head_hex=1b 4c 75 61 54 00 19 93 0d 0a 1a 0a 04 04 08 78 56 00 00 00 00 00 00 00\u001b[0m"
+    },
+    {
+      "seq": 859,
+      "ms": 555997,
+      "kind": "app",
+      "text": "\u001b[0;32mI (555998) lua_app: bytecode abi: cint=4 sizet=4 instr=8 int=120 num=86 ; runtime int=4 num=8\u001b[0m"
+    },
+    {
+      "seq": 860,
+      "ms": 556006,
+      "kind": "app",
+      "text": "\u001b[0;32mI (556008) lua_app: LoadMain: before lua_load (/littlefs/apps/team_schedule/app.bin)\u001b[0m"
+    },
+    {
+      "seq": 861,
+      "ms": 556027,
+      "kind": "app",
+      "text": "\u001b[0;32mI (556028) lua_app: LoadMain: after lua_load ret=0\u001b[0m"
+    },
+    {
+      "seq": 862,
+      "ms": 556027,
+      "kind": "app",
+      "text": "\u001b[0;32mI (556028) lua_app: LoadMain: before pcall\u001b[0m"
+    },
+    {
+      "seq": 863,
+      "ms": 556132,
+      "kind": "app",
+      "text": "\u001b[0;32mI (556128) lua_app: LoadMain: after pcall ret=0\u001b[0m"
+    },
+    {
+      "seq": 880,
+      "ms": 557124,
+      "kind": "app",
+      "text": "\u001b[0;32mI (557128) lua_app: http req done id=37 status=200 body_len=169289 elapsed_ms=7092 body_truncated={\"uid\":\"s:40~l:46~g:7\",\"id\":\"7\",\"name\":\"National Basketball Association\",\"abbreviation\":\"NBA\",\"s\u001b[0m"
+    },
+    {
+      "seq": 881,
+      "ms": 557140,
+      "kind": "app",
+      "text": "\u001b[0;32mI (557138) lua_app: http req start id=38 timeout=8000 max_body=393216 queue_wait_ms=945 url=https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams\u001b[0m"
+    },
+    {
+      "seq": 882,
+      "ms": 557149,
+      "kind": "app",
+      "text": "\u001b[0;32mI (557148) lua_app: http req dns id=38 host=site.api.espn.com addr=184.27.122.58\u001b[0m"
+    },
+    {
+      "seq": 884,
+      "ms": 560692,
+      "kind": "app",
+      "text": "\u001b[0;32mI (560688) lua_app: http req headers id=38 fetch_ret=0 status=200 content_len=-1 chunked=1 elapsed_ms=4498\u001b[0m"
+    }
+  ]
+}

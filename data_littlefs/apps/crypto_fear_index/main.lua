@@ -1,7 +1,7 @@
 local app = {}
 
 local FONT_UI = "builtin:silkscreen_regular_8"
-local DEV_PROXY_BASE = "http://192.168.3.139:8787"
+local DEV_PROXY_BASE = "http://192.168.3.156:8787"
 local proxy_base = tostring(data.get("proxy.market_data_base") or data.get("proxy.crypto_base") or DEV_PROXY_BASE)
 local URL = "https://api.alternative.me/fng/?limit=7&format=json"
 if proxy_base ~= "" then
@@ -10,9 +10,15 @@ if proxy_base ~= "" then
   end
   URL = proxy_base .. "/alternative/fng?limit=7&format=json"
 end
-local TTL_MS = 30 * 60 * 1000
-local FETCH_INTERVAL_MS = 60 * 1000
-local RETRY_INTERVAL_MS = 5 * 1000
+local TTL_MS = tonumber(data.get("crypto_fear_index.ttl_ms") or (30 * 60 * 1000)) or (30 * 60 * 1000)
+if TTL_MS < 60 * 1000 then TTL_MS = 60 * 1000 end
+if TTL_MS > 6 * 60 * 60 * 1000 then TTL_MS = 6 * 60 * 60 * 1000 end
+local FETCH_INTERVAL_MS = tonumber(data.get("crypto_fear_index.refresh_interval_ms") or (60 * 1000)) or (60 * 1000)
+if FETCH_INTERVAL_MS < 10 * 1000 then FETCH_INTERVAL_MS = 10 * 1000 end
+if FETCH_INTERVAL_MS > 60 * 60 * 1000 then FETCH_INTERVAL_MS = 60 * 60 * 1000 end
+local RETRY_INTERVAL_MS = tonumber(data.get("crypto_fear_index.retry_interval_ms") or (5 * 1000)) or (5 * 1000)
+if RETRY_INTERVAL_MS < 2 * 1000 then RETRY_INTERVAL_MS = 2 * 1000 end
+if RETRY_INTERVAL_MS > 60 * 1000 then RETRY_INTERVAL_MS = 60 * 1000 end
 
 local C_BG = 0x0000
 local C_LINE = 0x18C3

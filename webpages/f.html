@@ -341,8 +341,8 @@
 
     .card-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(188px, 1fr));
-      gap: 10px;
+      grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
+      gap: 8px;
     }
 
     .wifi-item {
@@ -356,9 +356,9 @@
 
     .app-card {
       display: grid;
-      gap: 8px;
-      padding: 10px;
-      border-radius: 14px;
+      gap: 6px;
+      padding: 8px;
+      border-radius: 12px;
       border: 1px solid rgba(143, 64, 29, 0.12);
       background: rgba(255, 255, 255, 0.78);
     }
@@ -367,18 +367,29 @@
     .app-top {
       display: flex;
       justify-content: space-between;
-      gap: 12px;
-      align-items: flex-start;
+      gap: 8px;
+      align-items: center;
     }
 
     .ssid,
     .app-name {
       margin: 0;
-      font-size: 15px;
+      font-size: 14px;
       line-height: 1.15;
       font-weight: 800;
       letter-spacing: -0.02em;
       word-break: break-word;
+    }
+
+    .app-name-wrap {
+      min-width: 0;
+    }
+
+    .app-version {
+      margin: 0;
+      color: var(--muted);
+      font: 600 11px/1.2 var(--font-mono);
+      white-space: nowrap;
     }
 
     .meta,
@@ -396,8 +407,8 @@
     }
 
     .thumb {
-      height: 96px;
-      border-radius: 12px;
+      height: 72px;
+      border-radius: 10px;
       overflow: hidden;
       background: linear-gradient(135deg, #2d261f, #5b4230);
       display: flex;
@@ -415,17 +426,17 @@
 
     .thumb-fallback {
       color: rgba(255, 255, 255, 0.8);
-      font: 800 28px/1 var(--font-mono);
+      font: 800 22px/1 var(--font-mono);
     }
 
     .app-desc {
       margin: 0;
       color: var(--muted);
       line-height: 1.35;
-      font-size: 12px;
+      font-size: 11px;
       min-height: 0;
       display: -webkit-box;
-      -webkit-line-clamp: 2;
+      -webkit-line-clamp: 1;
       -webkit-box-orient: vertical;
       overflow: hidden;
     }
@@ -437,13 +448,25 @@
     }
 
     .app-card .toolbar {
-      gap: 8px;
+      gap: 6px;
     }
 
     .app-card .toolbar button {
       flex: 1 1 calc(50% - 4px);
-      padding: 9px 10px;
-      font-size: 12px;
+      padding: 8px 9px;
+      font-size: 11px;
+    }
+
+    .app-card.compact-actions .toolbar {
+      justify-content: flex-start;
+      gap: 6px;
+    }
+
+    .app-card.compact-actions .toolbar button {
+      flex: 0 0 auto;
+      min-width: 58px;
+      padding: 6px 8px;
+      font-size: 11px;
     }
 
     .storage-card {
@@ -523,6 +546,40 @@
       gap: 18px;
     }
 
+    .apps-tabs {
+      display: inline-flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      padding: 4px;
+      border-radius: 999px;
+      border: 1px solid rgba(143, 64, 29, 0.14);
+      background: rgba(255, 255, 255, 0.66);
+    }
+
+    .apps-tab-btn {
+      border: 0;
+      border-radius: 999px;
+      padding: 8px 13px;
+      background: transparent;
+      color: var(--muted);
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .apps-tab-btn.active {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .apps-subpanel {
+      display: none;
+    }
+
+    .apps-subpanel.active {
+      display: block;
+    }
+
     .store-group {
       display: grid;
       gap: 12px;
@@ -560,11 +617,11 @@
       padding: 14px;
       border-top: 1px solid rgba(143, 64, 29, 0.12);
       background: rgba(255, 255, 255, 0.68);
-      font: 12px/1.5 var(--font-mono);
+      font: 12px/1.2 var(--font-mono);
     }
 
     .log-line + .log-line {
-      margin-top: 6px;
+      margin-top: 1px;
     }
 
     .log-device {
@@ -664,6 +721,65 @@
       font: 700 13px/1.3 var(--font-mono);
     }
 
+    .settings-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 14px;
+      background: rgba(30, 28, 24, 0.38);
+      backdrop-filter: blur(4px);
+    }
+
+    .settings-card {
+      width: min(560px, 100%);
+      border: 1px solid rgba(143, 64, 29, 0.2);
+      border-radius: 20px;
+      background: linear-gradient(135deg, rgba(255, 251, 244, 0.98), rgba(247, 236, 218, 0.98));
+      box-shadow: 0 20px 48px rgba(43, 26, 16, 0.24);
+      padding: 18px;
+      animation: fade-up 0.18s ease;
+    }
+
+    .settings-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+
+    .settings-note {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .settings-page-host {
+      margin-top: 12px;
+      border: 1px solid rgba(143, 64, 29, 0.2);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #fffdfa;
+      min-height: 340px;
+    }
+
+    .settings-page-host iframe {
+      width: 100%;
+      height: 360px;
+      border: 0;
+      display: block;
+      background: #fffdfa;
+    }
+
+    .uninstall-mode-on {
+      background: #ab3b33 !important;
+      color: #fff;
+    }
+
     @keyframes fade-up {
       from {
         opacity: 0;
@@ -707,8 +823,8 @@
 <body>
   <div class="ota-overlay hidden" id="otaOverlay" aria-live="polite">
     <div class="ota-card">
-      <p class="eyebrow">Firmware OTA</p>
-      <h2 class="ota-title" id="otaTitle">Upgrading Firmware</h2>
+      <p class="eyebrow">System Update</p>
+      <h2 class="ota-title" id="otaTitle">Updating Device</h2>
       <p class="ota-detail" id="otaDetail">Preparing upload...</p>
       <div class="ota-progress">
         <div class="ota-progress-bar" id="otaProgressBar"></div>
@@ -720,16 +836,32 @@
     </div>
   </div>
 
+  <div class="settings-overlay hidden" id="appSettingsOverlay" aria-live="polite">
+    <div class="settings-card">
+      <p class="eyebrow">App Settings</p>
+      <h2 class="ota-title" id="appSettingsTitle">App Settings</h2>
+      <p class="ota-detail" id="appSettingsDesc">Adjust options and save.</p>
+      <div class="form-grid" id="appSettingsFields" style="margin-top: 14px;"></div>
+      <div class="settings-page-host hidden" id="appSettingsPageHost"></div>
+      <p class="settings-note" id="appSettingsHint">Changes take effect after reopening the app.</p>
+      <div class="settings-actions">
+        <button class="ghost" id="appSettingsCloseBtn" type="button">Close</button>
+        <button class="secondary" id="appSettingsRunBtn" type="button">Save & Run</button>
+        <button id="appSettingsSaveBtn" type="button">Save</button>
+      </div>
+    </div>
+  </div>
+
   <div class="shell">
     <header class="hero">
       <div class="hero-top">
         <div>
           <p class="eyebrow">Pixel Control Surface</p>
-          <h1 class="title">System and App Control</h1>
-          <p class="subtitle">Manage Wi-Fi, brightness, firmware OTA, and on-device Lua apps from one page.</p>
+          <h1 class="title">Control Center</h1>
+          <p class="subtitle">Manage Wi-Fi, brightness, updates, and installed apps from one page.</p>
         </div>
         <div class="hero-badges">
-          <span class="badge" id="badgeVersion">FW --</span>
+          <span class="badge" id="badgeVersion">Version --</span>
           <span class="badge" id="badgeMode">Wi-Fi --</span>
           <span class="badge" id="badgeBrightness">Brightness --</span>
         </div>
@@ -737,6 +869,7 @@
       <nav class="tabs" aria-label="Primary tabs">
         <button class="tab-btn active" data-tab="system" type="button">System</button>
         <button class="tab-btn" data-tab="apps" type="button">Apps</button>
+        <button class="tab-btn" data-tab="logs" type="button">Logs</button>
       </nav>
     </header>
 
@@ -798,7 +931,7 @@
             <div class="panel-inner">
               <div class="panel-head">
                 <h2 class="panel-title">Display</h2>
-                <span class="code-note">Runtime only</span>
+                <span class="code-note">Takes effect now</span>
               </div>
               <div class="range-wrap">
                 <div class="range-head">
@@ -818,8 +951,8 @@
           <article class="panel">
             <div class="panel-inner">
               <div class="panel-head">
-                <h2 class="panel-title">Firmware</h2>
-                <span class="code-note">OTA</span>
+                <h2 class="panel-title">Update</h2>
+                <span class="code-note">System package</span>
               </div>
               <div class="kv-grid">
                 <div class="kv">
@@ -836,28 +969,28 @@
                 </div>
                 <div class="kv">
                   <p class="kv-label">Reboot</p>
-                  <p class="kv-value" id="rebootHint">/api/system/reboot</p>
+                  <p class="kv-value" id="rebootHint">Use the reboot button below</p>
                 </div>
               </div>
               <div class="form-grid" style="margin-top: 14px;">
                 <label class="field">
-                  Firmware binary
+                  Update file (.bin)
                   <input id="firmwareFile" type="file" accept=".bin,application/octet-stream" />
                 </label>
               </div>
               <div class="toolbar" style="margin-top: 14px;">
-                <button id="uploadFirmwareBtn" type="button">Upload Firmware</button>
+                <button id="uploadFirmwareBtn" type="button">Upload Update</button>
                 <button class="bad" id="rebootBtn" type="button">Reboot Device</button>
               </div>
-              <p class="panel-note">Uploading to <code>/api/firmware/ota</code> will switch partition and reboot automatically after success.</p>
+              <p class="panel-note">After upload succeeds, the device will reboot automatically.</p>
             </div>
           </article>
 
           <article class="panel">
             <div class="panel-inner">
               <div class="panel-head">
-                <h2 class="panel-title">System API</h2>
-                <span class="code-note">Embedded page: /f.html</span>
+                <h2 class="panel-title">Device Info</h2>
+                <span class="code-note">Control page</span>
               </div>
               <div class="storage-card" style="margin-bottom: 12px;">
                 <div class="storage-head">
@@ -867,25 +1000,25 @@
                 <div class="capacity-track">
                   <div class="capacity-bar" id="storageBar"></div>
                 </div>
-                <p class="capacity-meta" id="storageMeta">LittleFS usage is unavailable.</p>
+                <p class="capacity-meta" id="storageMeta">Storage usage is unavailable.</p>
               </div>
-              <p class="panel-note">This UI is built from <code>webpages/f.html</code>, gzip-compressed at build time, then embedded as a generated header in the firmware image.</p>
+              <p class="panel-note">This page shows current device state and storage usage.</p>
               <div class="kv-grid" style="margin-top: 12px;">
                 <div class="kv">
                   <p class="kv-label">Status</p>
-                  <p class="kv-value">GET /api/system/status</p>
+                  <p class="kv-value">Available</p>
                 </div>
                 <div class="kv">
                   <p class="kv-label">Wi-Fi Scan</p>
-                  <p class="kv-value">GET /api/system/wifi/scan</p>
+                  <p class="kv-value">Available</p>
                 </div>
                 <div class="kv">
                   <p class="kv-label">Wi-Fi Save</p>
-                  <p class="kv-value">POST /api/system/wifi/config</p>
+                  <p class="kv-value">Available</p>
                 </div>
                 <div class="kv">
                   <p class="kv-label">Brightness</p>
-                  <p class="kv-value">POST /api/system/display/brightness</p>
+                  <p class="kv-value">Available</p>
                 </div>
               </div>
             </div>
@@ -896,69 +1029,81 @@
 
     <section class="tab-panel" data-panel="apps">
       <div class="stack">
-        <article class="panel">
-          <div class="panel-inner">
-            <div class="panel-head">
-              <h2 class="panel-title">Installed Apps</h2>
-              <div class="toolbar">
-                <button class="ghost" id="refreshInstalledBtn" type="button">Refresh Installed</button>
-                <button class="secondary" id="reloadAppsBtn" type="button">Reload Apps</button>
-              </div>
-            </div>
-            <div class="card-grid" id="installedAppsGrid"></div>
-          </div>
-        </article>
+        <div class="apps-tabs" role="tablist" aria-label="Apps sections">
+          <button class="apps-tab-btn active" data-apps-tab="installed" type="button">Installed Apps</button>
+          <button class="apps-tab-btn" data-apps-tab="store" type="button">Apps Store</button>
+        </div>
 
-        <article class="panel">
-          <div class="panel-inner">
-            <div class="panel-head">
-              <h2 class="panel-title">Install and Update</h2>
-              <span class="code-note">Existing install path</span>
+        <section class="apps-subpanel active" data-apps-panel="installed">
+          <article class="panel">
+            <div class="panel-inner">
+              <div class="panel-head">
+                <h2 class="panel-title">Installed Apps</h2>
+                <div class="toolbar">
+                  <button class="ghost" id="refreshInstalledBtn" type="button">Refresh Installed</button>
+                  <button class="secondary" id="reloadAppsBtn" type="button">Reload Apps</button>
+                  <button class="bad" id="uninstallModeBtn" type="button">Uninstall Mode: Off</button>
+                </div>
+              </div>
+              <div class="card-grid" id="installedAppsGrid"></div>
             </div>
-            <div class="toolbar">
-              <input id="indexUrl" type="text" placeholder="Store index URL" />
-              <button id="loadStoreBtn" type="button">Load Catalog</button>
-              <label class="check"><input id="switchAfter" type="checkbox" checked /> Run after install</label>
+          </article>
+        </section>
+
+        <section class="apps-subpanel" data-apps-panel="store">
+          <article class="panel">
+            <div class="panel-inner">
+              <div class="panel-head">
+                <h2 class="panel-title">Install and Update</h2>
+                <span class="code-note">Catalog source</span>
+              </div>
+              <div class="toolbar">
+                <input id="indexUrl" type="text" placeholder="Store index URL" />
+                <button id="loadStoreBtn" type="button">Load Catalog</button>
+                <label class="check"><input id="switchAfter" type="checkbox" checked /> Run after install</label>
+              </div>
+              <p class="panel-note">Install from the catalog and run when ready.</p>
+              <p class="panel-note muted" id="storeMeta">No catalog loaded.</p>
+              <div class="store-sections" id="storeApps"></div>
             </div>
-            <p class="panel-note">Install is already integrated via <code>PUT /api/apps/&lt;app_id&gt;/&lt;file&gt;</code> plus <code>POST /api/apps/reload</code>. There is no single server-side <code>/api/apps/install</code> endpoint yet.</p>
-            <p class="panel-note muted" id="storeMeta">No catalog loaded.</p>
-            <div class="store-sections" id="storeApps"></div>
-          </div>
-        </article>
+          </article>
+        </section>
       </div>
     </section>
 
-    <section class="log-split">
-      <article class="panel log-panel">
-        <div class="panel-inner">
-          <div class="panel-head">
-            <h2 class="panel-title">Activity Log</h2>
-            <button class="ghost" id="clearLogBtn" type="button">Clear</button>
-          </div>
-        </div>
-        <div class="log" id="log"></div>
-      </article>
-
-      <article class="panel log-panel">
-        <div class="panel-inner">
-          <div class="panel-head">
-            <h2 class="panel-title">Device Runtime Log</h2>
-            <div class="toolbar">
-              <select id="deviceLogScope">
-                <option value="all">All Logs</option>
-                <option value="app">App Only</option>
-              </select>
-              <label class="check"><input id="deviceLogAuto" type="checkbox" checked /> Auto Refresh</label>
-              <button class="ghost" id="refreshRuntimeLogBtn" type="button">Refresh</button>
-              <button class="ghost" id="clearRuntimeLogBtn" type="button">Clear View</button>
+    <section class="tab-panel" data-panel="logs">
+      <section class="log-split">
+        <article class="panel log-panel">
+          <div class="panel-inner">
+            <div class="panel-head">
+              <h2 class="panel-title">Activity Log</h2>
+              <button class="ghost" id="clearLogBtn" type="button">Clear</button>
             </div>
           </div>
-          <p class="panel-note">Streaming from <code>/api/system/logs</code>. <code>App Only</code> focuses on Lua runtime and <code>sys.log()</code> output.</p>
-        </div>
-        <div class="log log-device" id="runtimeLog">
-          <div class="log-line log-empty">Waiting for runtime logs...</div>
-        </div>
-      </article>
+          <div class="log" id="log"></div>
+        </article>
+
+        <article class="panel log-panel">
+          <div class="panel-inner">
+            <div class="panel-head">
+              <h2 class="panel-title">Device Log</h2>
+              <div class="toolbar">
+                <select id="deviceLogScope">
+                  <option value="all">All Logs</option>
+                  <option value="app">App Only</option>
+                </select>
+                <label class="check"><input id="deviceLogAuto" type="checkbox" checked /> Auto Refresh</label>
+                <button class="ghost" id="refreshRuntimeLogBtn" type="button">Refresh</button>
+                <button class="ghost" id="clearRuntimeLogBtn" type="button">Clear View</button>
+              </div>
+            </div>
+            <p class="panel-note">Live logs from device. <code>App Only</code> shows messages from the current app.</p>
+          </div>
+          <div class="log log-device" id="runtimeLog">
+            <div class="log-line log-empty">Waiting for logs...</div>
+          </div>
+        </article>
+      </section>
     </section>
   </div>
 
@@ -980,13 +1125,16 @@
       inflightInstalled: null,
       inflightStore: null,
       thumbObserver: null,
+      uninstallMode: false,
+      settingsAppId: "",
+      settingsAppSchema: null,
+      settingsBindings: [],
+      settingsPageMode: false,
     };
 
     const LS_KEY = "pixel_store_index_url";
     const CACHE_SCHEMA = 2;
-    const INSTALLED_CACHE_KEY = "pixel_installed_apps_cache";
     const STORE_CACHE_PREFIX = "pixel_store_index_cache:";
-    const INSTALLED_CACHE_TTL_MS = 10 * 60 * 1000;
     const STORE_CACHE_TTL_MS = 30 * 60 * 1000;
     const INSTALLED_RENDER_BATCH = 12;
     const STORE_RENDER_BATCH = 10;
@@ -1017,6 +1165,16 @@
     const otaProgressBarEl = document.getElementById("otaProgressBar");
     const otaPercentEl = document.getElementById("otaPercent");
     const otaBytesEl = document.getElementById("otaBytes");
+    const uninstallModeBtnEl = document.getElementById("uninstallModeBtn");
+    const appSettingsOverlayEl = document.getElementById("appSettingsOverlay");
+    const appSettingsTitleEl = document.getElementById("appSettingsTitle");
+    const appSettingsDescEl = document.getElementById("appSettingsDesc");
+    const appSettingsFieldsEl = document.getElementById("appSettingsFields");
+    const appSettingsPageHostEl = document.getElementById("appSettingsPageHost");
+    const appSettingsHintEl = document.getElementById("appSettingsHint");
+    const appSettingsCloseBtnEl = document.getElementById("appSettingsCloseBtn");
+    const appSettingsRunBtnEl = document.getElementById("appSettingsRunBtn");
+    const appSettingsSaveBtnEl = document.getElementById("appSettingsSaveBtn");
     const storageUsageEl = document.getElementById("storageUsage");
     const storagePercentEl = document.getElementById("storagePercent");
     const storageBarEl = document.getElementById("storageBar");
@@ -1141,7 +1299,7 @@
 
       if (!lines.length) {
         if (!runtimeLogEl.childElementCount) {
-          runtimeLogPlaceholder("No runtime logs yet.");
+          runtimeLogPlaceholder("No logs yet.");
         }
         return;
       }
@@ -1218,11 +1376,11 @@
           const total = event.lengthComputable ? event.total : file.size;
           if (onProgress) onProgress(event.loaded, total);
         };
-        xhr.onerror = () => reject(new Error("POST " + path + " -> network error"));
-        xhr.ontimeout = () => reject(new Error("POST " + path + " -> timeout"));
+        xhr.onerror = () => reject(new Error("Network error"));
+        xhr.ontimeout = () => reject(new Error("Request timeout"));
         xhr.onload = () => {
           if (xhr.status < 200 || xhr.status >= 300) {
-            reject(new Error("POST " + path + " -> HTTP " + xhr.status));
+            reject(new Error("Request failed (" + xhr.status + ")"));
             return;
           }
           let json = {};
@@ -1259,6 +1417,16 @@
       history.replaceState(null, "", "#" + tab);
     }
 
+    function setAppsTab(tab) {
+      const target = tab === "store" ? "store" : "installed";
+      for (const btn of document.querySelectorAll(".apps-tab-btn")) {
+        btn.classList.toggle("active", btn.dataset.appsTab === target);
+      }
+      for (const panel of document.querySelectorAll(".apps-subpanel")) {
+        panel.classList.toggle("active", panel.dataset.appsPanel === target);
+      }
+    }
+
     async function api(method, path, body, contentType) {
       const headers = {};
       if (contentType) {
@@ -1271,7 +1439,7 @@
         cache: "no-store",
       });
       if (!response.ok) {
-        throw new Error(method + " " + path + " -> HTTP " + response.status);
+        throw new Error("Request failed (" + response.status + ")");
       }
       return response;
     }
@@ -1280,6 +1448,245 @@
       const body = payload === undefined ? undefined : JSON.stringify(payload);
       const response = await api(method, path, body, payload === undefined ? undefined : "application/json");
       return response.json().catch(() => ({}));
+    }
+
+    function normalizeSettingsField(field) {
+      if (!field || typeof field !== "object") return null;
+      const key = String(field.key || "").trim();
+      if (!key) return null;
+      const typeRaw = String(field.type || "text").trim().toLowerCase();
+      const type = ["text", "number", "select", "boolean"].includes(typeRaw) ? typeRaw : "text";
+      const label = String(field.label || key).trim() || key;
+      const out = {
+        key,
+        type,
+        label,
+        placeholder: String(field.placeholder || "").trim(),
+        default: field.default,
+        min: field.min,
+        max: field.max,
+        step: field.step,
+        options: [],
+      };
+      if (type === "select" && Array.isArray(field.options)) {
+        for (const opt of field.options) {
+          if (opt && typeof opt === "object") {
+            const value = String(opt.value ?? "").trim();
+            if (!value) continue;
+            out.options.push({
+              value,
+              label: String(opt.label || value),
+            });
+          } else {
+            const value = String(opt ?? "").trim();
+            if (!value) continue;
+            out.options.push({ value, label: value });
+          }
+        }
+      }
+      return out;
+    }
+
+    function appSettingsSchema(app) {
+      const raw = app?.settings;
+      if (!raw || typeof raw !== "object") return null;
+      const fields = Array.isArray(raw.fields) ? raw.fields.map(normalizeSettingsField).filter(Boolean) : [];
+      if (!fields.length) return null;
+      return {
+        title: String(raw.title || app?.name || app?.id || "App"),
+        description: String(raw.description || ""),
+        fields,
+      };
+    }
+
+    function appSettingsPageUrl(app) {
+      const appId = String(app?.id || "").trim();
+      if (!appId) return "";
+      const explicit = String(app?.settings_page_url || "").trim();
+      if (explicit) return explicit;
+      if (app?.has_settings_page) {
+        return "/api/apps/web/" + encodeURIComponent(appId) + "/settings.html";
+      }
+      return "";
+    }
+
+    function supportsAppSettings(app) {
+      return !!appSettingsPageUrl(app);
+    }
+
+    function appSettingsTitle(app, fallbackName) {
+      return String(fallbackName || app?.name || app?.id || "App");
+    }
+
+    function buildFieldInputId(index) {
+      return "appSettingField_" + String(index);
+    }
+
+    function fieldDisplayValue(field, raw) {
+      if (raw === undefined || raw === null || raw === "") {
+        return field.default;
+      }
+      return raw;
+    }
+
+    function renderAppSettingsFields(schema, valuesMap) {
+      appSettingsFieldsEl.innerHTML = "";
+      const bindings = [];
+      for (let i = 0; i < schema.fields.length; i += 1) {
+        const field = schema.fields[i];
+        const wrap = document.createElement("label");
+        wrap.className = "field";
+        wrap.textContent = field.label;
+        const inputId = buildFieldInputId(i);
+        const value = fieldDisplayValue(field, valuesMap[field.key]);
+        let input = null;
+
+        if (field.type === "boolean") {
+          input = document.createElement("input");
+          input.type = "checkbox";
+          input.id = inputId;
+          input.checked = value === true || String(value).toLowerCase() === "true" || String(value) === "1";
+          input.style.width = "auto";
+          input.style.justifySelf = "start";
+        } else if (field.type === "select") {
+          input = document.createElement("select");
+          input.id = inputId;
+          for (const opt of field.options) {
+            const o = document.createElement("option");
+            o.value = opt.value;
+            o.textContent = opt.label;
+            input.appendChild(o);
+          }
+          if (value != null) input.value = String(value);
+        } else {
+          input = document.createElement("input");
+          input.id = inputId;
+          input.type = field.type === "number" ? "number" : "text";
+          if (field.placeholder) input.placeholder = field.placeholder;
+          if (field.type === "number") {
+            if (field.min != null) input.min = String(field.min);
+            if (field.max != null) input.max = String(field.max);
+            if (field.step != null) input.step = String(field.step);
+          }
+          if (value != null) input.value = String(value);
+        }
+
+        wrap.appendChild(input);
+        appSettingsFieldsEl.appendChild(wrap);
+        bindings.push({ field, input });
+      }
+      return bindings;
+    }
+
+    function setUninstallMode(enabled) {
+      state.uninstallMode = !!enabled;
+      uninstallModeBtnEl.textContent = state.uninstallMode ? "Uninstall Mode: On" : "Uninstall Mode: Off";
+      uninstallModeBtnEl.classList.toggle("uninstall-mode-on", state.uninstallMode);
+      renderInstalledApps();
+    }
+
+    function closeAppSettings() {
+      state.settingsAppId = "";
+      state.settingsAppSchema = null;
+      state.settingsBindings = [];
+      state.settingsPageMode = false;
+      appSettingsPageHostEl.innerHTML = "";
+      appSettingsPageHostEl.classList.add("hidden");
+      appSettingsFieldsEl.classList.remove("hidden");
+      appSettingsHintEl.classList.remove("hidden");
+      appSettingsSaveBtnEl.classList.remove("hidden");
+      appSettingsRunBtnEl.classList.remove("hidden");
+      appSettingsOverlayEl.classList.add("hidden");
+      document.body.style.overflow = "";
+    }
+
+    function openAppSettingsPage(app, pageUrl) {
+      const appId = String(app?.id || "");
+      const title = appSettingsTitle(app, app?.name);
+      state.settingsAppId = appId;
+      state.settingsAppSchema = null;
+      state.settingsBindings = [];
+      state.settingsPageMode = true;
+
+      appSettingsTitleEl.textContent = title + " Settings";
+      appSettingsDescEl.textContent = "Settings are provided by this app.";
+      appSettingsHintEl.innerHTML = "";
+      appSettingsOverlayEl.classList.remove("hidden");
+      document.body.style.overflow = "hidden";
+
+      appSettingsFieldsEl.classList.add("hidden");
+      appSettingsHintEl.classList.remove("hidden");
+      appSettingsSaveBtnEl.classList.add("hidden");
+      appSettingsRunBtnEl.classList.add("hidden");
+      appSettingsPageHostEl.classList.remove("hidden");
+      appSettingsPageHostEl.innerHTML = "";
+
+      const iframe = document.createElement("iframe");
+      const glue = pageUrl.includes("?") ? "&" : "?";
+      iframe.src = pageUrl + glue + "app_id=" + encodeURIComponent(appId) + "&ts=" + Date.now();
+      iframe.loading = "eager";
+      iframe.referrerPolicy = "no-referrer";
+      appSettingsPageHostEl.appendChild(iframe);
+    }
+
+    async function openAppSettings(app) {
+      const appId = String(app?.id || "");
+      const pageUrl = appSettingsPageUrl(app);
+      if (!appId || !pageUrl) return;
+      openAppSettingsPage(app, pageUrl);
+    }
+
+    async function saveAppSettings(runAfterSave) {
+      if (state.settingsPageMode) return;
+      const appId = String(state.settingsAppId || "");
+      const schema = state.settingsAppSchema;
+      if (!appId || !schema || !Array.isArray(state.settingsBindings) || !state.settingsBindings.length) return;
+
+      const items = {};
+      for (const binding of state.settingsBindings) {
+        const field = binding.field;
+        const input = binding.input;
+        if (!field || !input) continue;
+        if (field.type === "boolean") {
+          items[field.key] = !!input.checked;
+          continue;
+        }
+        if (field.type === "number") {
+          const raw = String(input.value || "").trim();
+          if (!raw) {
+            items[field.key] = null;
+            continue;
+          }
+          const n = Number(raw);
+          if (!Number.isFinite(n)) {
+            throw new Error(field.label + " must be a number");
+          }
+          if (field.min != null && n < Number(field.min)) {
+            throw new Error(field.label + " must be >= " + field.min);
+          }
+          if (field.max != null && n > Number(field.max)) {
+            throw new Error(field.label + " must be <= " + field.max);
+          }
+          items[field.key] = n;
+          continue;
+        }
+        const text = String(input.value || "").trim();
+        items[field.key] = text ? text : null;
+      }
+
+      appSettingsSaveBtnEl.disabled = true;
+      appSettingsRunBtnEl.disabled = true;
+      try {
+        await apiJson("POST", "/api/system/lua-data", { items });
+        log("saved settings for " + appId, "status-ok");
+        if (runAfterSave) {
+          await runApp(appId);
+        }
+        closeAppSettings();
+      } finally {
+        appSettingsSaveBtnEl.disabled = false;
+        appSettingsRunBtnEl.disabled = false;
+      }
     }
 
     async function loadRuntimeLogs(options) {
@@ -1302,10 +1709,10 @@
         const message = String(error.message || error);
         if (state.runtimeLogError !== message) {
           state.runtimeLogError = message;
-          log("runtime log fetch failed: " + message, "status-bad");
+          log("log fetch failed: " + message, "status-bad");
         }
         if (reset) {
-          runtimeLogPlaceholder("Runtime log unavailable: " + message);
+          runtimeLogPlaceholder("Log unavailable: " + message);
         }
       } finally {
         state.runtimeLogLoading = false;
@@ -1413,7 +1820,7 @@
     }
 
     function renderHero(status) {
-      badgeVersionEl.textContent = "FW " + (status?.firmware?.version || "--");
+      badgeVersionEl.textContent = "Version " + (status?.firmware?.version || "--");
       badgeModeEl.textContent = "Wi-Fi " + (status?.wifi?.mode || "--");
       badgeBrightnessEl.textContent = "Brightness " + (status?.display?.brightness ?? "--");
     }
@@ -1441,8 +1848,8 @@
       storageUsageEl.textContent = totalBytes > 0 ? formatBytes(usedBytes) + " / " + formatBytes(totalBytes) : "-- / --";
       storageBarEl.style.width = (totalBytes > 0 ? usedPct : 0) + "%";
       storageMetaEl.textContent = totalBytes > 0
-        ? formatBytes(usedBytes) + " used in LittleFS app storage."
-        : "LittleFS usage is unavailable.";
+        ? formatBytes(usedBytes) + " used in app storage."
+        : "Storage usage is unavailable.";
 
       if (!wifiSsidEl.value && status?.wifi?.saved_ssid) {
         wifiSsidEl.value = status.wifi.saved_ssid;
@@ -1484,116 +1891,104 @@
       const title = String(item.name || id || "Unknown");
       const version = String(item.version || "");
       const thumb = pickThumbUrl(item, id);
+      const versionText = version ? "v" + version : "--";
+      const showSettings = supportsAppSettings(item);
       const card = document.createElement("div");
-      card.className = "app-card";
+      card.className = "app-card compact-actions";
+      const actionRow = state.uninstallMode
+        ? `<div class="toolbar">
+             <button class="bad" type="button" data-a="uninstall">Uninstall</button>
+           </div>`
+        : `<div class="toolbar">
+             <button type="button" data-a="run">Run</button>
+             ${showSettings ? '<button class="ghost" type="button" data-a="settings">Settings</button>' : ""}
+           </div>`;
       card.innerHTML = `
         <div class="thumb">${thumbMarkup(title, title[0] || id[0], thumb)}</div>
         <div class="app-top">
-          <div>
+          <div class="app-name-wrap">
             <p class="app-name">${esc(title)}</p>
-            <p class="app-meta">${esc(appVersionMeta(version))}</p>
           </div>
+          <p class="app-version">${esc(versionText)}</p>
         </div>
-        <div class="status-row"><span class="status-ok">Ready</span></div>
-        <div class="toolbar">
-          <button type="button" data-a="run">Run</button>
-          <button class="bad" type="button" data-a="uninstall">Uninstall</button>
-        </div>
+        ${actionRow}
       `;
-      const runBtn = card.querySelector('[data-a="run"]');
       const uninstallBtn = card.querySelector('[data-a="uninstall"]');
-      runBtn.onclick = async () => {
-        runBtn.disabled = true;
-        try {
-          await runApp(id);
-        } catch (error) {
-          log(String(error.message || error), "status-bad");
-        } finally {
-          runBtn.disabled = false;
-        }
-      };
-      uninstallBtn.onclick = async () => {
-        uninstallBtn.disabled = true;
-        try {
-          await uninstallApp(id);
-        } catch (error) {
-          log(String(error.message || error), "status-bad");
-        } finally {
-          uninstallBtn.disabled = false;
-        }
-      };
+      const runBtn = card.querySelector('[data-a="run"]');
+      const settingsBtn = card.querySelector('[data-a="settings"]');
+      if (runBtn) {
+        runBtn.onclick = async () => {
+          runBtn.disabled = true;
+          try {
+            await runApp(id);
+          } catch (error) {
+            log(String(error.message || error), "status-bad");
+          } finally {
+            runBtn.disabled = false;
+          }
+        };
+      }
+      if (settingsBtn && showSettings) {
+        settingsBtn.onclick = async () => {
+          try {
+            await openAppSettings(item);
+          } catch (error) {
+            log(String(error.message || error), "status-bad");
+          }
+        };
+      }
+      if (uninstallBtn) {
+        uninstallBtn.onclick = async () => {
+          uninstallBtn.disabled = true;
+          try {
+            await uninstallApp(id);
+          } catch (error) {
+            log(String(error.message || error), "status-bad");
+          } finally {
+            uninstallBtn.disabled = false;
+          }
+        };
+      }
       return card;
     }
 
     function createStoreCard(item) {
       const id = String(item.id || item.app_id || "");
       const titleText = String(item.name || id || "Unknown");
-      const desc = String(item.description || "");
       const version = String(item.version || "");
       const thumb = pickThumbUrl(item, id);
       const local = state.installedById[id];
-      const installLabel = !local
-        ? "Install"
-        : version && semverCmp(version, local.version) > 0
-          ? "Update"
-          : "Reinstall";
-      const descHtml = desc ? `<p class="app-desc">${esc(desc)}</p>` : "";
+      const actionLabel = local ? "Run" : "Install";
+      const versionText = version ? "v" + version : "--";
 
       const card = document.createElement("div");
       card.className = "app-card";
       card.innerHTML = `
         <div class="thumb">${thumbMarkup(titleText, titleText[0] || id[0], thumb)}</div>
         <div class="app-top">
-          <div>
+          <div class="app-name-wrap">
             <p class="app-name">${esc(titleText)}</p>
-            <p class="app-meta">${esc(appVersionMeta(version))}</p>
           </div>
+          <p class="app-version">${esc(versionText)}</p>
         </div>
-        ${descHtml}
-        <div class="status-row">${appStatus(item)}</div>
         <div class="toolbar">
-          <button type="button" data-a="install">${esc(installLabel)}</button>
-          <button class="secondary" type="button" data-a="run">Run</button>
-          <button class="bad" type="button" data-a="uninstall">Uninstall</button>
+          <button type="button" data-a="primary">${esc(actionLabel)}</button>
         </div>
       `;
 
-      const installBtn = card.querySelector('[data-a="install"]');
-      const runBtn = card.querySelector('[data-a="run"]');
-      const uninstallBtn = card.querySelector('[data-a="uninstall"]');
-      runBtn.disabled = !local;
-      uninstallBtn.disabled = !local;
-
-      installBtn.onclick = async () => {
-        installBtn.disabled = true;
+      const primaryBtn = card.querySelector('[data-a="primary"]');
+      primaryBtn.onclick = async () => {
+        primaryBtn.disabled = true;
         try {
-          await installApp(item);
+          if (local) {
+            await runApp(id);
+          } else {
+            await installApp(item);
+          }
         } catch (error) {
           log(String(error.message || error), "status-bad");
         } finally {
-          installBtn.disabled = false;
-        }
-      };
-
-      runBtn.onclick = async () => {
-        runBtn.disabled = true;
-        try {
-          await runApp(id);
-        } catch (error) {
-          log(String(error.message || error), "status-bad");
-        } finally {
-          runBtn.disabled = false;
-        }
-      };
-
-      uninstallBtn.onclick = async () => {
-        uninstallBtn.disabled = true;
-        try {
-          await uninstallApp(id);
-        } catch (error) {
-          log(String(error.message || error), "status-bad");
-        } finally {
-          uninstallBtn.disabled = false;
+          primaryBtn.disabled = false;
         }
       };
       return card;
@@ -1732,19 +2127,10 @@
       }
     }
 
-    function hydrateInstalledAppsFromCache() {
-      const cached = readCachedJson(INSTALLED_CACHE_KEY, INSTALLED_CACHE_TTL_MS);
-      if (!cached) return false;
-      applyInstalledAppsJson(cached, "cache");
-      return true;
-    }
-
-    async function refreshInstalledApps(options) {
-      const opts = options || {};
-      if (state.inflightInstalled && !opts.force) return state.inflightInstalled;
+    async function refreshInstalledApps() {
+      if (state.inflightInstalled) return state.inflightInstalled;
       state.inflightInstalled = (async () => {
         const json = await apiJson("GET", "/api/apps/list");
-        writeCachedJson(INSTALLED_CACHE_KEY, json);
         applyInstalledAppsJson(json, "network");
         return json;
       })().finally(() => {
@@ -1794,7 +2180,7 @@
         const fullUrl = url + (url.includes("?") ? "&" : "?") + "_ts=" + Date.now();
         const response = await fetch(fullUrl, { cache: "no-store" });
         if (!response.ok) {
-          throw new Error("catalog fetch failed: HTTP " + response.status);
+          throw new Error("Catalog load failed (" + response.status + ")");
         }
         const json = await response.json();
         writeCachedJson(storeCacheKey(url), json);
@@ -1843,51 +2229,51 @@
     async function uploadFirmware() {
       const file = firmwareFileEl.files[0];
       if (!file) {
-        throw new Error("select a firmware .bin file first");
+        throw new Error("Select an update .bin file first");
       }
       uploadFirmwareBtnEl.disabled = true;
       rebootBtnEl.disabled = true;
       setOtaOverlay({
         visible: true,
-        title: "Upgrading Firmware",
+        title: "Updating Device",
         detail: "Starting upload...",
         loaded: 0,
         total: file.size,
       });
-      log("uploading firmware " + file.name + " (" + file.size + " bytes)");
+      log("uploading update package " + file.name + " (" + file.size + " bytes)");
       try {
         await uploadBinaryWithProgress("/api/firmware/ota", file, (loaded, total) => {
           setOtaOverlay({
             visible: true,
-            title: "Upgrading Firmware",
-            detail: "Uploading firmware to device...",
+            title: "Updating Device",
+            detail: "Uploading update to device...",
             loaded,
             total,
           });
         });
         setOtaOverlay({
           visible: true,
-          title: "Upgrading Firmware",
+          title: "Updating Device",
           detail: "Upload complete. Device is rebooting...",
           loaded: file.size,
           total: file.size,
         });
-        log("firmware upload accepted, device will reboot", "status-ok");
+        log("update uploaded, device will reboot", "status-ok");
         const backOnline = await waitForDeviceBackOnline();
         if (backOnline) {
           setOtaOverlay({
             visible: true,
-            title: "Upgrading Firmware",
+            title: "Updating Device",
             detail: "Upgrade complete. Device is back online.",
             loaded: file.size,
             total: file.size,
           });
-          log("device back online after firmware upgrade", "status-ok");
+          log("device is back online after update", "status-ok");
           hideOtaOverlay(2000);
         } else {
           setOtaOverlay({
             visible: true,
-            title: "Upgrading Firmware",
+            title: "Updating Device",
             detail: "Upload accepted. Waiting for device to come back online...",
             loaded: file.size,
             total: file.size,
@@ -1896,7 +2282,7 @@
       } catch (error) {
         setOtaOverlay({
           visible: true,
-          title: "Upgrading Firmware",
+          title: "Updating Device",
           detail: "Upload failed: " + String(error.message || error),
           loaded: 0,
           total: file.size,
@@ -1941,7 +2327,7 @@
       log("installing " + id + " from " + fetchUrl);
       const response = await fetch(fetchUrl, { cache: "no-store" });
       if (!response.ok) {
-        throw new Error("download zip failed: HTTP " + response.status);
+        throw new Error("Download failed (" + response.status + ")");
       }
       const zipBuffer = await response.arrayBuffer();
       const zip = await JSZip.loadAsync(zipBuffer);
@@ -1978,6 +2364,9 @@
     function bindEvents() {
       document.querySelectorAll(".tab-btn").forEach((btn) => {
         btn.addEventListener("click", () => setTab(btn.dataset.tab));
+      });
+      document.querySelectorAll(".apps-tab-btn").forEach((btn) => {
+        btn.addEventListener("click", () => setAppsTab(btn.dataset.appsTab));
       });
 
       brightnessSliderEl.addEventListener("input", () => {
@@ -2034,7 +2423,7 @@
 
       document.getElementById("refreshInstalledBtn").onclick = async () => {
         try {
-          await refreshInstalledApps({ force: true });
+          await refreshInstalledApps();
         } catch (error) {
           log(String(error.message || error), "status-bad");
         }
@@ -2048,6 +2437,10 @@
         } catch (error) {
           log(String(error.message || error), "status-bad");
         }
+      };
+
+      uninstallModeBtnEl.onclick = () => {
+        setUninstallMode(!state.uninstallMode);
       };
 
       document.getElementById("loadStoreBtn").onclick = async () => {
@@ -2071,23 +2464,52 @@
       };
 
       document.getElementById("clearRuntimeLogBtn").onclick = () => {
-        runtimeLogPlaceholder("Runtime log view cleared.");
+        runtimeLogPlaceholder("Log view cleared.");
       };
 
       deviceLogScopeEl.onchange = async () => {
         state.runtimeLogSeq = 0;
-        runtimeLogPlaceholder("Loading runtime logs...");
+        runtimeLogPlaceholder("Loading logs...");
         try {
           await loadRuntimeLogs({ reset: true });
         } catch (error) {
           log(String(error.message || error), "status-bad");
         }
       };
+
+      appSettingsCloseBtnEl.onclick = () => {
+        closeAppSettings();
+      };
+
+      appSettingsSaveBtnEl.onclick = async () => {
+        try {
+          await saveAppSettings(false);
+        } catch (error) {
+          log(String(error.message || error), "status-bad");
+        }
+      };
+
+      appSettingsRunBtnEl.onclick = async () => {
+        try {
+          await saveAppSettings(true);
+        } catch (error) {
+          log(String(error.message || error), "status-bad");
+        }
+      };
+
+      appSettingsOverlayEl.addEventListener("click", (event) => {
+        if (event.target === appSettingsOverlayEl) {
+          closeAppSettings();
+        }
+      });
     }
 
     async function init() {
       bindEvents();
-      setTab(location.hash === "#apps" ? "apps" : "system");
+      const initialTab = String(location.hash || "").replace("#", "");
+      setTab(initialTab === "apps" || initialTab === "logs" ? initialTab : "system");
+      setAppsTab("installed");
+      setUninstallMode(false);
 
       try {
         localStorage.setItem(LS_KEY, FORCED_STORE_INDEX_URL);
@@ -2096,13 +2518,12 @@
         log("failed to apply forced store index: " + String(error.message || error), "status-bad");
       }
 
-      runtimeLogPlaceholder("Loading runtime logs...");
-      const hadInstalledCache = hydrateInstalledAppsFromCache();
+      runtimeLogPlaceholder("Loading logs...");
       const hadStoreCache = indexUrlEl.value ? hydrateStoreIndexFromCache(indexUrlEl.value) : false;
 
       const startupTasks = [
         loadSystemStatus(),
-        refreshInstalledApps({ silent: hadInstalledCache }),
+        refreshInstalledApps(),
         loadRuntimeLogs({ reset: true }),
       ];
       if (indexUrlEl.value) {

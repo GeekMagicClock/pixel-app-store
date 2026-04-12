@@ -1,11 +1,14 @@
 {
   "app_id": "aqi_day_pulse",
   "name": "AQI Day Pulse",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "min_fw": "0.0.0",
   "min_api": "1.0",
   "entry": "main.lua",
   "layout_id": "framebuffer_rgb565",
-  "capabilities": ["weather", "net"],
+  "capabilities": [
+    "weather",
+    "net"
+  ],
   "category": "weather"
 }

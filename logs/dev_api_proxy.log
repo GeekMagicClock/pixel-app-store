@@ -1,0 +1,3 @@
+2026-04-09 15:54:32,720 INFO dev_api_proxy listening on http://0.0.0.0:8787
+2026-04-09 15:54:32,720 INFO preset routes: /alternative/fng, /coingecko/simple_price, /stocks/fear_greed, /yahoo/chart, /yahoo/quote
+2026-04-09 15:54:38,717 INFO 127.0.0.1 - "GET /proxy/cnn/index/fearandgreed/graphdata HTTP/1.1" 502 -

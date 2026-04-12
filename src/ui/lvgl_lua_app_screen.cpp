@@ -96,6 +96,24 @@ struct ScreenState {
 
 static ScreenState g_state;
 static constexpr BaseType_t kLuaFbTaskCore = 1;
+static portMUX_TYPE g_current_app_mux = portMUX_INITIALIZER_UNLOCKED;
+static char g_current_app_id[64] = {};
+static char g_current_app_dir[96] = {};
+
+static void SetCurrentAppInfo(const char* app_dir) {
+  char next_id[sizeof(g_current_app_id)] = {};
+  char next_dir[sizeof(g_current_app_dir)] = {};
+  if (app_dir && *app_dir) {
+    snprintf(next_dir, sizeof(next_dir), "%s", app_dir);
+    const char* slash = strrchr(app_dir, '/');
+    const char* id = (slash && slash[1]) ? (slash + 1) : app_dir;
+    if (id && *id) snprintf(next_id, sizeof(next_id), "%s", id);
+  }
+  portENTER_CRITICAL(&g_current_app_mux);
+  memcpy(g_current_app_id, next_id, sizeof(g_current_app_id));
+  memcpy(g_current_app_dir, next_dir, sizeof(g_current_app_dir));
+  portEXIT_CRITICAL(&g_current_app_mux);
+}
 
 enum class OtaOverlayPhase : uint8_t {
   kIdle = 0,
@@ -417,6 +435,7 @@ static void StopScreen() {
   g_state.widgets.clear();
   g_state.bind_keys.clear();
   g_state.bind_values.clear();
+  SetCurrentAppInfo(nullptr);
   if (g_state.app) {
     g_state.app->FullGcNow();
     ESP_LOGI(kTag,
@@ -444,6 +463,7 @@ static bool EnsureAppLoaded(const std::string& app_dir) {
                static_cast<unsigned>(esp_get_minimum_free_heap_size()));
       g_state.fb_mode = g_state.app->SupportsFrameBuffer();
       if (g_state.fb_mode) ESP_LOGI(kTag, "app framebuffer mode enabled (%s)", app_dir.c_str());
+      SetCurrentAppInfo(app_dir.c_str());
       return true;
     }
 
@@ -466,13 +486,20 @@ static bool EnsureAppLoaded(const std::string& app_dir) {
   }
 
   g_state.fb_mode = false;
+  SetCurrentAppInfo(nullptr);
   return false;
 }
 
 static void DrawLine(lv_layer_t* layer, int row, const char* text, lv_color_t color) {
-  constexpr int kRowH = 8;
-  const int y0 = row * kRowH;
-  const int y1 = y0 + kRowH - 1;
+  // Compact fallback text layout for 64x32 LED error view:
+  // 7px glyph box + 1px gap between rows.
+  constexpr int kTextH = 7;
+  constexpr int kLineGap = 1;
+  constexpr int kRowPitch = kTextH + kLineGap;
+  const int y0 = row * kRowPitch;
+  int y1 = y0 + kTextH - 1;
+  if (y0 > 31) return;
+  if (y1 > 31) y1 = 31;
 
   lv_draw_label_dsc_t dsc;
   lv_draw_label_dsc_init(&dsc);
@@ -482,7 +509,7 @@ static void DrawLine(lv_layer_t* layer, int row, const char* text, lv_color_t co
   dsc.text = text ? text : "";
   dsc.align = LV_TEXT_ALIGN_LEFT;
 
-  lv_area_t a = {0, y0, 63, y1};
+  lv_area_t a = {0, y0, 63, static_cast<lv_coord_t>(y1)};
   lv_draw_label(layer, &dsc, &a);
 }
 
@@ -896,6 +923,23 @@ bool LvglCaptureLuaAppFrameRgb565(uint16_t* out_pixels, size_t pixel_count, size
     memcpy(out_pixels + (y * 64), row, 64 * sizeof(uint16_t));
   }
   return true;
+}
+
+bool LvglGetCurrentLuaAppInfo(char* out_app_id, size_t app_id_size, char* out_app_dir, size_t app_dir_size) {
+  char snap_id[sizeof(g_current_app_id)] = {};
+  char snap_dir[sizeof(g_current_app_dir)] = {};
+  portENTER_CRITICAL(&g_current_app_mux);
+  memcpy(snap_id, g_current_app_id, sizeof(snap_id));
+  memcpy(snap_dir, g_current_app_dir, sizeof(snap_dir));
+  portEXIT_CRITICAL(&g_current_app_mux);
+
+  if (out_app_id && app_id_size > 0) {
+    snprintf(out_app_id, app_id_size, "%s", snap_id);
+  }
+  if (out_app_dir && app_dir_size > 0) {
+    snprintf(out_app_dir, app_dir_size, "%s", snap_dir);
+  }
+  return snap_id[0] != '\0';
 }
 
 void LvglOtaOverlayBegin(size_t total_bytes) {

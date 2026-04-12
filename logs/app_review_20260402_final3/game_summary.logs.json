@@ -1,0 +1,67 @@
+{
+  "ok": true,
+  "scope": "app",
+  "next_seq": 783,
+  "logs": [
+    {
+      "seq": 756,
+      "ms": 537480,
+      "kind": "app",
+      "text": "\u001b[0;32mI (537478) lua_app: app entry resolved: /littlefs/apps/game_summary/app.bin\u001b[0m"
+    },
+    {
+      "seq": 757,
+      "ms": 537499,
+      "kind": "app",
+      "text": "\u001b[0;32mI (537498) lua_app: entry loaded bytecode (/littlefs/apps/game_summary/app.bin) size=13699 head_hex=1b 4c 75 61 54 00 19 93 0d 0a 1a 0a 04 04 08 78 56 00 00 00 00 00 00 00\u001b[0m"
+    },
+    {
+      "seq": 758,
+      "ms": 537505,
+      "kind": "app",
+      "text": "\u001b[0;32mI (537508) lua_app: bytecode abi: cint=4 sizet=4 instr=8 int=120 num=86 ; runtime int=4 num=8\u001b[0m"
+    },
+    {
+      "seq": 759,
+      "ms": 537514,
+      "kind": "app",
+      "text": "\u001b[0;32mI (537518) lua_app: LoadMain: before lua_load (/littlefs/apps/game_summary/app.bin)\u001b[0m"
+    },
+    {
+      "seq": 760,
+      "ms": 537530,
+      "kind": "app",
+      "text": "\u001b[0;32mI (537528) lua_app: LoadMain: after lua_load ret=0\u001b[0m"
+    },
+    {
+      "seq": 761,
+      "ms": 537531,
+      "kind": "app",
+      "text": "\u001b[0;32mI (537528) lua_app: LoadMain: before pcall\u001b[0m"
+    },
+    {
+      "seq": 762,
+      "ms": 537626,
+      "kind": "app",
+      "text": "\u001b[0;32mI (537628) lua_app: LoadMain: after pcall ret=0\u001b[0m"
+    },
+    {
+      "seq": 773,
+      "ms": 537689,
+      "kind": "app",
+      "text": "\u001b[0;32mI (537688) lua_app: http req start id=35 timeout=8000 max_body=393216 queue_wait_ms=0 url=https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=20260402\u001b[0m"
+    },
+    {
+      "seq": 775,
+      "ms": 537701,
+      "kind": "app",
+      "text": "\u001b[0;32mI (537698) lua_app: http req dns id=35 host=site.api.espn.com addr=184.27.122.58\u001b[0m"
+    },
+    {
+      "seq": 782,
+      "ms": 540115,
+      "kind": "app",
+      "text": "\u001b[0;32mI (540118) lua_app: http req headers id=35 fetch_ret=0 status=200 content_len=-1 chunked=1 elapsed_ms=2425\u001b[0m"
+    }
+  ]
+}

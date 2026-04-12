@@ -1,8 +1,44 @@
 local app = {}
 
-local LAT = tonumber(data.get("openmeteo.lat")) or 22.548994
-local LON = tonumber(data.get("openmeteo.lon")) or 113.459035
-local TEMP_UNIT = data.get("openmeteo.temp_unit") or "celsius" -- fahrenheit/celsius
+local OWM_API_KEY = data.get("owm.api_key") or "5ce216b488692ef60673d24f9583a873"
+local DEFAULT_CITY = "zhongshangang,cn"
+local DEFAULT_REFRESH_MS = 5 * 60 * 1000
+
+local function cfg_city()
+  local city = tostring(data.get("openmeteo_3day.city") or data.get("owm.city") or DEFAULT_CITY)
+  city = string.gsub(city, "%s+", " ")
+  city = string.gsub(city, "^%s+", "")
+  city = string.gsub(city, "%s+$", "")
+  if city == "" then city = DEFAULT_CITY end
+  return city
+end
+
+local function cfg_temp_unit()
+  local u = string.lower(tostring(data.get("openmeteo_3day.units") or data.get("openmeteo_3day.temp_unit") or data.get("openmeteo.temp_unit") or data.get("owm.units") or "celsius"))
+  if u == "imperial" or u == "fahrenheit" or u == "f" then return "fahrenheit" end
+  return "celsius"
+end
+
+local function cfg_refresh_ms()
+  local n = tonumber(data.get("openmeteo_3day.refresh_ms") or data.get("openmeteo_3day.refresh_interval_ms") or DEFAULT_REFRESH_MS) or DEFAULT_REFRESH_MS
+  if n < 15000 then n = 15000 end
+  if n > 3600000 then n = 3600000 end
+  return math.floor(n)
+end
+
+local function cfg_coords()
+  local lat = tonumber(data.get("openmeteo_3day.lat") or data.get("openmeteo.lat"))
+  local lon = tonumber(data.get("openmeteo_3day.lon") or data.get("openmeteo.lon"))
+  if lat and lon then return lat, lon end
+  return nil, nil
+end
+
+local function url_encode(s)
+  s = tostring(s or "")
+  return (s:gsub("([^%w%-_%.~,])", function(c)
+    return string.format("%%%02X", string.byte(c))
+  end))
+end
 
 local font = "builtin:silkscreen_regular_8"
 
@@ -22,9 +58,12 @@ local C_WARN = 0xFD20
 
 local state = {
   req_id = nil,
+  req_kind = nil,
   last_req_ms = 0,
   last_ok_ms = 0,
   err = nil,
+  lat = nil,
+  lon = nil,
   days = {
     {label = "---", code = nil, temp = nil, icon = "03d"},
     {label = "---", code = nil, temp = nil, icon = "03d"},
@@ -276,17 +315,39 @@ local function handle_response(status, body)
   ))
 end
 
-local function start_request()
+local function parse_geo(status, body)
+  if status ~= 200 then
+    state.err = "GEO " .. tostring(status)
+    return false
+  end
+  local arr, jerr = json.decode(body)
+  if not arr or type(arr) ~= "table" or not arr[1] then
+    state.err = jerr or "NO CITY"
+    return false
+  end
+  local pick = arr[1]
+  local lat = tonumber(pick.lat)
+  local lon = tonumber(pick.lon)
+  if not lat or not lon then
+    state.err = "NO GEO"
+    return false
+  end
+  state.lat = lat
+  state.lon = lon
+  return true
+end
+
+local function start_forecast_request()
   if state.req_id then return end
 
   local url = string.format(
     "https://api.open-meteo.com/v1/forecast?latitude=%s&longitude=%s&daily=weather_code,temperature_2m_max&forecast_days=3&timezone=auto&temperature_unit=%s",
-    tostring(LAT),
-    tostring(LON),
-    tostring(TEMP_UNIT)
+    tostring(state.lat),
+    tostring(state.lon),
+    tostring(cfg_temp_unit())
   )
 
-  local ttl_ms = 10 * 60 * 1000
+  local ttl_ms = cfg_refresh_ms()
   sys.log(string.format(
     "openmeteo_3day req start url=%s ttl=%d timeout=%d max_body=%d",
     tostring(url), ttl_ms, 6000, 4096
@@ -310,6 +371,7 @@ local function start_request()
 
   if id then
     state.req_id = id
+    state.req_kind = "wx"
     state.last_req_ms = now_ms()
     sys.log("openmeteo_3day req inflight id=" .. tostring(id))
     return
@@ -319,15 +381,59 @@ local function start_request()
   sys.log("openmeteo_3day req error=HTTP GET FAIL")
 end
 
+local function start_request()
+  if state.req_id then return end
+
+  local lat, lon = cfg_coords()
+  if lat and lon then
+    state.lat = lat
+    state.lon = lon
+    start_forecast_request()
+    return
+  end
+
+  if OWM_API_KEY == "" then
+    state.err = "NO KEY"
+    return
+  end
+
+  local geo_url = string.format(
+    "https://api.openweathermap.org/geo/1.0/direct?q=%s&limit=1&appid=%s",
+    url_encode(cfg_city()), OWM_API_KEY
+  )
+  local id, body, age_ms, err = net.cached_get(geo_url, 12 * 60 * 60 * 1000, 6000, 4096)
+  if err then
+    state.err = err
+    return
+  end
+  if body then
+    if parse_geo(200, body) then
+      start_forecast_request()
+      state.last_req_ms = now_ms()
+    end
+    return
+  end
+  if id then
+    state.req_id = id
+    state.req_kind = "geo"
+    state.last_req_ms = now_ms()
+    return
+  end
+  state.err = "GEO GET FAIL"
+end
+
 function app.init(config)
   sys.log(string.format(
-    "openmeteo_3day init lat=%s lon=%s unit=%s",
-    tostring(LAT), tostring(LON), tostring(TEMP_UNIT)
+    "openmeteo_3day init city=%s unit=%s",
+    tostring(cfg_city()), tostring(cfg_temp_unit())
   ))
   state.req_id = nil
+  state.req_kind = nil
   state.last_req_ms = 0
   state.last_ok_ms = 0
   state.err = nil
+  state.lat = nil
+  state.lon = nil
   start_request()
 end
 
@@ -341,18 +447,26 @@ function app.tick(dt_ms)
         "openmeteo_3day req done status=%s body_len=%d",
         tostring(status), body and #body or 0
       ))
+      local kind = state.req_kind
       state.req_id = nil
+      state.req_kind = nil
       if status == 0 then
         state.err = body or "HTTP ERR"
         sys.log("openmeteo_3day req transport err=" .. tostring(state.err))
       else
-        handle_response(status, body or "")
+        if kind == "geo" then
+          if parse_geo(status, body or "") then
+            start_forecast_request()
+          end
+        else
+          handle_response(status, body or "")
+        end
       end
     end
     return
   end
 
-  local interval = 15 * 60 * 1000
+  local interval = cfg_refresh_ms()
   if state.err then interval = 60 * 1000 end
   if now - state.last_req_ms >= interval then
     start_request()

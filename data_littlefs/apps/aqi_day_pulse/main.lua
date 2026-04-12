@@ -1,7 +1,8 @@
 local app = {}
 
-local LAT = tonumber(data.get("aqi.lat") or data.get("openmeteo.lat")) or 22.548994
-local LON = tonumber(data.get("aqi.lon") or data.get("openmeteo.lon")) or 113.459035
+local DEFAULT_CITY = "zhongshangang,cn"
+local DEFAULT_LAT = tonumber(data.get("aqi.lat") or data.get("openmeteo.lat")) or 22.548994
+local DEFAULT_LON = tonumber(data.get("aqi.lon") or data.get("openmeteo.lon")) or 113.459035
 
 local font = "builtin:silkscreen_regular_8"
 
@@ -19,10 +20,15 @@ local C_WARN = 0xF800
 
 local state = {
   req_id = nil,
+  req_kind = nil, -- "geo" | "aqi"
   last_req_ms = 0,
   last_ok_ms = 0,
   err = nil,
   anim_ms = 0,
+  city = nil,
+  lat = DEFAULT_LAT,
+  lon = DEFAULT_LON,
+  geo_ok = false,
   current = nil,
   peak = nil,
   points = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
@@ -30,6 +36,27 @@ local state = {
 
 local function now_ms()
   return sys.now_ms()
+end
+
+local function trim(s)
+  s = tostring(s or "")
+  s = string.gsub(s, "^%s+", "")
+  s = string.gsub(s, "%s+$", "")
+  s = string.gsub(s, "%s+", " ")
+  return s
+end
+
+local function url_encode(s)
+  s = tostring(s or "")
+  return (s:gsub("([^%w%-_%.~])", function(c)
+    return string.format("%%%02X", string.byte(c))
+  end))
+end
+
+local function cfg_city()
+  local city = trim(data.get("aqi_day_pulse.city") or data.get("aqi.city") or DEFAULT_CITY)
+  if city == "" then city = DEFAULT_CITY end
+  return city
 end
 
 local function set_px_safe(fb, x, y, c)
@@ -154,11 +181,11 @@ local function handle_response(status, body)
   state.last_ok_ms = now_ms()
 end
 
-local function start_request()
+local function start_aqi_request()
   if state.req_id then return end
   local url = string.format(
     "https://air-quality-api.open-meteo.com/v1/air-quality?latitude=%s&longitude=%s&hourly=us_aqi&forecast_days=2&timezone=auto",
-    tostring(LAT), tostring(LON)
+    tostring(state.lat), tostring(state.lon)
   )
   local id, body, age_ms, err = net.cached_get(url, 30 * 60 * 1000, 7000, 8192)
   if err then
@@ -172,18 +199,89 @@ local function start_request()
   end
   if id then
     state.req_id = id
+    state.req_kind = "aqi"
     state.last_req_ms = now_ms()
     return
   end
   state.err = "HTTP GET FAIL"
 end
 
+local function handle_geo_response(status, body)
+  if status ~= 200 then
+    state.geo_ok = false
+    state.lat = DEFAULT_LAT
+    state.lon = DEFAULT_LON
+    start_aqi_request()
+    return
+  end
+  local obj, jerr = json.decode(body)
+  if not obj then
+    state.geo_ok = false
+    state.lat = DEFAULT_LAT
+    state.lon = DEFAULT_LON
+    start_aqi_request()
+    return
+  end
+  local results = obj.results
+  local item = (type(results) == "table" and #results > 0) and results[1] or nil
+  local lat = item and tonumber(item.latitude)
+  local lon = item and tonumber(item.longitude)
+  if lat and lon then
+    state.lat = lat
+    state.lon = lon
+    state.geo_ok = true
+  else
+    state.geo_ok = false
+    state.lat = DEFAULT_LAT
+    state.lon = DEFAULT_LON
+  end
+  start_aqi_request()
+end
+
+local function start_request()
+  if state.req_id then return end
+  local city = cfg_city()
+  state.city = city
+  local geo_url = string.format(
+    "https://geocoding-api.open-meteo.com/v1/search?name=%s&count=1&language=en&format=json",
+    url_encode(city)
+  )
+  local id, body, age_ms, err = net.cached_get(geo_url, 24 * 60 * 60 * 1000, 7000, 6144)
+  if err then
+    state.geo_ok = false
+    state.lat = DEFAULT_LAT
+    state.lon = DEFAULT_LON
+    start_aqi_request()
+    return
+  end
+  if body then
+    handle_geo_response(200, body)
+    state.last_req_ms = now_ms()
+    return
+  end
+  if id then
+    state.req_id = id
+    state.req_kind = "geo"
+    state.last_req_ms = now_ms()
+    return
+  end
+  state.geo_ok = false
+  state.lat = DEFAULT_LAT
+  state.lon = DEFAULT_LON
+  start_aqi_request()
+end
+
 function app.init()
   state.req_id = nil
+  state.req_kind = nil
   state.last_req_ms = 0
   state.last_ok_ms = 0
   state.err = nil
   state.anim_ms = 0
+  state.city = cfg_city()
+  state.lat = DEFAULT_LAT
+  state.lon = DEFAULT_LON
+  state.geo_ok = false
   start_request()
 end
 
@@ -192,11 +290,24 @@ function app.tick(dt_ms)
   if state.req_id then
     local done, status, body = net.cached_poll(state.req_id)
     if done then
+      local kind = state.req_kind
       state.req_id = nil
+      state.req_kind = nil
       if status == 0 then
-        state.err = body or "HTTP ERR"
+        if kind == "geo" then
+          state.geo_ok = false
+          state.lat = DEFAULT_LAT
+          state.lon = DEFAULT_LON
+          start_aqi_request()
+        else
+          state.err = body or "HTTP ERR"
+        end
       else
-        handle_response(status, body or "")
+        if kind == "geo" then
+          handle_geo_response(status, body or "")
+        else
+          handle_response(status, body or "")
+        end
       end
     end
     return
@@ -210,7 +321,7 @@ function app.render_fb(fb)
 
   if state.err then
     fb:text_box(0, 8, 64, 8, "AQI TREND", C_WARN, font, 8, "center", true)
-    fb:text_box(0, 18, 64, 8, tostring(state.err), C_MUTED, font, 8, "center", true)
+    fb:text_box(0, 18, 64, 8, "DATA ERR", C_MUTED, font, 8, "center", true)
     return
   end
 
@@ -227,6 +338,7 @@ function app.render_fb(fb)
   fb:text_box(1, 1, 14, 8, "AQI", C_TEXT, font, 8, "left", false)
   draw_chip(fb, 14, 1, 16, "24H", C_GRID, C_TEXT)
   fb:text_box(36, 1, 27, 8, fmt_int(current), accent, font, 8, "right", false)
+  fb:text_box(1, -1, 12, 8, state.geo_ok and "CITY" or "DEF", C_MUTED, font, 8, "left", false)
   rect_fill(fb, 1, 9, 27, 8, accent)
   rect_outline(fb, 1, 9, 27, 8, C_FRAME)
   draw_chip_text(fb, 1, 9, 27, aqi_label(current), C_BG, "center", 8)

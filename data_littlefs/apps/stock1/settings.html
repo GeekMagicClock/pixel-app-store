@@ -1,0 +1,21 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stock 主题1 Settings</title>
+<style>body{margin:0;padding:12px;font:14px/1.4 -apple-system,Segoe UI,sans-serif;background:#fffaf2;color:#2f251c}h1{margin:0 0 10px;font-size:16px}.row{margin:0 0 10px}label{display:block;font-size:12px;font-weight:700;margin-bottom:4px}input,select,button{font:inherit}input,select{width:100%;padding:8px;border:1px solid #d8c8b3;border-radius:8px;background:#fff}.actions{display:flex;gap:8px;flex-wrap:wrap}button{padding:8px 12px;border:0;border-radius:999px;background:#efe2d3}button.primary{background:#b8582f;color:#fff}.status{margin-top:8px;font-size:12px;min-height:16px}.ok{color:#2f8a4f}.bad{color:#a03224}</style>
+</head><body><h1>Stock 主题1</h1><div id="form"></div><div class="actions"><button id="save">Save</button><button id="saveRun" class="primary">Save & Run</button></div><div id="status" class="status"></div>
+<script>
+const CFG={appId:"stock1",fields:[
+{key:"stock_theme1.symbol_1",label:"Symbol 1",type:"text",default:"AMZN"},
+{key:"stock_theme1.symbol_2",label:"Symbol 2",type:"text",default:"TSLA"},
+{key:"stock_theme1.symbol_3",label:"Symbol 3",type:"text",default:"AAPL"},
+{key:"stock_theme1.symbol_4",label:"Symbol 4",type:"text",default:"MSFT"},
+{key:"stock_theme1.symbol_5",label:"Symbol 5",type:"text",default:"NVDA"},
+{key:"stock_theme1.symbol_6",label:"Symbol 6",type:"text",default:"GOOGL"},
+{key:"stock_theme1.symbol_7",label:"Symbol 7",type:"text",default:"META"},
+{key:"stock_theme1.symbol_8",label:"Symbol 8",type:"text",default:"SONY"},
+{key:"stock_theme1.symbol_9",label:"Symbol 9",type:"text",default:"SSNLF"},
+{key:"stock_theme1.symbol_10",label:"Symbol 10",type:"text",default:"GC=F"},
+{key:"stock_theme1.rotate_interval_ms",label:"Rotate Interval (ms)",type:"number",default:5000,min:2000,max:600000,step:1000},
+{key:"stock_theme1.refresh_interval_ms",label:"Refresh Interval (ms)",type:"number",default:60000,min:10000,max:600000,step:1000}
+]};
+</script><script src="/api/apps/web/_shared/settings_core.js"></script></body></html>

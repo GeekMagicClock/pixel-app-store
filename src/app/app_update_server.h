@@ -10,6 +10,8 @@ typedef void (*AppUpdateSwitchCallback)(const char* app_id, unsigned app_id_len)
 // - POST /api/apps/reload
 // - POST /api/apps/switch/<app_id>
 // - POST /api/apps/switch?app_id=<app_id>
+// - GET /api/apps/current                  (currently running app info)
+// - GET /api/apps/web/<app_id>/<file>      (serve app-owned web assets such as settings.html)
 // - DELETE /api/apps/<app_id>              (uninstall app directory recursively)
 // - DELETE /api/apps/<app_id>/<file>       (delete single file)
 // - GET /api/firmware

@@ -1,8 +1,37 @@
 local app = {}
 
 local OWM_API_KEY = data.get("owm.api_key") or "5ce216b488692ef60673d24f9583a873"
-local CITY = data.get("owm.city") or "zhongshangang,cn"
-local UNITS = data.get("owm.units") or "metric"
+local DEFAULT_CITY = "zhongshangang,cn"
+local DEFAULT_REFRESH_MS = 5 * 60 * 1000
+
+local function cfg_city()
+  local city = tostring(data.get("owm_wind_dial.city") or data.get("owm.city") or DEFAULT_CITY)
+  city = string.gsub(city, "%s+", " ")
+  city = string.gsub(city, "^%s+", "")
+  city = string.gsub(city, "%s+$", "")
+  if city == "" then city = DEFAULT_CITY end
+  return city
+end
+
+local function cfg_units()
+  local u = string.lower(tostring(data.get("owm_wind_dial.units") or data.get("owm.units") or "metric"))
+  if u == "imperial" or u == "fahrenheit" or u == "f" then return "imperial" end
+  return "metric"
+end
+
+local function cfg_refresh_ms()
+  local n = tonumber(data.get("owm_wind_dial.refresh_ms") or data.get("owm_wind_dial.refresh_interval_ms") or DEFAULT_REFRESH_MS) or DEFAULT_REFRESH_MS
+  if n < 15000 then n = 15000 end
+  if n > 3600000 then n = 3600000 end
+  return math.floor(n)
+end
+
+local function url_encode(s)
+  s = tostring(s or "")
+  return (s:gsub("([^%w%-_%.~,])", function(c)
+    return string.format("%%%02X", string.byte(c))
+  end))
+end
 
 local font = "builtin:silkscreen_regular_8"
 
@@ -191,7 +220,7 @@ local function dir_label(deg)
 end
 
 local function wind_unit()
-  if UNITS == "imperial" then return "MPH" end
+  if cfg_units() == "imperial" then return "MPH" end
   return "M/S"
 end
 
@@ -226,9 +255,9 @@ local function start_request()
   end
   local url = string.format(
     "http://api.openweathermap.org/data/2.5/weather?q=%s&units=%s&appid=%s",
-    CITY, UNITS, OWM_API_KEY
+    url_encode(cfg_city()), cfg_units(), OWM_API_KEY
   )
-  local id, body, age_ms, err = net.cached_get(url, 10 * 60 * 1000, 6000, 4096)
+  local id, body, age_ms, err = net.cached_get(url, cfg_refresh_ms(), 6000, 4096)
   if err then
     state.err = err
     return
@@ -269,7 +298,7 @@ function app.tick(dt_ms)
     end
     return
   end
-  local interval = state.err and 30000 or (10 * 60 * 1000)
+  local interval = state.err and 30000 or cfg_refresh_ms()
   if now_ms() - state.last_req_ms >= interval then start_request() end
 end
 

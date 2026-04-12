@@ -1,12 +1,14 @@
 {
   "app_id": "tetris_clock",
   "name": "Tetris Clock",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "min_fw": "0.0.0",
   "min_api": "1.0",
   "entry": "main.lua",
   "layout_id": "framebuffer_rgb565",
   "category": "time",
-  "capabilities": ["time"],
+  "capabilities": [
+    "time"
+  ],
   "description": "Falling tetromino clock inspired by witnessmenow's WiFi-Tetris-Clock."
 }

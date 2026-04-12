@@ -1,11 +1,14 @@
 {
   "app_id": "owm_wind_dial",
-  "name": "OWM Wind Dial",
-  "version": "1.0.22",
+  "name": "Wind Dial",
+  "version": "1.0.23",
   "min_fw": "0.0.0",
   "min_api": "1.0",
   "entry": "main.lua",
   "layout_id": "framebuffer_rgb565",
-  "capabilities": ["weather", "net"],
+  "capabilities": [
+    "weather",
+    "net"
+  ],
   "category": "weather"
 }

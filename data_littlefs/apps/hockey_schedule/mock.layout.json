@@ -1,0 +1,28 @@
+{
+  "model": {
+    "title": "LAL",
+    "live": null,
+    "next_games": [
+      {
+        "opp": "OKC",
+        "home": true,
+        "date_label": "APR 2",
+        "time_label": "9:30 PM",
+        "detail": "APR 2 9:30 PM"
+      },
+      {
+        "opp": "DEN",
+        "home": false,
+        "date_label": "APR 4",
+        "time_label": "8:00 PM",
+        "detail": "APR 4 8:00 PM"
+      }
+    ],
+    "last_result": {
+      "opp": "BOS",
+      "outcome": "W",
+      "score_label": "110-103",
+      "detail": "FINAL"
+    }
+  }
+}

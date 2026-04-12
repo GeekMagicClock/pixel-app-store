@@ -1,11 +1,15 @@
 {
   "app_id": "coingecko_ticker",
   "name": "CoinGecko Ticker",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "min_fw": "0.0.0",
   "min_api": "1.0",
   "entry": "main.lua",
   "layout_id": "framebuffer_rgb565",
-  "capabilities": ["net", "stocks", "crypto"],
+  "capabilities": [
+    "net",
+    "stocks",
+    "crypto"
+  ],
   "category": "finance"
 }

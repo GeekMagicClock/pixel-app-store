@@ -1,6 +1,6 @@
 local app = {}
 
-local symbols = {
+local DEFAULT_SYMBOLS = {
   "BTC",
   "ETH",
   "BNB",
@@ -12,6 +12,45 @@ local symbols = {
   "AVAX",
   "DOT",
 }
+
+local SUPPORTED_SYMBOLS = {}
+for i = 1, #DEFAULT_SYMBOLS do
+  SUPPORTED_SYMBOLS[DEFAULT_SYMBOLS[i]] = true
+end
+
+local function normalize_symbols(raw)
+  local out = {}
+  local seen = {}
+
+  local function add_symbol(sym)
+    local s = string.upper(tostring(sym or ""))
+    s = string.gsub(s, "%s+", "")
+    if s ~= "" and SUPPORTED_SYMBOLS[s] and not seen[s] then
+      out[#out + 1] = s
+      seen[s] = true
+    end
+  end
+
+  if type(raw) == "table" then
+    for i = 1, #raw do
+      add_symbol(raw[i])
+    end
+  else
+    local text = tostring(raw or "")
+    for token in string.gmatch(text, "[^,]+") do
+      add_symbol(token)
+    end
+  end
+
+  if #out == 0 then
+    for i = 1, #DEFAULT_SYMBOLS do
+      out[#out + 1] = DEFAULT_SYMBOLS[i]
+    end
+  end
+  return out
+end
+
+local symbols = normalize_symbols(data.get("coingecko_ticker.symbols"))
 
 local cg_id_by_symbol = {
   BTC = "bitcoin",
@@ -52,7 +91,7 @@ local icon_map = {
   DOT = "S:/littlefs/apps/coingecko_ticker/icons/dot-24.png",
 }
 
-local DEV_PROXY_BASE = "http://192.168.3.139:8787"
+local DEV_PROXY_BASE = "http://192.168.3.156:8787"
 local gateway_base = data.get("proxy.coingecko_base") or data.get("proxy.market_data_base") or DEV_PROXY_BASE
 
 local base_hosts = {
@@ -61,7 +100,15 @@ local base_hosts = {
 
 local ROTATE_INTERVAL_MS = tonumber(data.get("coingecko_ticker.rotate_interval_ms") or 5000) or 5000
 if ROTATE_INTERVAL_MS < 5000 then ROTATE_INTERVAL_MS = 5000 end
-local MIN_REFRESH_MS = 10000
+local MIN_REFRESH_MS = tonumber(data.get("coingecko_ticker.refresh_interval_ms") or 60000) or 60000
+if MIN_REFRESH_MS < 10000 then MIN_REFRESH_MS = 10000 end
+if MIN_REFRESH_MS > 10 * 60 * 1000 then MIN_REFRESH_MS = 10 * 60 * 1000 end
+local HTTP_TIMEOUT_MS = tonumber(data.get("coingecko_ticker.timeout_ms") or 12000) or 12000
+if HTTP_TIMEOUT_MS < 5000 then HTTP_TIMEOUT_MS = 5000 end
+if HTTP_TIMEOUT_MS > 30000 then HTTP_TIMEOUT_MS = 30000 end
+local HTTP_MAX_BODY_BYTES = tonumber(data.get("coingecko_ticker.max_body_bytes") or 8192) or 8192
+if HTTP_MAX_BODY_BYTES < 2048 then HTTP_MAX_BODY_BYTES = 2048 end
+if HTTP_MAX_BODY_BYTES > 32768 then HTTP_MAX_BODY_BYTES = 32768 end
 local CACHE_KEY = "coingecko_ticker.cache.v1"
 
 local state = {
@@ -212,7 +259,11 @@ local function markets_url(host_idx)
     if string.sub(base, -1) == "/" then
       base = string.sub(base, 1, #base - 1)
     end
-    return string.format("%s/coingecko/simple_price?ids=%s", base, ids)
+    return string.format(
+      "%s/coingecko/simple_price?vs_currencies=usd&ids=%s&include_24hr_change=true&precision=full",
+      base,
+      ids
+    )
   end
 
   local host = base_hosts[host_idx] or base_hosts[1]
@@ -259,14 +310,38 @@ local function update_from_body(body)
   return true
 end
 
+local function apply_rate_limit_backoff(reason)
+  local now = now_ms()
+  if not state.backoff_ms or state.backoff_ms <= 0 then
+    state.backoff_ms = 30 * 1000
+  else
+    state.backoff_ms = state.backoff_ms * 2
+  end
+  if state.backoff_ms > 5 * 60 * 1000 then
+    state.backoff_ms = 5 * 60 * 1000
+  end
+  state.backoff_until_ms = now + state.backoff_ms
+  state.last_err = reason or "HTTP 429"
+end
+
+local function is_rate_limited_error(err)
+  local s = string.lower(tostring(err or ""))
+  return string.find(s, "429", 1, true) ~= nil or
+         string.find(s, "too many requests", 1, true) ~= nil
+end
+
 local function start_fetch()
   local host_idx = state.req_host_idx or 1
   local url = markets_url(host_idx)
 
   local ttl_ms = 30 * 1000
-  local id, body, age_ms, err = net.cached_get(url, ttl_ms, 7000, 4096)
+  local id, body, age_ms, err = net.cached_get(url, ttl_ms, HTTP_TIMEOUT_MS, HTTP_MAX_BODY_BYTES)
   if err then
-    state.last_err = err
+    if is_rate_limited_error(err) then
+      apply_rate_limit_backoff("HTTP 429")
+    else
+      state.last_err = err
+    end
     return
   end
 
@@ -295,7 +370,7 @@ local function maybe_fetch()
   local refresh_ms = MIN_REFRESH_MS
   if now - last < refresh_ms then return end
 
-  maybe_fetch()
+  start_fetch()
 end
 
 local function poll_fetch()
@@ -324,17 +399,7 @@ local function poll_fetch()
 
   state.req_host_idx = 1
   if status == 429 then
-    local now = now_ms()
-    if not state.backoff_ms or state.backoff_ms <= 0 then
-      state.backoff_ms = 30 * 1000
-    else
-      state.backoff_ms = state.backoff_ms * 2
-    end
-    if state.backoff_ms > 5 * 60 * 1000 then
-      state.backoff_ms = 5 * 60 * 1000
-    end
-    state.backoff_until_ms = now + state.backoff_ms
-    state.last_err = "HTTP 429"
+    apply_rate_limit_backoff("HTTP 429")
   elseif status ~= 200 then
     state.last_err = "HTTP " .. tostring(status)
   elseif not body then

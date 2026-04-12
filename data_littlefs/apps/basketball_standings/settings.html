@@ -1,0 +1,360 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Sports Standings Settings</title>
+  <style>
+    body { margin: 0; padding: 12px; font: 14px/1.4 -apple-system, Segoe UI, sans-serif; background: #fffaf2; color: #2f251c; }
+    h1 { margin: 0 0 6px; font-size: 16px; }
+    .hint { margin: 0 0 10px; color: #6b5a47; font-size: 12px; }
+    .row { margin: 0 0 10px; }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+    input, select, button { font: inherit; }
+    input, select { width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid #d8c8b3; border-radius: 8px; background: #fff; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    button { padding: 8px 12px; border: 0; border-radius: 999px; background: #efe2d3; color: #2f251c; }
+    button.primary { background: #b8582f; color: #fff; }
+    .status { margin-top: 8px; font-size: 12px; min-height: 16px; white-space: pre-wrap; }
+    .ok { color: #2f8a4f; }
+    .bad { color: #a03224; }
+    @media (max-width: 460px) { .split { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <h1>Sports Standings</h1>
+  <p class="hint">Track a league table. You can follow top teams or center around one team.</p>
+
+  <div class="row">
+    <label for="sport">Sport</label>
+    <select id="sport"></select>
+  </div>
+
+  <div class="row">
+    <label for="league">League</label>
+    <select id="league"></select>
+  </div>
+
+  <div class="row">
+    <label for="team">Team Focus</label>
+    <select id="team"></select>
+  </div>
+
+  <div class="split">
+    <div class="row">
+      <label for="mode">View Mode</label>
+      <select id="mode">
+        <option value="top">Top Teams</option>
+        <option value="around_team">Around Team</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="rowsPerPage">Rows Per Screen</label>
+      <select id="rowsPerPage">
+        <option value="3">3</option>
+        <option value="4">4</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="split">
+    <div class="row">
+      <label for="autoPage">Auto Page Switch</label>
+      <select id="autoPage">
+        <option value="1">On</option>
+        <option value="0">Off</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="rotateSec">Page Switch (seconds)</label>
+      <input id="rotateSec" type="number" min="1" max="20" step="1" value="4">
+    </div>
+  </div>
+
+  <div class="split">
+    <div class="row">
+      <label for="refreshSec">Refresh (seconds)</label>
+      <input id="refreshSec" type="number" min="10" max="1800" step="10" value="600">
+    </div>
+  </div>
+
+  <div class="actions">
+    <button id="save" type="button">Save</button>
+    <button id="saveRun" class="primary" type="button">Save & Run</button>
+  </div>
+  <div id="status" class="status"></div>
+
+  <script>
+    const APP_ID = "basketball_standings";
+    const FORCED_SPORT = "basketball";
+    const teamCache = new Map();
+    const TEAM_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+    const TEAM_CACHE_PREFIX = "sports:teams:v2:";
+    const CFG = {
+      soccer: {
+        label: "Soccer",
+        leagues: [
+          { code: "eng.1", name: "Premier League", teams: [["ARS", "Arsenal"], ["CHE", "Chelsea"], ["LIV", "Liverpool"], ["MCI", "Manchester City"], ["MUN", "Manchester United"], ["NEW", "Newcastle"], ["TOT", "Tottenham"]] },
+          { code: "esp.1", name: "La Liga", teams: [["BAR", "Barcelona"], ["RMA", "Real Madrid"], ["ATM", "Atletico Madrid"], ["SEV", "Sevilla"], ["VAL", "Valencia"]] },
+          { code: "ger.1", name: "Bundesliga", teams: [["BAY", "Bayern"], ["BVB", "Dortmund"], ["RBL", "Leipzig"], ["LEV", "Leverkusen"]] },
+          { code: "ita.1", name: "Serie A", teams: [["INT", "Inter"], ["JUV", "Juventus"], ["MIL", "AC Milan"], ["NAP", "Napoli"], ["ROM", "Roma"]] }
+        ]
+      },
+      basketball: {
+        label: "Basketball",
+        leagues: [
+          { code: "nba", name: "NBA", teams: [["LAL", "Lakers"], ["BOS", "Celtics"], ["GSW", "Warriors"], ["PHX", "Suns"], ["MIA", "Heat"], ["MIL", "Bucks"], ["DEN", "Nuggets"], ["NYK", "Knicks"]] }
+        ]
+      },
+      football: {
+        label: "Football",
+        leagues: [
+          { code: "nfl", name: "NFL", teams: [["KC", "Chiefs"], ["BUF", "Bills"], ["SF", "49ers"], ["DAL", "Cowboys"], ["PHI", "Eagles"], ["BAL", "Ravens"], ["MIA", "Dolphins"]] }
+        ]
+      },
+      baseball: {
+        label: "Baseball",
+        leagues: [
+          { code: "mlb", name: "MLB", teams: [["NYY", "Yankees"], ["LAD", "Dodgers"], ["BOS", "Red Sox"], ["HOU", "Astros"], ["ATL", "Braves"], ["CHC", "Cubs"]] }
+        ]
+      },
+      hockey: {
+        label: "Hockey",
+        leagues: [
+          { code: "nhl", name: "NHL", teams: [["BOS", "Bruins"], ["NYR", "Rangers"], ["TOR", "Maple Leafs"], ["VGK", "Golden Knights"], ["COL", "Avalanche"], ["EDM", "Oilers"]] }
+        ]
+      }
+    };
+
+    const el = {
+      sport: document.getElementById("sport"),
+      league: document.getElementById("league"),
+      team: document.getElementById("team"),
+      mode: document.getElementById("mode"),
+      rowsPerPage: document.getElementById("rowsPerPage"),
+      autoPage: document.getElementById("autoPage"),
+      rotateSec: document.getElementById("rotateSec"),
+      refreshSec: document.getElementById("refreshSec"),
+      save: document.getElementById("save"),
+      saveRun: document.getElementById("saveRun"),
+      status: document.getElementById("status")
+    };
+
+    function setStatus(msg, cls) {
+      el.status.textContent = msg || "";
+      el.status.className = "status" + (cls ? " " + cls : "");
+    }
+
+    async function api(method, path, payload) {
+      const response = await fetch(path, {
+        method,
+        headers: payload === undefined ? {} : { "Content-Type": "application/json" },
+        body: payload === undefined ? undefined : JSON.stringify(payload),
+        cache: "no-store"
+      });
+      const text = await response.text();
+      let json = {};
+      try { json = text ? JSON.parse(text) : {}; } catch (_) {}
+      if (!response.ok) {
+        const detail = json && json.error ? " (" + json.error + ")" : "";
+        throw new Error("Request failed " + response.status + detail);
+      }
+      return json;
+    }
+
+    function setOptions(node, options, value) {
+      node.innerHTML = "";
+      for (const item of options) {
+        const opt = document.createElement("option");
+        opt.value = item.value;
+        opt.textContent = item.label;
+        node.appendChild(opt);
+      }
+      if (value != null && value !== "") node.value = value;
+    }
+
+        function lockSportField() {
+      if (!el.sport) return;
+      el.sport.value = FORCED_SPORT;
+      el.sport.disabled = true;
+      const row = el.sport.closest ? el.sport.closest(".row") : null;
+      if (row) row.style.display = "none";
+    }
+
+function sportDef() {
+      return CFG[el.sport.value] || CFG.soccer;
+    }
+
+    function leagueDef() {
+      const sport = sportDef();
+      const code = el.league.value;
+      for (const l of sport.leagues) {
+        if (l.code === code) return l;
+      }
+      return sport.leagues[0];
+    }
+
+    async function fetchLeagueTeams(sport, league) {
+      const key = String(sport || "") + "|" + String(league || "");
+      if (teamCache.has(key)) return teamCache.get(key);
+      function loadCachedTeams(cacheKey) {
+        try {
+          const raw = localStorage.getItem(TEAM_CACHE_PREFIX + cacheKey);
+          if (!raw) return null;
+          const obj = JSON.parse(raw);
+          if (!obj || !Array.isArray(obj.data)) return null;
+          const ts = Number(obj.ts || 0);
+          if (!Number.isFinite(ts) || (Date.now() - ts) > TEAM_CACHE_TTL_MS) return null;
+          const list = [];
+          for (const row of obj.data) {
+            if (!Array.isArray(row) || row.length < 2) continue;
+            const abbr = String(row[0] || "").trim().toUpperCase();
+            const name = String(row[1] || "").trim();
+            if (!abbr) continue;
+            list.push([abbr, name || abbr]);
+          }
+          return list.length > 0 ? list : null;
+        } catch (_) {
+          return null;
+        }
+      }
+      function saveCachedTeams(cacheKey, list) {
+        try {
+          localStorage.setItem(
+            TEAM_CACHE_PREFIX + cacheKey,
+            JSON.stringify({ ts: Date.now(), data: list })
+          );
+        } catch (_) {}
+      }
+      const cached = loadCachedTeams(key);
+      if (cached) {
+        teamCache.set(key, cached);
+        return cached;
+      }
+      const url = "https://site.api.espn.com/apis/site/v2/sports/" + encodeURIComponent(sport) + "/" + encodeURIComponent(league) + "/teams";
+      try {
+        const response = await fetch(url, { cache: "no-store" });
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        const json = await response.json();
+        const out = [];
+        const seen = new Set();
+        function addTeam(raw) {
+          const t = raw && raw.team ? raw.team : raw;
+          if (!t || typeof t !== "object") return;
+          const abbr = String(t.abbreviation || t.shortDisplayName || t.displayName || t.name || "").trim().toUpperCase();
+          if (!abbr || seen.has(abbr)) return;
+          const name = String(t.displayName || t.shortDisplayName || t.name || abbr).trim();
+          seen.add(abbr);
+          out.push([abbr, name]);
+        }
+        if (json && Array.isArray(json.sports)) {
+          for (const s of json.sports) {
+            const leagues = Array.isArray(s && s.leagues) ? s.leagues : [];
+            for (const l of leagues) {
+              const teams = Array.isArray(l && l.teams) ? l.teams : [];
+              for (const row of teams) addTeam(row);
+            }
+          }
+        }
+        if (json && Array.isArray(json.teams)) {
+          for (const row of json.teams) addTeam(row);
+        }
+        out.sort(function (a, b) { return a[0].localeCompare(b[0]); });
+        saveCachedTeams(key, out);
+        teamCache.set(key, out);
+        return out;
+      } catch (_) {
+        teamCache.set(key, null);
+        return null;
+      }
+    }
+
+    async function rebuildLeague(preferredCode, preferredTeam) {
+      const sport = sportDef();
+      const options = sport.leagues.map(function (l) { return { value: l.code, label: l.name }; });
+      setOptions(el.league, options, preferredCode || (options[0] ? options[0].value : ""));
+      await rebuildTeam(preferredTeam || "");
+    }
+
+    async function rebuildTeam(preferredTeam) {
+      const league = leagueDef();
+      const dynamicTeams = await fetchLeagueTeams(FORCED_SPORT, league.code || "eng.1");
+      const sourceTeams = Array.isArray(dynamicTeams) && dynamicTeams.length > 0 ? dynamicTeams : (league.teams || []);
+      const options = [{ value: "", label: "No Team Focus" }];
+      for (const t of sourceTeams) {
+        options.push({ value: t[0], label: t[0] + " - " + t[1] });
+      }
+      setOptions(el.team, options, preferredTeam || "");
+    }
+
+    function clampInt(v, min, max, fallback) {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return fallback;
+      const x = Math.round(n);
+      if (x < min) return min;
+      if (x > max) return max;
+      return x;
+    }
+
+    function collect() {
+      lockSportField();
+      const rotateSec = clampInt(el.rotateSec.value, 1, 20, 4);
+      const refreshSec = clampInt(el.refreshSec.value, 10, 1800, 600);
+      return {
+        "basketball_standings.sport": FORCED_SPORT,
+        "basketball_standings.league": el.league.value || "eng.1",
+        "basketball_standings.team": (el.team.value || "").trim().toUpperCase() || null,
+        "basketball_standings.mode": el.mode.value === "around_team" ? "around_team" : "top",
+        "basketball_standings.rows_per_page": clampInt(el.rowsPerPage.value, 1, 4, 4),
+        "basketball_standings.auto_page": el.autoPage.value === "0" ? "0" : "1",
+        "basketball_standings.rotate_ms": rotateSec * 1000,
+        "basketball_standings.ttl_ms": refreshSec * 1000
+      };
+    }
+
+    async function saveNow() {
+      el.save.disabled = true;
+      el.saveRun.disabled = true;
+      try {
+        const t0 = Date.now();
+        setStatus("Saving...");
+        const items = collect();
+        await api("POST", "/api/system/lua-data", { items });
+        await api("POST", "/api/apps/switch/" + encodeURIComponent(APP_ID), {});
+        setStatus("Saved and applied. (" + (Date.now() - t0) + " ms)", "ok");
+      } catch (e) {
+        setStatus(String(e && e.message || e), "bad");
+      } finally {
+        el.save.disabled = false;
+        el.saveRun.disabled = false;
+      }
+    }
+
+    async function load() {
+      const json = await api("GET", "/api/system/lua-data");
+      const items = json && typeof json.items === "object" ? json.items : {};
+
+      const sportOptions = Object.keys(CFG).map(function (k) { return { value: k, label: CFG[k].label }; });
+      setOptions(el.sport, sportOptions, FORCED_SPORT);
+      lockSportField();
+      await rebuildLeague(String(items["basketball_standings.league"] || ""), String(items["basketball_standings.team"] || ""));
+
+      el.mode.value = String(items["basketball_standings.mode"] || "top") === "around_team" ? "around_team" : "top";
+      el.rowsPerPage.value = String(clampInt(items["basketball_standings.rows_per_page"], 1, 4, 4));
+      el.autoPage.value = String(items["basketball_standings.auto_page"] || "1") === "0" ? "0" : "1";
+      el.rotateSec.value = String(clampInt((Number(items["basketball_standings.rotate_ms"]) || 4000) / 1000, 1, 20, 4));
+      el.refreshSec.value = String(clampInt((Number(items["basketball_standings.ttl_ms"]) || 600000) / 1000, 10, 1800, 600));
+
+      setStatus("");
+    }
+
+    el.sport.addEventListener("change", function () { rebuildLeague("", "").catch(function () {}); });
+    el.league.addEventListener("change", function () { rebuildTeam("").catch(function () {}); });
+    el.save.addEventListener("click", saveNow);
+    el.saveRun.addEventListener("click", saveNow);
+
+    load().catch(function (e) { setStatus(String(e && e.message || e), "bad"); });
+  </script>
+</body>
+</html>

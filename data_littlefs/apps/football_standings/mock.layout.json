@@ -1,0 +1,19 @@
+{
+  "model": {
+    "title": "NBA WEST",
+    "rows": [
+      { "rank": 1, "team": "OKC", "primary": "62-14", "secondary": "0.0", "highlight": false },
+      { "rank": 2, "team": "DEN", "primary": "55-21", "secondary": "7.0", "highlight": false },
+      { "rank": 3, "team": "LAL", "primary": "49-27", "secondary": "13.0", "highlight": true },
+      { "rank": 4, "team": "MIN", "primary": "48-28", "secondary": "14.0", "highlight": false }
+    ],
+    "pages": [
+      [
+        { "rank": 1, "team": "OKC", "primary": "62-14", "secondary": "0.0", "highlight": false },
+        { "rank": 2, "team": "DEN", "primary": "55-21", "secondary": "7.0", "highlight": false },
+        { "rank": 3, "team": "LAL", "primary": "49-27", "secondary": "13.0", "highlight": true },
+        { "rank": 4, "team": "MIN", "primary": "48-28", "secondary": "14.0", "highlight": false }
+      ]
+    ]
+  }
+}

@@ -2,7 +2,31 @@ local app = {}
 
 -- Same config source pattern as weather_owm.
 local OWM_API_KEY = data.get("owm.api_key") or "5ce216b488692ef60673d24f9583a873"
-local CITY = data.get("owm.city") or "zhongshangang,cn"
+local DEFAULT_CITY = "zhongshangang,cn"
+local DEFAULT_REFRESH_MS = 5 * 60 * 1000
+
+local function cfg_city()
+  local city = tostring(data.get("sunrise_sunset_owm.city") or data.get("owm.city") or DEFAULT_CITY)
+  city = string.gsub(city, "%s+", " ")
+  city = string.gsub(city, "^%s+", "")
+  city = string.gsub(city, "%s+$", "")
+  if city == "" then city = DEFAULT_CITY end
+  return city
+end
+
+local function cfg_refresh_ms()
+  local n = tonumber(data.get("sunrise_sunset_owm.refresh_ms") or data.get("sunrise_sunset_owm.refresh_interval_ms") or DEFAULT_REFRESH_MS) or DEFAULT_REFRESH_MS
+  if n < 15000 then n = 15000 end
+  if n > 3600000 then n = 3600000 end
+  return math.floor(n)
+end
+
+local function url_encode(s)
+  s = tostring(s or "")
+  return (s:gsub("([^%w%-_%.~,])", function(c)
+    return string.format("%%%02X", string.byte(c))
+  end))
+end
 
 local font_label = "builtin:silkscreen_regular_8"
 local font_time = "builtin:silkscreen_regular_8"
@@ -171,11 +195,11 @@ local function start_request()
   local url = string.format(
     -- Use plain HTTP to match weather_owm behavior and reduce TLS memory pressure.
     "http://api.openweathermap.org/data/2.5/weather?q=%s&appid=%s",
-    CITY,
+    url_encode(cfg_city()),
     OWM_API_KEY
   )
 
-  local ttl_ms = 5 * 60 * 1000
+  local ttl_ms = cfg_refresh_ms()
   local id, body, age_ms, err = net.cached_get(url, ttl_ms, 5000, 2048)
   if err then
     state.err = err
@@ -228,7 +252,7 @@ function app.tick(dt_ms)
   end
 
   -- Data changes slowly; keep refresh moderate.
-  local interval = 5 * 60 * 1000
+  local interval = cfg_refresh_ms()
   if state.err then interval = 30 * 1000 end
   if now - state.last_req_ms >= interval then
     start_request()

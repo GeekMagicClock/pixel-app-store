@@ -1,0 +1,44 @@
+[
+  {
+    "app": "game_summary",
+    "max_body": [
+      "\u001b[0;32mI (537688) lua_app: http req start id=35 timeout=8000 max_body=393216 queue_wait_ms=0 url=https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=20260402\u001b[0m"
+    ],
+    "done_200": [],
+    "too_large": [],
+    "errors": []
+  },
+  {
+    "app": "sports_scoreboard",
+    "max_body": [
+      "\u001b[0;32mI (545778) lua_app: http req start id=36 timeout=8000 max_body=393216 queue_wait_ms=1889 url=https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=20260402\u001b[0m"
+    ],
+    "done_200": [
+      "\u001b[0;32mI (545758) lua_app: http req done id=35 status=200 body_len=115551 elapsed_ms=8072 body_truncated={\"leagues\":[{\"id\":\"46\",\"uid\":\"s:40~l:46\",\"name\":\"National Basketball Association\",\"abbreviation\"\u001b[0m"
+    ],
+    "too_large": [],
+    "errors": []
+  },
+  {
+    "app": "sports_standings",
+    "max_body": [
+      "\u001b[0;32mI (551308) lua_app: http req start id=37 timeout=8000 max_body=393216 queue_wait_ms=1277 url=https://site.api.espn.com/apis/v2/sports/basketball/nba/standings\u001b[0m"
+    ],
+    "done_200": [
+      "\u001b[0;32mI (551288) lua_app: http req done id=36 status=200 body_len=115551 elapsed_ms=7403 body_truncated={\"leagues\":[{\"id\":\"46\",\"uid\":\"s:40~l:46\",\"name\":\"National Basketball Association\",\"abbreviation\"\u001b[0m"
+    ],
+    "too_large": [],
+    "errors": []
+  },
+  {
+    "app": "team_schedule",
+    "max_body": [
+      "\u001b[0;32mI (557138) lua_app: http req start id=38 timeout=8000 max_body=393216 queue_wait_ms=945 url=https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams\u001b[0m"
+    ],
+    "done_200": [
+      "\u001b[0;32mI (557128) lua_app: http req done id=37 status=200 body_len=169289 elapsed_ms=7092 body_truncated={\"uid\":\"s:40~l:46~g:7\",\"id\":\"7\",\"name\":\"National Basketball Association\",\"abbreviation\":\"NBA\",\"s\u001b[0m"
+    ],
+    "too_large": [],
+    "errors": []
+  }
+]

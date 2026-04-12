@@ -1,0 +1,14 @@
+{
+  "app_id": "stock1",
+  "name": "Stock Brief",
+  "version": "1.1.1",
+  "min_fw": "0.0.0",
+  "min_api": "1.0",
+  "entry": "main.lua",
+  "layout_id": "framebuffer_rgb565",
+  "capabilities": [
+    "stocks",
+    "net"
+  ],
+  "category": "finance"
+}

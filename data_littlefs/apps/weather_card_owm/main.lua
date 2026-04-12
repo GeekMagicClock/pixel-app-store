@@ -2,13 +2,36 @@ local app = {}
 
 -- Config keys:
 --   owm.api_key = "..."
---   owm.city    = "zhongshangang,cn"
---   owm.units   = "metric" | "imperial"
+--   weather_card_owm.city    = "kuala lumpur,my"   (fallback: owm.city)
+--   weather_card_owm.units   = "metric" | "imperial" (fallback: owm.units)
+--   weather_card_owm.refresh_ms = 300000            (default: 5 minutes)
 local OWM_API_KEY = data.get("owm.api_key") or "5ce216b488692ef60673d24f9583a873"
-local CITY = data.get("owm.city") or "zhongshangang,cn"
-local UNITS = data.get("owm.units") or "metric"
+local DEFAULT_CITY = "zhongshangang,cn"
 -- Debug: "clear" | "clouds" | "cycle"; empty means use real weather mapping.
 local DEBUG_ICON = data.get("weather_card.debug_icon") or ""
+local DEFAULT_REFRESH_MS = 5 * 60 * 1000
+
+local function cfg_city()
+  local city = tostring(data.get("weather_card_owm.city") or data.get("owm.city") or DEFAULT_CITY)
+  city = string.gsub(city, "%s+", " ")
+  city = string.gsub(city, "^%s+", "")
+  city = string.gsub(city, "%s+$", "")
+  if city == "" then city = DEFAULT_CITY end
+  return city
+end
+
+local function cfg_units()
+  local u = string.lower(tostring(data.get("weather_card_owm.units") or data.get("owm.units") or "metric"))
+  if u == "imperial" or u == "fahrenheit" or u == "f" then return "imperial" end
+  return "metric"
+end
+
+local function cfg_refresh_ms()
+  local n = tonumber(data.get("weather_card_owm.refresh_ms") or data.get("weather_card_owm.refresh_interval_ms") or DEFAULT_REFRESH_MS) or DEFAULT_REFRESH_MS
+  if n < 15000 then n = 15000 end
+  if n > 3600000 then n = 3600000 end
+  return math.floor(n)
+end
 
 local font = "builtin:silkscreen_regular_8"
 
@@ -100,6 +123,13 @@ local function day3_from_unix(ts, tz_shift_sec)
   return names[idx] or "---"
 end
 
+local function url_encode(s)
+  s = tostring(s or "")
+  return (s:gsub("([^%w%-_%.~,])", function(c)
+    return string.format("%%%02X", string.byte(c))
+  end))
+end
+
 local function fmt_temp(v)
   if v == nil then return "--" end
   local n = tonumber(v) or 0
@@ -155,10 +185,10 @@ local function start_request()
 
   local url = string.format(
     "https://api.openweathermap.org/data/2.5/weather?q=%s&units=%s&appid=%s",
-    CITY, UNITS, OWM_API_KEY
+    url_encode(cfg_city()), cfg_units(), OWM_API_KEY
   )
 
-  local ttl_ms = 5 * 60 * 1000
+  local ttl_ms = cfg_refresh_ms()
   local id, body, age_ms, err = net.cached_get(url, ttl_ms, 5000, 3072)
   if err then
     state.err = err
@@ -204,7 +234,7 @@ function app.tick(dt_ms)
     return
   end
 
-  local interval = 5 * 60 * 1000
+  local interval = cfg_refresh_ms()
   if state.err then interval = 30 * 1000 end
   if now - state.last_req_ms >= interval then
     start_request()

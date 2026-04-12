@@ -203,6 +203,14 @@ Override keys if needed:
 - `proxy.stock_base`
 - `proxy.crypto_base`
 
+Important release rule:
+
+- `scripts/dev_api_proxy.py` is debug-only tooling and must not be a runtime dependency for published apps.
+- During development, finance apps may default to a LAN proxy for fast debugging.
+- Finance apps must still work with `proxy.*` keys unset (direct upstream path).
+- Yahoo auth/retry strategy (cookie + crumb flow) must be implemented in app/runtime logic, not only in dev proxy.
+- For release validation, explicitly test with proxy disabled.
+
 ## Firmware Architecture
 
 At a high level:
@@ -250,6 +258,28 @@ Example manifest:
 }
 ```
 
+## App Settings Decoupling Rule
+
+Development rule (must follow):
+
+- `webpages/f.html` must stay generic and must not add per-app hardcoded settings UI.
+- Preferred mode: each app owns its own settings UI page at `data_littlefs/apps/<app_id>/settings.html`.
+- Firmware exposes app web assets at `/api/apps/web/<app_id>/<file>`.
+- If `<file>.gz` exists, firmware serves it with `Content-Encoding: gzip` (recommended for `settings.html`).
+- `f.html` only decides whether to show the `Settings` button, then loads the app page; it does not define per-app fields.
+- App settings pages should read/write values via `/api/system/lua-data`, then call `/api/apps/reload` (and optional `/api/apps/switch/<app_id>`).
+
+This keeps app development decoupled from frontend changes and allows adding new apps without editing `f.html`.
+
+## Finance App Data Rule
+
+Development rule (must follow):
+
+- Finance apps (`stock1`, `stock_chart`, future stock/crypto apps) must own their data-fetch logic and failure handling.
+- App defaults must not hardcode LAN proxy endpoints.
+- Any debug proxy usage must come only from explicit `lua-data` config (`proxy.*`) and remain optional.
+- For Yahoo endpoints, follow the production flow used by firmware/app logic (cookie + crumb), and keep this path valid without proxy.
+
 Runtime expectations from `src/app/lua_app_runtime.h`:
 
 - app directory is `/littlefs/apps/<app_id>/`
@@ -295,6 +325,12 @@ If you are adding new firmware-side capabilities for apps, `src/app/lua_app_runt
 
 For app-only work, do not reflash firmware unless the runtime API changed.
 
+Device IP rule:
+
+1. keep active target device in repo root `device_ip.txt` (first non-empty line)
+2. app/device scripts read this file by default
+3. explicit `<device_ip[:port]>` argument still overrides the file for one-off commands
+
 Recommended loop:
 
 1. create or edit `data_littlefs/apps/<app_id>/main.lua`
@@ -306,25 +342,37 @@ Recommended loop:
 Push one app:
 
 ```bash
-scripts/push_app.sh 192.168.1.88 openmeteo_3day data_littlefs/apps --switch
+scripts/push_app.sh openmeteo_3day data_littlefs/apps --switch
 ```
 
 Switch active app:
 
 ```bash
-scripts/switch_app.sh 192.168.1.88 openmeteo_3day
+scripts/switch_app.sh openmeteo_3day
 ```
 
 Uninstall app from device:
 
 ```bash
-scripts/uninstall_app.sh 192.168.1.88 openmeteo_3day
+scripts/uninstall_app.sh openmeteo_3day
 ```
 
 Build + package + install + run one app (single command):
 
 ```bash
-scripts/build_package_install_run_app.sh 192.168.1.88 openmeteo_3day
+scripts/build_package_install_run_app.sh openmeteo_3day
+```
+
+Auto-upload on every file change while developing an app:
+
+```bash
+scripts/watch_and_push_app.sh openmeteo_3day
+```
+
+Fetch device logs over API:
+
+```bash
+scripts/device_logs.sh --scope app --limit 120
 ```
 
 When to rebuild firmware instead:
@@ -427,6 +475,7 @@ This repo depends heavily on `scripts/`. These are the ones most likely to matte
 - `scripts/push_app.sh`
   Uploads all files from `data_littlefs/apps/<app_id>/` to the device via HTTP `PUT`.
   Can optionally switch to the app after upload with `--switch`.
+  Upload policy: if `settings.html` exists, `settings.html.gz` is required, and only `.gz` is uploaded.
 
 - `scripts/switch_app.sh`
   Sends a request to switch the active app on device without reflashing firmware.
@@ -436,7 +485,16 @@ This repo depends heavily on `scripts/`. These are the ones most likely to matte
 
 - `scripts/build_package_install_run_app.sh`
   One-step flow for a single app: compile/package with `publish_apps.py`, install to device, and switch to run it.
-  Default installs packaged bytecode output; use `--source` to install source files instead.
+  Install path is always packaged bytecode output (`app.bin`), never source Lua.
+
+- `scripts/publish_apps.py`
+  Packaging policy mirrors upload: `settings.html` is excluded from zips; use `settings.html.gz` only.
+
+- `scripts/watch_and_push_app.sh`
+  Watches one app directory and auto-pushes to device on every file change.
+
+- `scripts/device_logs.sh`
+  Pulls `/api/system/logs` from device and prints concise logs (or raw JSON with `--raw`).
 
 - `scripts/ota_update.py`
   Uploads `firmware.bin` to the device over local HTTP OTA.
@@ -487,12 +545,19 @@ This repo depends heavily on `scripts/`. These are the ones most likely to matte
 - `scripts/publish_apps.py`
   Builds compiled app-store packages, generates `apps-index.json` / `apps-index.json.gz`, and can upload them to the remote app server.
   This publishes bytecode bundles, not source bundles.
+  Safety defaults:
+  - when publishing selected app ids, index update is incremental merge (keeps other apps)
+  - selected-app publish requires version bump vs current index
+  - use `--full-index` only for intentional full index rewrite
+  - use `--allow-no-bump` only for emergency override
 
 Compiled publish examples:
 
 ```bash
 python3 scripts/publish_apps.py crypto_fear_index stock_fear_index
 python3 scripts/publish_apps.py --upload
+python3 scripts/publish_apps.py stock1 --upload            # incremental (safe default)
+python3 scripts/publish_apps.py --upload --full-index      # full rewrite
 ```
 
 Packaging behavior:
@@ -580,6 +645,7 @@ For app-only changes:
 1. push app with `scripts/push_app.sh`
 2. switch to app
 3. verify on-device render and serial logs
+4. default all device operations to `device_ip.txt` unless explicitly overriding target
 
 For new app launches, the minimum bar is higher:
 

@@ -39,6 +39,7 @@ static const char* kDefaultStoreIndexUrl =
     "http://ota.geekmagic.cc:8001/fw/pixel64x32V2/apps/apps-index.json";
 static const char* kLuaDataDir = "/littlefs/.sys";
 static const char* kLuaDataPath = "/littlefs/.sys/lua_data.json";
+static const char* kInstalledAppsIndexPath = "/littlefs/.sys/installed_apps.json";
 static constexpr size_t kLogRingSize = 160;
 static constexpr size_t kLogTextBytes = 256;
 
@@ -59,6 +60,11 @@ static vprintf_like_t g_prev_log_vprintf = nullptr;
 static SemaphoreHandle_t g_installed_apps_cache_mu = nullptr;
 static bool g_installed_apps_cache_valid = false;
 static std::string g_installed_apps_cache_body;
+static portMUX_TYPE g_capture_mux = portMUX_INITIALIZER_UNLOCKED;
+static bool g_capture_busy = false;
+
+static bool EnsureDir(const char* path);
+static bool ReadSmallFile(const std::string& path, size_t max_bytes, std::string* out);
 
 static bool LooksLikeAppLog(const char* text) {
   if (!text || !*text) return false;
@@ -183,6 +189,40 @@ static void WriteInstalledAppsCache(std::string body) {
   UnlockInstalledAppsCache();
 }
 
+static bool SaveInstalledAppsIndexBody(const std::string& body) {
+  if (body.empty()) return false;
+  if (!EnsureDir(kLuaDataDir)) return false;
+  const std::string tmp_path = std::string(kInstalledAppsIndexPath) + ".tmp";
+  FILE* f = fopen(tmp_path.c_str(), "wb");
+  if (!f) return false;
+  const size_t need = body.size();
+  const size_t wrote = fwrite(body.data(), 1, need, f);
+  if (fclose(f) != 0 || wrote != need) {
+    unlink(tmp_path.c_str());
+    return false;
+  }
+  if (rename(tmp_path.c_str(), kInstalledAppsIndexPath) != 0) {
+    unlink(tmp_path.c_str());
+    return false;
+  }
+  return true;
+}
+
+static bool LoadInstalledAppsIndexBody(std::string* out_body) {
+  if (out_body) out_body->clear();
+  if (!out_body) return false;
+  std::string body;
+  if (!ReadSmallFile(kInstalledAppsIndexPath, 64 * 1024, &body) || body.empty()) return false;
+  cJSON* root = cJSON_ParseWithLength(body.c_str(), body.size());
+  if (!root) return false;
+  const cJSON* apps = cJSON_GetObjectItemCaseSensitive(root, "apps");
+  const bool ok = cJSON_IsArray(apps);
+  cJSON_Delete(root);
+  if (!ok) return false;
+  *out_body = std::move(body);
+  return true;
+}
+
 static bool EnsureDir(const char* path) {
   if (!path || !*path) return false;
   if (mkdir(path, 0755) == 0) return true;
@@ -219,10 +259,9 @@ static bool IsAllowedFilename(const std::string& filename) {
 static void SendJson(httpd_req_t* req, const char* status, const char* json) {
   httpd_resp_set_type(req, "application/json");
   httpd_resp_set_status(req, status);
+  httpd_resp_set_hdr(req, "Connection", "close");
   httpd_resp_sendstr(req, json);
 }
-
-static bool ReadSmallFile(const std::string& path, size_t max_bytes, std::string* out);
 
 static cJSON* LoadLuaDataRootForHttp() {
   std::string text;
@@ -268,12 +307,37 @@ static bool SaveLuaDataRootForHttp(cJSON* root, std::string* out_err) {
     if (out_err) *out_err = "write tmp failed";
     return false;
   }
-  if (rename(tmp_path.c_str(), kLuaDataPath) != 0) {
+
+  if (rename(tmp_path.c_str(), kLuaDataPath) == 0) return true;
+  const int rename_errno_1 = errno;
+
+  bool replaced = false;
+  if (unlink(kLuaDataPath) == 0 || errno == ENOENT) {
+    if (rename(tmp_path.c_str(), kLuaDataPath) == 0) {
+      replaced = true;
+    }
+  }
+  const int replace_errno = errno;
+  if (replaced) return true;
+
+  // Fallback: rewrite in place when LittleFS blocks unlink/rename due open FD.
+  FILE* wf = fopen(kLuaDataPath, "wb");
+  if (wf) {
+    const size_t direct_wrote = fwrite(text.data(), 1, text.size(), wf);
+    const bool direct_ok = (fclose(wf) == 0) && (direct_wrote == text.size());
     unlink(tmp_path.c_str());
-    if (out_err) *out_err = "rename failed";
+    if (direct_ok) return true;
+    if (out_err) *out_err = "direct write failed";
     return false;
   }
-  return true;
+
+  unlink(tmp_path.c_str());
+  if (out_err) {
+    *out_err = std::string("rename failed errno=") + std::to_string(rename_errno_1) +
+               ", replace errno=" + std::to_string(replace_errno) +
+               ", open target failed errno=" + std::to_string(errno);
+  }
+  return false;
 }
 
 static bool IsValidLuaDataKey(const std::string& key) {
@@ -325,6 +389,29 @@ static bool ParsePutUri(const char* uri, std::string* out_app_id, std::string* o
 
   const std::string app_id = tail.substr(0, slash);
   const std::string filename = tail.substr(slash + 1);  // may include subdirs, e.g. icons/btc-24.png
+  if (!IsValidAppId(app_id)) return false;
+  if (!IsAllowedFilename(filename)) return false;
+
+  *out_app_id = app_id;
+  *out_filename = filename;
+  return true;
+}
+
+static bool ParseAppWebUri(const char* uri, std::string* out_app_id, std::string* out_filename) {
+  if (out_app_id) out_app_id->clear();
+  if (out_filename) out_filename->clear();
+  if (!uri || !out_app_id || !out_filename) return false;
+
+  const std::string raw = UriWithoutQuery(uri);
+  static const std::string kPrefix = "/api/apps/web/";
+  if (raw.rfind(kPrefix, 0) != 0) return false;
+
+  const std::string tail = raw.substr(kPrefix.size());
+  const size_t slash = tail.find('/');
+  if (slash == std::string::npos || slash == 0 || slash + 1 >= tail.size()) return false;
+
+  const std::string app_id = tail.substr(0, slash);
+  const std::string filename = tail.substr(slash + 1);
   if (!IsValidAppId(app_id)) return false;
   if (!IsAllowedFilename(filename)) return false;
 
@@ -591,6 +678,40 @@ static bool ReadAppManifestString(const std::string& app_id, const char* key, st
   return !out_value->empty();
 }
 
+static bool ReadAppManifestJson(const std::string& app_id, size_t max_bytes, cJSON** out_root) {
+  if (out_root) *out_root = nullptr;
+  if (!out_root || !IsValidAppId(app_id)) return false;
+  if (max_bytes < 512) max_bytes = 512;
+  const std::string app_dir = std::string("/littlefs/apps/") + app_id;
+  std::string manifest;
+  if (!ReadSmallFile(app_dir + "/manifest.json", max_bytes, &manifest)) return false;
+  cJSON* root = cJSON_ParseWithLength(manifest.c_str(), manifest.size());
+  if (!root || !cJSON_IsObject(root)) {
+    if (root) cJSON_Delete(root);
+    return false;
+  }
+  *out_root = root;
+  return true;
+}
+
+static bool AddAppSettingsSchema(const std::string& app_id, cJSON* item) {
+  if (!item || !cJSON_IsObject(item)) return false;
+  cJSON* root = nullptr;
+  if (!ReadAppManifestJson(app_id, 8192, &root)) return false;
+  cJSON* settings = cJSON_GetObjectItemCaseSensitive(root, "settings");
+  bool ok = false;
+  if (settings && cJSON_IsObject(settings)) {
+    cJSON* copy = cJSON_Duplicate(settings, 1);
+    if (copy && cJSON_AddItemToObject(item, "settings", copy)) {
+      ok = true;
+    } else if (copy) {
+      cJSON_Delete(copy);
+    }
+  }
+  cJSON_Delete(root);
+  return ok;
+}
+
 static bool ReadAppVersion(const std::string& app_id, std::string* out_version) {
   if (out_version) out_version->clear();
   if (!out_version || !IsValidAppId(app_id)) return false;
@@ -638,6 +759,15 @@ static bool AppHasThumbnail(const std::string& app_id) {
   return false;
 }
 
+static bool AppHasSettingsPage(const std::string& app_id) {
+  if (!IsValidAppId(app_id)) return false;
+  const std::string path = std::string("/littlefs/apps/") + app_id + "/settings.html";
+  struct stat st = {};
+  if (stat(path.c_str(), &st) == 0 && S_ISREG(st.st_mode)) return true;
+  const std::string gz_path = path + ".gz";
+  return stat(gz_path.c_str(), &st) == 0 && S_ISREG(st.st_mode);
+}
+
 static bool AppHasLoadableEntry(const std::string& app_id) {
   if (!IsValidAppId(app_id)) return false;
   const std::string app_dir = std::string("/littlefs/apps/") + app_id;
@@ -661,11 +791,149 @@ static bool AppHasLoadableEntry(const std::string& app_id) {
   return false;
 }
 
+static cJSON* BuildInstalledAppEntry(const std::string& app_id) {
+  if (!IsValidAppId(app_id)) return nullptr;
+  const std::string app_dir = std::string("/littlefs/apps/") + app_id;
+  struct stat st = {};
+  if (stat(app_dir.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)) return nullptr;
+  if (!AppHasLoadableEntry(app_id)) return nullptr;
+
+  std::string version;
+  (void)ReadAppVersion(app_id, &version);
+  std::string display_name;
+  if (!ReadAppName(app_id, &display_name)) display_name = app_id;
+  const bool has_thumb = AppHasThumbnail(app_id);
+  const bool has_settings_page = AppHasSettingsPage(app_id);
+
+  cJSON* item = cJSON_CreateObject();
+  if (!item) return nullptr;
+  if (!cJSON_AddStringToObject(item, "id", app_id.c_str()) ||
+      !cJSON_AddStringToObject(item, "name", display_name.c_str()) ||
+      !cJSON_AddStringToObject(item, "version", version.c_str()) ||
+      !cJSON_AddBoolToObject(item, "has_thumbnail", has_thumb)) {
+    cJSON_Delete(item);
+    return nullptr;
+  }
+
+  std::string thumbnail_url;
+  if (has_thumb) thumbnail_url = "/api/apps/thumbnail/" + app_id;
+  if (!cJSON_AddStringToObject(item, "thumbnail_url", thumbnail_url.c_str())) {
+    cJSON_Delete(item);
+    return nullptr;
+  }
+  if (!cJSON_AddBoolToObject(item, "has_settings_page", has_settings_page)) {
+    cJSON_Delete(item);
+    return nullptr;
+  }
+  std::string settings_page_url;
+  if (has_settings_page) settings_page_url = "/api/apps/web/" + app_id + "/settings.html";
+  if (!cJSON_AddStringToObject(item, "settings_page_url", settings_page_url.c_str())) {
+    cJSON_Delete(item);
+    return nullptr;
+  }
+  (void)AddAppSettingsSchema(app_id, item);
+  return item;
+}
+
+static cJSON* LoadInstalledAppsIndexRoot() {
+  std::string body;
+  if (LoadInstalledAppsIndexBody(&body)) {
+    cJSON* root = cJSON_ParseWithLength(body.c_str(), body.size());
+    if (root) {
+      cJSON* apps = cJSON_GetObjectItemCaseSensitive(root, "apps");
+      if (cJSON_IsArray(apps)) return root;
+      cJSON_Delete(root);
+    }
+  }
+
+  cJSON* root = cJSON_CreateObject();
+  if (!root) return nullptr;
+  cJSON* apps = cJSON_CreateArray();
+  if (!apps) {
+    cJSON_Delete(root);
+    return nullptr;
+  }
+  cJSON_AddItemToObject(root, "ok", cJSON_CreateTrue());
+  cJSON_AddItemToObject(root, "apps", apps);
+  return root;
+}
+
+static cJSON* EnsureInstalledAppsArray(cJSON* root) {
+  if (!root || !cJSON_IsObject(root)) return nullptr;
+  cJSON* apps = cJSON_GetObjectItemCaseSensitive(root, "apps");
+  if (cJSON_IsArray(apps)) return apps;
+  apps = cJSON_CreateArray();
+  if (!apps) return nullptr;
+  cJSON_ReplaceItemInObject(root, "ok", cJSON_CreateTrue());
+  cJSON_AddItemToObject(root, "apps", apps);
+  return apps;
+}
+
+static void RemoveInstalledAppEntryById(cJSON* apps, const std::string& app_id) {
+  if (!apps || !cJSON_IsArray(apps) || !IsValidAppId(app_id)) return;
+  const int count = cJSON_GetArraySize(apps);
+  for (int i = 0; i < count; ++i) {
+    cJSON* item = cJSON_GetArrayItem(apps, i);
+    const cJSON* id = cJSON_GetObjectItemCaseSensitive(item, "id");
+    if (cJSON_IsString(id) && id->valuestring && app_id == id->valuestring) {
+      cJSON_DeleteItemFromArray(apps, i);
+      return;
+    }
+  }
+}
+
+static bool SaveInstalledAppsIndexRoot(cJSON* root) {
+  if (!root) return false;
+  cJSON_ReplaceItemInObject(root, "ok", cJSON_CreateTrue());
+  char* rendered = cJSON_PrintUnformatted(root);
+  if (!rendered) return false;
+  const std::string body(rendered);
+  cJSON_free(rendered);
+  if (!SaveInstalledAppsIndexBody(body)) return false;
+  WriteInstalledAppsCache(body);
+  return true;
+}
+
+static bool UpdateInstalledAppsIndexForApp(const std::string& app_id) {
+  if (!IsValidAppId(app_id)) return false;
+  cJSON* root = LoadInstalledAppsIndexRoot();
+  if (!root) return false;
+  cJSON* apps = EnsureInstalledAppsArray(root);
+  if (!apps) {
+    cJSON_Delete(root);
+    return false;
+  }
+
+  RemoveInstalledAppEntryById(apps, app_id);
+  cJSON* item = BuildInstalledAppEntry(app_id);
+  if (item) cJSON_AddItemToArray(apps, item);
+
+  const bool ok = SaveInstalledAppsIndexRoot(root);
+  cJSON_Delete(root);
+  return ok;
+}
+
+static bool RemoveInstalledAppsIndexForApp(const std::string& app_id) {
+  if (!IsValidAppId(app_id)) return false;
+  cJSON* root = LoadInstalledAppsIndexRoot();
+  if (!root) return false;
+  cJSON* apps = EnsureInstalledAppsArray(root);
+  if (!apps) {
+    cJSON_Delete(root);
+    return false;
+  }
+  RemoveInstalledAppEntryById(apps, app_id);
+  const bool ok = SaveInstalledAppsIndexRoot(root);
+  cJSON_Delete(root);
+  return ok;
+}
+
 static bool SendFile(httpd_req_t* req, const std::string& path, const char* content_type) {
   FILE* f = fopen(path.c_str(), "rb");
   if (!f) return false;
   httpd_resp_set_status(req, "200 OK");
   if (content_type) httpd_resp_set_type(req, content_type);
+  httpd_resp_set_hdr(req, "Connection", "close");
   char buf[768];
   while (true) {
     const size_t n = fread(buf, 1, sizeof(buf), f);
@@ -697,6 +965,7 @@ static esp_err_t SendCompressedHtml(httpd_req_t* req, const unsigned char* data,
   httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
   httpd_resp_set_hdr(req, "Cache-Control", "no-store");
   httpd_resp_set_hdr(req, "X-Content-Type-Options", "nosniff");
+  httpd_resp_set_hdr(req, "Connection", "close");
   return httpd_resp_send(req, reinterpret_cast<const char*>(data), static_cast<ssize_t>(len));
 }
 
@@ -859,7 +1128,9 @@ static esp_err_t HandlePutAppFile(httpd_req_t* req) {
   }
 
   ESP_LOGI(kTag, "updated %s (%d bytes)", final_path.c_str(), wrote);
-  InvalidateInstalledAppsCache();
+  if (!UpdateInstalledAppsIndexForApp(app_id)) {
+    InvalidateInstalledAppsCache();
+  }
 
   SendJson(req, "200 OK", "{\"ok\":true}");
   return ESP_OK;
@@ -881,7 +1152,9 @@ static esp_err_t HandleDeleteAppFile(httpd_req_t* req) {
     }
 
     ESP_LOGI(kTag, "uninstalled app: %s", app_only_id.c_str());
-    InvalidateInstalledAppsCache();
+    if (!RemoveInstalledAppsIndexForApp(app_only_id)) {
+      InvalidateInstalledAppsCache();
+    }
     SendJson(req, "200 OK", "{\"ok\":true,\"uninstalled\":true}");
     return ESP_OK;
   }
@@ -900,13 +1173,23 @@ static esp_err_t HandleDeleteAppFile(httpd_req_t* req) {
   }
 
   ESP_LOGI(kTag, "deleted %s", final_path.c_str());
-  InvalidateInstalledAppsCache();
+  if (!UpdateInstalledAppsIndexForApp(app_id)) {
+    InvalidateInstalledAppsCache();
+  }
   SendJson(req, "200 OK", "{\"ok\":true,\"deleted\":true}");
   return ESP_OK;
 }
 
+static std::string BuildInstalledAppsBody();
+
 static esp_err_t HandleReload(httpd_req_t* req) {
   InvalidateInstalledAppsCache();
+  const std::string body = BuildInstalledAppsBody();
+  if (!SaveInstalledAppsIndexBody(body)) {
+    SendJson(req, "500 Internal Server Error", "{\"ok\":false,\"error\":\"refresh installed apps index failed\"}");
+    return ESP_OK;
+  }
+  WriteInstalledAppsCache(body);
   NotifyReloadRequested();
   SendJson(req, "200 OK", "{\"ok\":true,\"reloaded\":true}");
   return ESP_OK;
@@ -934,62 +1217,85 @@ static esp_err_t HandlePing(httpd_req_t* req) {
   return ESP_OK;
 }
 
+static esp_err_t HandleCurrentApp(httpd_req_t* req) {
+  char app_id_buf[64] = {};
+  char app_dir_buf[96] = {};
+  const bool running = LvglGetCurrentLuaAppInfo(app_id_buf, sizeof(app_id_buf), app_dir_buf, sizeof(app_dir_buf));
+
+  const std::string app_id = app_id_buf;
+  std::string app_name = app_id;
+  std::string app_version;
+  bool has_thumb = false;
+  if (running && IsValidAppId(app_id)) {
+    (void)ReadAppName(app_id, &app_name);
+    (void)ReadAppVersion(app_id, &app_version);
+    has_thumb = AppHasThumbnail(app_id);
+  } else {
+    app_name.clear();
+  }
+
+  std::string body = "{\"ok\":true,\"running\":";
+  body += running ? "true" : "false";
+  body += ",\"app_id\":\"";
+  AppendJsonEscaped(&body, app_id);
+  body += "\",\"app_dir\":\"";
+  AppendJsonEscaped(&body, app_dir_buf);
+  body += "\",\"name\":\"";
+  AppendJsonEscaped(&body, app_name);
+  body += "\",\"version\":\"";
+  AppendJsonEscaped(&body, app_version);
+  body += "\",\"has_thumbnail\":";
+  body += has_thumb ? "true" : "false";
+  body += ",\"thumbnail_url\":\"";
+  if (has_thumb) {
+    body += "/api/apps/thumbnail/";
+    AppendJsonEscaped(&body, app_id);
+  }
+  body += "\"}";
+  SendJson(req, "200 OK", body.c_str());
+  return ESP_OK;
+}
+
 static std::string BuildInstalledAppsBody() {
-  DIR* dir = opendir("/littlefs/apps");
-  if (!dir) {
+  cJSON* root = cJSON_CreateObject();
+  cJSON* apps = cJSON_CreateArray();
+  if (!root || !apps) {
+    if (root) cJSON_Delete(root);
+    if (apps) cJSON_Delete(apps);
     return "{\"ok\":true,\"apps\":[]}";
   }
+  cJSON_AddItemToObject(root, "ok", cJSON_CreateTrue());
+  cJSON_AddItemToObject(root, "apps", apps);
 
-  std::string body = "{\"ok\":true,\"apps\":[";
-  bool first = true;
-  while (true) {
-    struct dirent* ent = readdir(dir);
-    if (!ent) break;
-    const char* name = ent->d_name;
-    if (!name) continue;
-    if ((strcmp(name, ".") == 0) || (strcmp(name, "..") == 0)) continue;
-    const std::string app_id = name;
-    if (!IsValidAppId(app_id)) continue;
-
-    const std::string app_dir = std::string("/littlefs/apps/") + app_id;
-    struct stat st = {};
-    if (stat(app_dir.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)) continue;
-
-    if (!AppHasLoadableEntry(app_id)) continue;
-
-    std::string version;
-    (void)ReadAppVersion(app_id, &version);
-    std::string display_name;
-    if (!ReadAppName(app_id, &display_name)) display_name = app_id;
-    const bool has_thumb = AppHasThumbnail(app_id);
-
-    if (!first) body += ",";
-    first = false;
-    body += "{\"id\":\"";
-    AppendJsonEscaped(&body, app_id);
-    body += "\",\"name\":\"";
-    AppendJsonEscaped(&body, display_name);
-    body += "\",\"version\":\"";
-    AppendJsonEscaped(&body, version);
-    body += "\",\"has_thumbnail\":";
-    body += has_thumb ? "true" : "false";
-    body += ",\"thumbnail_url\":\"";
-    if (has_thumb) {
-      body += "/api/apps/thumbnail/";
-      AppendJsonEscaped(&body, app_id);
+  DIR* dir = opendir("/littlefs/apps");
+  if (dir) {
+    while (true) {
+      struct dirent* ent = readdir(dir);
+      if (!ent) break;
+      const char* name = ent->d_name;
+      if (!name) continue;
+      if ((strcmp(name, ".") == 0) || (strcmp(name, "..") == 0)) continue;
+      const std::string app_id = name;
+      cJSON* item = BuildInstalledAppEntry(app_id);
+      if (item) cJSON_AddItemToArray(apps, item);
     }
-    body += "\"";
-    body += "}";
+    closedir(dir);
   }
-  closedir(dir);
-  body += "]}";
+
+  char* rendered = cJSON_PrintUnformatted(root);
+  std::string body = rendered ? rendered : "{\"ok\":true,\"apps\":[]}";
+  if (rendered) cJSON_free(rendered);
+  cJSON_Delete(root);
   return body;
 }
 
 static esp_err_t HandleInstalledApps(httpd_req_t* req) {
   std::string body;
   if (!ReadInstalledAppsCache(&body)) {
-    body = BuildInstalledAppsBody();
+    if (!LoadInstalledAppsIndexBody(&body)) {
+      body = BuildInstalledAppsBody();
+      (void)SaveInstalledAppsIndexBody(body);
+    }
     WriteInstalledAppsCache(body);
   }
   SendJson(req, "200 OK", body.c_str());
@@ -1018,6 +1324,50 @@ static esp_err_t HandleAppThumbnail(httpd_req_t* req) {
   }
   httpd_resp_set_status(req, "404 Not Found");
   httpd_resp_send(req, "not found", HTTPD_RESP_USE_STRLEN);
+  return ESP_OK;
+}
+
+static const char* ContentTypeFromFilename(const std::string& filename) {
+  std::string lower = filename;
+  for (char& ch : lower) {
+    ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+  }
+  if (lower.size() >= 5 && lower.compare(lower.size() - 5, 5, ".html") == 0) return "text/html; charset=utf-8";
+  if (lower.size() >= 4 && lower.compare(lower.size() - 4, 4, ".css") == 0) return "text/css; charset=utf-8";
+  if (lower.size() >= 3 && lower.compare(lower.size() - 3, 3, ".js") == 0) return "application/javascript; charset=utf-8";
+  if (lower.size() >= 5 && lower.compare(lower.size() - 5, 5, ".json") == 0) return "application/json; charset=utf-8";
+  if (lower.size() >= 4 && lower.compare(lower.size() - 4, 4, ".png") == 0) return "image/png";
+  if (lower.size() >= 4 && lower.compare(lower.size() - 4, 4, ".jpg") == 0) return "image/jpeg";
+  if (lower.size() >= 5 && lower.compare(lower.size() - 5, 5, ".jpeg") == 0) return "image/jpeg";
+  if (lower.size() >= 4 && lower.compare(lower.size() - 4, 4, ".svg") == 0) return "image/svg+xml";
+  if (lower.size() >= 4 && lower.compare(lower.size() - 4, 4, ".ico") == 0) return "image/x-icon";
+  if (lower.size() >= 4 && lower.compare(lower.size() - 4, 4, ".txt") == 0) return "text/plain; charset=utf-8";
+  return "application/octet-stream";
+}
+
+static esp_err_t HandleAppWebFile(httpd_req_t* req) {
+  std::string app_id;
+  std::string filename;
+  if (!ParseAppWebUri(req->uri, &app_id, &filename)) {
+    SendJson(req, "400 Bad Request", "{\"ok\":false,\"error\":\"invalid path\"}");
+    return ESP_OK;
+  }
+  const std::string full_path = std::string("/littlefs/apps/") + app_id + "/" + filename;
+  const std::string gz_path = full_path + ".gz";
+  struct stat st = {};
+  struct stat gz_st = {};
+  const bool has_plain = (stat(full_path.c_str(), &st) == 0 && S_ISREG(st.st_mode));
+  const bool has_gzip = (stat(gz_path.c_str(), &gz_st) == 0 && S_ISREG(gz_st.st_mode));
+  if (has_gzip) {
+    httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
+    if (SendFile(req, gz_path, ContentTypeFromFilename(filename))) return ESP_OK;
+  } else if (has_plain) {
+    if (SendFile(req, full_path, ContentTypeFromFilename(filename))) return ESP_OK;
+  } else {
+    SendJson(req, "404 Not Found", "{\"ok\":false,\"error\":\"file not found\"}");
+    return ESP_OK;
+  }
+  SendJson(req, "500 Internal Server Error", "{\"ok\":false,\"error\":\"send failed\"}");
   return ESP_OK;
 }
 
@@ -1292,7 +1642,7 @@ static esp_err_t HandleSystemLuaDataPost(httpd_req_t* req) {
   }
 
   std::string err;
-  const bool ok = changed && SaveLuaDataRootForHttp(root, &err);
+  const bool ok = !changed || SaveLuaDataRootForHttp(root, &err);
   cJSON_Delete(root);
   cJSON_Delete(payload);
   if (!ok) {
@@ -1302,7 +1652,7 @@ static esp_err_t HandleSystemLuaDataPost(httpd_req_t* req) {
     SendJson(req, "500 Internal Server Error", resp.c_str());
     return ESP_OK;
   }
-  SendJson(req, "200 OK", "{\"ok\":true}");
+  SendJson(req, "200 OK", changed ? "{\"ok\":true}" : "{\"ok\":true,\"changed\":false}");
   return ESP_OK;
 }
 
@@ -1370,10 +1720,25 @@ static inline uint8_t Expand5(uint16_t v) { return static_cast<uint8_t>((v << 3)
 static inline uint8_t Expand6(uint16_t v) { return static_cast<uint8_t>((v << 2) | (v >> 4)); }
 
 static esp_err_t HandleScreenCapturePpm(httpd_req_t* req) {
+  bool allow_capture = false;
+  portENTER_CRITICAL(&g_capture_mux);
+  if (!g_capture_busy) {
+    g_capture_busy = true;
+    allow_capture = true;
+  }
+  portEXIT_CRITICAL(&g_capture_mux);
+  if (!allow_capture) {
+    SendJson(req, "429 Too Many Requests", "{\"ok\":false,\"error\":\"capture busy\"}");
+    return ESP_OK;
+  }
+
   uint16_t frame[64 * 32];
   size_t w = 0;
   size_t h = 0;
   if (!LvglCaptureLuaAppFrameRgb565(frame, sizeof(frame) / sizeof(frame[0]), &w, &h) || w != 64 || h != 32) {
+    portENTER_CRITICAL(&g_capture_mux);
+    g_capture_busy = false;
+    portEXIT_CRITICAL(&g_capture_mux);
     SendJson(req, "503 Service Unavailable", "{\"ok\":false,\"error\":\"capture unavailable\"}");
     return ESP_OK;
   }
@@ -1381,11 +1746,15 @@ static esp_err_t HandleScreenCapturePpm(httpd_req_t* req) {
   httpd_resp_set_status(req, "200 OK");
   httpd_resp_set_type(req, "image/x-portable-pixmap");
   httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+  httpd_resp_set_hdr(req, "Connection", "close");
 
   char header[64];
   const int header_len = snprintf(header, sizeof(header), "P6\n%u %u\n255\n", static_cast<unsigned>(w),
                                   static_cast<unsigned>(h));
   if (header_len <= 0 || httpd_resp_send_chunk(req, header, static_cast<size_t>(header_len)) != ESP_OK) {
+    portENTER_CRITICAL(&g_capture_mux);
+    g_capture_busy = false;
+    portEXIT_CRITICAL(&g_capture_mux);
     return ESP_FAIL;
   }
 
@@ -1401,10 +1770,16 @@ static esp_err_t HandleScreenCapturePpm(httpd_req_t* req) {
       row[x * 3 + 2] = b;
     }
     if (httpd_resp_send_chunk(req, reinterpret_cast<const char*>(row), sizeof(row)) != ESP_OK) {
+      portENTER_CRITICAL(&g_capture_mux);
+      g_capture_busy = false;
+      portEXIT_CRITICAL(&g_capture_mux);
       return ESP_FAIL;
     }
   }
   (void)httpd_resp_send_chunk(req, nullptr, 0);
+  portENTER_CRITICAL(&g_capture_mux);
+  g_capture_busy = false;
+  portEXIT_CRITICAL(&g_capture_mux);
   return ESP_OK;
 }
 
@@ -1421,6 +1796,8 @@ bool AppUpdateServerStart(AppUpdateReloadCallback reload_cb, AppUpdateSwitchCall
   cfg.uri_match_fn = httpd_uri_match_wildcard;
   cfg.max_uri_handlers = 30;
   cfg.stack_size = 8192;
+  cfg.lru_purge_enable = true;
+  cfg.keep_alive_enable = false;
 
   const esp_err_t start_ret = httpd_start(&g_httpd, &cfg);
   if (start_ret != ESP_OK) {
@@ -1479,6 +1856,17 @@ bool AppUpdateServerStart(AppUpdateReloadCallback reload_cb, AppUpdateSwitchCall
   ping.handler = HandlePing;
   if (httpd_register_uri_handler(g_httpd, &ping) != ESP_OK) {
     ESP_LOGE(kTag, "register ping failed");
+    httpd_stop(g_httpd);
+    g_httpd = nullptr;
+    return false;
+  }
+
+  httpd_uri_t current = {};
+  current.uri = "/api/apps/current";
+  current.method = HTTP_GET;
+  current.handler = HandleCurrentApp;
+  if (httpd_register_uri_handler(g_httpd, &current) != ESP_OK) {
+    ESP_LOGE(kTag, "register current app failed");
     httpd_stop(g_httpd);
     g_httpd = nullptr;
     return false;
@@ -1611,6 +1999,17 @@ bool AppUpdateServerStart(AppUpdateReloadCallback reload_cb, AppUpdateSwitchCall
   thumb.handler = HandleAppThumbnail;
   if (httpd_register_uri_handler(g_httpd, &thumb) != ESP_OK) {
     ESP_LOGE(kTag, "register thumbnail failed");
+    httpd_stop(g_httpd);
+    g_httpd = nullptr;
+    return false;
+  }
+
+  httpd_uri_t app_web = {};
+  app_web.uri = "/api/apps/web/*";
+  app_web.method = HTTP_GET;
+  app_web.handler = HandleAppWebFile;
+  if (httpd_register_uri_handler(g_httpd, &app_web) != ESP_OK) {
+    ESP_LOGE(kTag, "register app web failed");
     httpd_stop(g_httpd);
     g_httpd = nullptr;
     return false;

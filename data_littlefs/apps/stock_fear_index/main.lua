@@ -1,18 +1,24 @@
 local app = {}
 
 local FONT_UI = "builtin:silkscreen_regular_8"
-local DEV_PROXY_BASE = "http://192.168.3.139:8787"
+local DEV_PROXY_BASE = "http://192.168.3.156:8787"
 local proxy_base = tostring(data.get("proxy.market_data_base") or data.get("proxy.stock_base") or DEV_PROXY_BASE)
-local URL = "https://onoff.markets/data/stocks-fear-greed.json"
+local URL = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
 if proxy_base ~= "" then
   if string.sub(proxy_base, -1) == "/" then
     proxy_base = string.sub(proxy_base, 1, #proxy_base - 1)
   end
-  URL = proxy_base .. "/stocks/fear_greed"
+  URL = proxy_base .. "/proxy/cnn/index/fearandgreed/graphdata"
 end
-local TTL_MS = 15 * 60 * 1000
-local FETCH_INTERVAL_MS = 60 * 1000
-local RETRY_INTERVAL_MS = 5 * 1000
+local TTL_MS = tonumber(data.get("stock_fear_index.ttl_ms") or (15 * 60 * 1000)) or (15 * 60 * 1000)
+if TTL_MS < 60 * 1000 then TTL_MS = 60 * 1000 end
+if TTL_MS > 6 * 60 * 60 * 1000 then TTL_MS = 6 * 60 * 60 * 1000 end
+local FETCH_INTERVAL_MS = tonumber(data.get("stock_fear_index.refresh_interval_ms") or (60 * 1000)) or (60 * 1000)
+if FETCH_INTERVAL_MS < 10 * 1000 then FETCH_INTERVAL_MS = 10 * 1000 end
+if FETCH_INTERVAL_MS > 60 * 60 * 1000 then FETCH_INTERVAL_MS = 60 * 60 * 1000 end
+local RETRY_INTERVAL_MS = tonumber(data.get("stock_fear_index.retry_interval_ms") or (5 * 1000)) or (5 * 1000)
+if RETRY_INTERVAL_MS < 2 * 1000 then RETRY_INTERVAL_MS = 2 * 1000 end
+if RETRY_INTERVAL_MS > 60 * 1000 then RETRY_INTERVAL_MS = 60 * 1000 end
 
 local C_BG = 0x0000
 local C_LINE = 0x18C3
@@ -40,6 +46,7 @@ local state = {
   score = nil,
   label = nil,
   change = nil,
+  prev_close = nil,
   history = {},
   updated = nil,
   err = nil,
@@ -116,24 +123,67 @@ local function parse_history(obj)
   return out
 end
 
+local function title_case_words(s)
+  local text = string.lower(tostring(s or ""))
+  local out = string.gsub(text, "(%a)([%w_]*)", function(a, b)
+    return string.upper(a) .. string.lower(string.gsub(b, "_", " "))
+  end)
+  out = string.gsub(out, "_", " ")
+  return out
+end
+
+local function parse_cnn_history(obj)
+  local out = {}
+  local hist = obj and obj.fear_and_greed_historical
+  local rows = hist and hist.data
+  if type(rows) ~= "table" then return out end
+  for i = #rows, 1, -1 do
+    local row = rows[i]
+    local v = tonumber(row and row.y)
+    if v then out[#out + 1] = v end
+    if #out >= 7 then break end
+  end
+  return out
+end
+
 local function parse_body(body)
   local obj, err = json.decode(body)
   if not obj then return nil, err or "JSON ERR" end
-  local score = tonumber(obj.score)
+
+  local score = nil
+  local label = ""
+  local updated = ""
+  local hist = {}
+  local prev_close = nil
+
+  if type(obj.fear_and_greed) == "table" then
+    local fg = obj.fear_and_greed
+    score = tonumber(fg.score)
+    label = title_case_words(fg.rating or "")
+    updated = tostring(fg.timestamp or "")
+    prev_close = tonumber(fg.previous_close)
+    hist = parse_cnn_history(obj)
+  else
+    score = tonumber(obj.score)
+    label = tostring(obj.label or "")
+    updated = tostring(obj.timestamp or "")
+    hist = parse_history(obj)
+  end
+
   if not score then return nil, "NO SCORE" end
-  local hist = parse_history(obj)
-  local prev = hist[2]
+  local prev = prev_close or hist[2]
   state.score = math.floor(score + 0.5)
-  state.label = tostring(obj.label or "")
+  state.label = label
   state.change = prev and (score - prev) or nil
+  state.prev_close = prev_close
   state.history = hist
-  state.updated = tostring(obj.timestamp or "")
+  state.updated = updated
   state.err = nil
   return true
 end
 
 local function start_fetch()
-  local id, body, age_ms, err = net.cached_get(URL, TTL_MS, 8000, 32768)
+  local id, body, age_ms, err = net.cached_get(URL, TTL_MS, 12000, 262144)
   if err then
     state.err = err
     return
@@ -194,6 +244,7 @@ function app.init(config)
   state.score = nil
   state.label = nil
   state.change = nil
+  state.prev_close = nil
   state.history = {}
   state.updated = nil
   state.err = nil

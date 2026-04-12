@@ -1,6 +1,6 @@
 local app = {}
 
-local symbols = {
+local DEFAULT_SYMBOLS = {
   "BTCUSDT",
   "ETHUSDT",
   "BNBUSDT",
@@ -12,6 +12,45 @@ local symbols = {
   "AVAXUSDT",
   "DOTUSDT",
 }
+
+local SUPPORTED_SYMBOLS = {}
+for i = 1, #DEFAULT_SYMBOLS do
+  SUPPORTED_SYMBOLS[DEFAULT_SYMBOLS[i]] = true
+end
+
+local function normalize_symbols(raw)
+  local out = {}
+  local seen = {}
+
+  local function add_symbol(sym)
+    local s = string.upper(tostring(sym or ""))
+    s = string.gsub(s, "%s+", "")
+    if s ~= "" and SUPPORTED_SYMBOLS[s] and not seen[s] then
+      out[#out + 1] = s
+      seen[s] = true
+    end
+  end
+
+  if type(raw) == "table" then
+    for i = 1, #raw do
+      add_symbol(raw[i])
+    end
+  else
+    local text = tostring(raw or "")
+    for token in string.gmatch(text, "[^,]+") do
+      add_symbol(token)
+    end
+  end
+
+  if #out == 0 then
+    for i = 1, #DEFAULT_SYMBOLS do
+      out[#out + 1] = DEFAULT_SYMBOLS[i]
+    end
+  end
+  return out
+end
+
+local symbols = normalize_symbols(data.get("binance_ticker.symbols"))
 
 local icon_map = {
   BTCUSDT = "S:/littlefs/apps/binance_ticker/icons/btc-24.png",
@@ -32,7 +71,16 @@ local base_hosts = {
 
 local ROTATE_INTERVAL_MS = tonumber(data.get("binance_ticker.rotate_interval_ms") or 5000) or 5000
 if ROTATE_INTERVAL_MS < 5000 then ROTATE_INTERVAL_MS = 5000 end
-local MIN_REFRESH_MS = 10000
+if ROTATE_INTERVAL_MS > 600000 then ROTATE_INTERVAL_MS = 600000 end
+local MIN_REFRESH_MS = tonumber(data.get("binance_ticker.refresh_interval_ms") or 10000) or 10000
+if MIN_REFRESH_MS < 10000 then MIN_REFRESH_MS = 10000 end
+if MIN_REFRESH_MS > 600000 then MIN_REFRESH_MS = 600000 end
+local HTTP_TIMEOUT_MS = tonumber(data.get("binance_ticker.timeout_ms") or 8000) or 8000
+if HTTP_TIMEOUT_MS < 5000 then HTTP_TIMEOUT_MS = 5000 end
+if HTTP_TIMEOUT_MS > 30000 then HTTP_TIMEOUT_MS = 30000 end
+local HTTP_MAX_BODY_BYTES = tonumber(data.get("binance_ticker.max_body_bytes") or 4096) or 4096
+if HTTP_MAX_BODY_BYTES < 1024 then HTTP_MAX_BODY_BYTES = 1024 end
+if HTTP_MAX_BODY_BYTES > 32768 then HTTP_MAX_BODY_BYTES = 32768 end
 local CACHE_KEY = "binance_ticker.cache.v1"
 
 local state = {
@@ -213,8 +261,8 @@ local function start_fetch(sym)
   local host_idx = state.req_host_idx or 1
   local url = ticker_url(sym, host_idx)
 
-  local ttl_ms = 30 * 1000
-  local id, body, age_ms, err = net.cached_get(url, ttl_ms, 8000, 4096)
+  local ttl_ms = MIN_REFRESH_MS
+  local id, body, age_ms, err = net.cached_get(url, ttl_ms, HTTP_TIMEOUT_MS, HTTP_MAX_BODY_BYTES)
   if err then
     state.last_err = err
     return
