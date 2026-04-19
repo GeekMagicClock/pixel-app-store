@@ -111,8 +111,9 @@ function app.tick(dt_ms)
 end
 
 function app.render_fb(fb)
+  local Y_OFF = -2
   fb:fill(C_BG)
-  rect_safe(fb, 0, 8, 64, 18, C_PANEL)
+  rect_safe(fb, 0, 8 + Y_OFF, 64, 18, C_PANEL)
 
   local t = get_local_time()
   if not t then
@@ -121,21 +122,107 @@ function app.render_fb(fb)
 
   local sec = tonumber(t.sec or 0) or 0
   local fill = 20 - math.floor((sec / 59) * 16)
-  draw_bar(fb, 3, 3, 22, fill, false)
-  draw_bar(fb, 39, 3, 22, fill, true)
-  fb:text_box(23, 0, 18, 8, "KO", C_KO, FONT_UI, 8, "center", true)
+  draw_bar(fb, 3, 3 + Y_OFF, 22, fill, false)
+  draw_bar(fb, 39, 3 + Y_OFF, 22, fill, true)
+  fb:text_box(23, 0 + Y_OFF, 18, 8, "KO", C_KO, FONT_UI, 8, "center", true)
 
   local digits = string.format("%02d%02d", tonumber(t.hour or 0) or 0, tonumber(t.min or 0) or 0)
-  draw_digit(fb, string.sub(digits, 1, 1), 5, 11, 3)
-  draw_digit(fb, string.sub(digits, 2, 2), 17, 11, 3)
-  rect_safe(fb, 31, 16, 2, 2, C_KO)
-  rect_safe(fb, 31, 22, 2, 2, C_KO)
-  draw_digit(fb, string.sub(digits, 3, 3), 38, 11, 3)
-  draw_digit(fb, string.sub(digits, 4, 4), 50, 11, 3)
+  draw_digit(fb, string.sub(digits, 1, 1), 5, 11 + Y_OFF, 3)
+  draw_digit(fb, string.sub(digits, 2, 2), 17, 11 + Y_OFF, 3)
+  rect_safe(fb, 31, 16 + Y_OFF, 2, 2, C_KO)
+  rect_safe(fb, 31, 22 + Y_OFF, 2, 2, C_KO)
+  draw_digit(fb, string.sub(digits, 3, 3), 38, 11 + Y_OFF, 3)
+  draw_digit(fb, string.sub(digits, 4, 4), 50, 11 + Y_OFF, 3)
 
-  fb:text_box(2, 26, 12, 8, "P1", C_TEXT_DIM, FONT_UI, 8, "left", true)
-  fb:text_box(50, 26, 12, 8, "P2", C_TEXT_DIM, FONT_UI, 8, "right", true)
-  fb:text_box(20, 26, 24, 8, "ROUND1", C_TEXT, FONT_UI, 8, "center", true)
+  fb:text_box(2, 23, 12, 8, "P1", C_TEXT_DIM, FONT_UI, 8, "left", true)
+  fb:text_box(50, 23, 12, 8, "P2", C_TEXT_DIM, FONT_UI, 8, "right", true)
+  fb:text_box(16, 23, 32, 8, "ROUND1", C_TEXT, FONT_UI, 8, "center", true)
+end
+
+
+-- __GLOBAL_BOOT_SPLASH_WRAPPER_V1__
+local __boot_now_ms = now_ms or (sys and sys.now_ms) or function() return 0 end
+local __boot_started_ms = 0
+local __boot_ms = tonumber(data.get("fighter_clock.boot_splash_ms") or data.get("app.boot_splash_ms") or 1200) or 1200
+if __boot_ms < 0 then __boot_ms = 0 end
+local __boot_name = tostring(data.get("fighter_clock.app_name") or "Fighter Clock")
+
+local function __boot_compact_text(s, limit)
+  s = tostring(s or "")
+  s = string.gsub(s, "%s+", " ")
+  s = string.gsub(s, "^%s+", "")
+  s = string.gsub(s, "%s+$", "")
+  local n = tonumber(limit) or 16
+  if #s > n then return string.sub(s, 1, n - 1) .. "…" end
+  return s
+end
+
+local function __boot_split_title_lines(name)
+  local text = tostring(name or "")
+  text = string.gsub(text, "%s+", " ")
+  text = string.gsub(text, "^%s+", "")
+  text = string.gsub(text, "%s+$", "")
+  if text == "" then return "APP", "" end
+  local mid = math.floor(#text / 2)
+  local cut = nil
+  local best = 999
+  for i = 1, #text do
+    if string.sub(text, i, i) == " " then
+      local d = math.abs(i - mid)
+      if d < best then
+        best = d
+        cut = i
+      end
+    end
+  end
+  if not cut then return text, "" end
+  local a = string.gsub(string.sub(text, 1, cut - 1), "%s+$", "")
+  local b = string.gsub(string.sub(text, cut + 1), "^%s+", "")
+  return a, b
+end
+
+local function __boot_is_active()
+  if __boot_started_ms <= 0 then return false end
+  return (__boot_now_ms() - __boot_started_ms) < __boot_ms
+end
+
+local __orig_init = app.init
+app.init = function(...)
+  __boot_started_ms = __boot_now_ms()
+  if __orig_init then return __orig_init(...) end
+end
+
+local __orig_render_fb = app.render_fb
+if __orig_render_fb then
+  app.render_fb = function(...)
+    local fb = select(1, ...)
+    if __boot_is_active() and fb and fb.fill and fb.text_box then
+      local t1, t2 = __boot_split_title_lines(__boot_name)
+      fb:fill(0x0000)
+      if t2 ~= "" then
+        fb:text_box(0, 8, 64, 8, __boot_compact_text(t1, 14), 0x07FF, "builtin:silkscreen_regular_8", 8, "center", false)
+        fb:text_box(0, 16, 64, 8, __boot_compact_text(t2, 14), 0x07FF, "builtin:silkscreen_regular_8", 8, "center", false)
+      else
+        fb:text_box(0, 12, 64, 8, __boot_compact_text(t1, 14), 0x07FF, "builtin:silkscreen_regular_8", 8, "center", false)
+      end
+      return true
+    end
+    return __orig_render_fb(...)
+  end
+end
+
+local __orig_render = app.render
+if __orig_render then
+  app.render = function(...)
+    if __boot_is_active() then
+      local t1, t2 = __boot_split_title_lines(__boot_name)
+      if t2 ~= "" then
+        return {"", __boot_compact_text(t1, 16), __boot_compact_text(t2, 16), ""}
+      end
+      return {"", __boot_compact_text(t1, 16), "", ""}
+    end
+    return __orig_render(...)
+  end
 end
 
 return app

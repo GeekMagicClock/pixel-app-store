@@ -1,0 +1,954 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Media Gallery Settings</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css" />
+  <style>
+    :root {
+      --bg: #081326;
+      --bg2: #0e2240;
+      --panel: #102745;
+      --line: #2e4e7b;
+      --line2: #223d63;
+      --text: #eaf2ff;
+      --muted: #9db5d7;
+      --accent: #43dde6;
+      --ok: #62db98;
+      --warn: #ff7f86;
+      --radius: 14px;
+      --shadow: 0 12px 30px rgba(0, 0, 0, .35);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      font: 14px/1.45 "SF Mono", SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      background:
+        radial-gradient(1000px 520px at -8% -20%, rgba(70, 120, 190, .32), transparent 64%),
+        radial-gradient(800px 520px at 108% -28%, rgba(35, 215, 228, .18), transparent 58%),
+        linear-gradient(160deg, var(--bg2), var(--bg));
+      padding: 8px;
+    }
+
+    .shell {
+      width: min(1320px, calc(100vw - 16px));
+      margin: 0 auto;
+      display: grid;
+      gap: 10px;
+    }
+
+    .hero, .panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(160deg, rgba(16, 39, 69, .95), rgba(8, 24, 43, .94));
+      box-shadow: var(--shadow);
+      padding: 12px;
+    }
+
+    .hero-head {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+
+    h1, h2 { margin: 0; }
+    h1 { font-size: 18px; letter-spacing: .3px; }
+    h2 { font-size: 15px; margin-bottom: 8px; }
+
+    .dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      margin-right: 8px;
+      background: var(--accent);
+      box-shadow: 0 0 14px rgba(67, 221, 230, .8);
+    }
+
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+    .chip {
+      border: 1px solid var(--line2);
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 12px;
+      color: var(--muted);
+      background: rgba(8, 20, 36, .6);
+    }
+    .ok { color: var(--ok); }
+    .warn { color: var(--warn); }
+
+    .meta {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .disk-meter {
+      margin-top: 8px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .disk-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .disk-track {
+      width: 100%;
+      height: 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line2);
+      background: rgba(8, 20, 36, .65);
+      overflow: hidden;
+    }
+
+    .disk-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #3ecfda, #5fd38d);
+      transition: width .2s ease;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(640px, 1.7fr) minmax(360px, 1fr);
+      gap: 10px;
+      align-items: start;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+
+    input[type="number"], input[type="text"], button {
+      border-radius: 10px;
+      border: 1px solid var(--line2);
+      background: #0b1d35;
+      color: var(--text);
+      padding: 8px 10px;
+      font: inherit;
+    }
+
+    input[type="number"], input[type="text"] { outline: none; }
+    input[type="number"]:focus, input[type="text"]:focus {
+      border-color: #3c6ca4;
+      box-shadow: 0 0 0 3px rgba(60, 108, 164, .2);
+    }
+
+    button {
+      cursor: pointer;
+      background: linear-gradient(180deg, #235587, #1b4470);
+      font-weight: 700;
+    }
+    button:hover { filter: brightness(1.08); }
+    button.ghost { background: rgba(11, 29, 53, .55); }
+    button.danger { background: linear-gradient(180deg, #773346, #522331); border-color: #925064; }
+
+    .table-wrap {
+      overflow: visible;
+      border: 1px solid var(--line2);
+      border-radius: 12px;
+      background: rgba(7, 18, 33, .45);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 12px;
+    }
+
+    th, td {
+      border-bottom: 1px solid #1d3454;
+      padding: 8px 7px;
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      color: #bfd3f5;
+      background: #112845;
+    }
+
+    tr:hover td { background: rgba(34, 62, 98, .2); }
+
+    .thumb {
+      width: 64px;
+      height: 32px;
+      object-fit: cover;
+      border-radius: 4px;
+      border: 1px solid #3b5f8f;
+      background: #000;
+      image-rendering: pixelated;
+    }
+
+    .name-input {
+      width: 100%;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text);
+      padding: 4px 6px;
+      border-radius: 6px;
+      font: inherit;
+    }
+
+    .name-input:focus {
+      border-color: #3b69a0;
+      background: rgba(10, 30, 53, .75);
+      outline: none;
+    }
+
+    .mini-actions {
+      display: inline-flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .mini-actions button {
+      padding: 5px 8px;
+      font-size: 11px;
+      border-radius: 8px;
+    }
+
+    .stack { display: grid; gap: 10px; }
+
+    .dropzone {
+      border: 1px dashed #4c79aa;
+      border-radius: 12px;
+      min-height: 110px;
+      padding: 10px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      background: linear-gradient(180deg, rgba(21, 46, 78, .42), rgba(13, 29, 49, .35));
+      cursor: pointer;
+      transition: .15s ease;
+    }
+
+    .dropzone.dragover {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(67, 221, 230, .18) inset;
+      transform: translateY(-1px);
+    }
+
+    .drop-big { color: #bdeff3; font-weight: 700; margin-bottom: 4px; }
+    .drop-small { color: var(--muted); font-size: 12px; }
+
+    .file-meta {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      min-height: 18px;
+      word-break: break-all;
+    }
+
+    .actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+
+    #fileInput {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .crop-wrap {
+      border: 1px solid var(--line2);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #08182c;
+      min-height: 180px;
+      display: grid;
+      place-items: center;
+      margin-top: 8px;
+      display: none;
+    }
+
+    #cropImage {
+      max-width: 100%;
+      max-height: 300px;
+      display: none;
+    }
+
+    .crop-empty {
+      color: var(--muted);
+      font-size: 12px;
+      padding: 16px;
+      text-align: center;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 8px;
+      line-height: 1.5;
+    }
+
+    .toast {
+      position: fixed;
+      right: 10px;
+      bottom: 10px;
+      z-index: 50;
+      display: none;
+      gap: 8px;
+      align-items: center;
+      border: 1px solid #466d9d;
+      border-radius: 10px;
+      background: rgba(10, 24, 43, .92);
+      color: var(--text);
+      padding: 8px 10px;
+      box-shadow: var(--shadow);
+      font-size: 12px;
+    }
+    .toast.show { display: inline-flex; }
+
+    @media (max-width: 1060px) {
+      body { padding: 4px; }
+      .shell { width: calc(100vw - 8px); }
+      .layout { grid-template-columns: 1fr; }
+      h1 { font-size: 16px; }
+      th, td { font-size: 13px; white-space: normal; word-break: break-word; }
+      .mini-actions button { font-size: 12px; padding: 6px 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="hero">
+      <div class="hero-head">
+        <h1><span class="dot"></span>Media Gallery Control Deck</h1>
+        <div class="chips">
+          <div id="storageStatus" class="chip">Storage: loading...</div>
+          <div id="msg" class="chip">Ready.</div>
+        </div>
+      </div>
+      <div class="disk-meter" aria-live="polite">
+        <div class="disk-top">
+          <span id="diskLabel">Disk Usage</span>
+          <span id="diskPct">0%</span>
+        </div>
+        <div class="disk-track">
+          <div id="diskFill" class="disk-fill"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="layout">
+      <section class="panel">
+        <h2>Library</h2>
+        <div class="toolbar">
+          <button id="refreshBtn" class="ghost">Refresh</button>
+          <label style="color:var(--muted);font-size:12px;">Interval(ms)</label>
+          <input id="intervalMs" type="number" min="500" max="60000" step="100" value="3500" style="width:120px;" />
+          <label style="display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;">
+            <input id="randomPlay" type="checkbox" />
+            Random Play
+          </label>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:84px;">Preview</th>
+                <th>Name</th>
+                <th style="width:120px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="listBody"></tbody>
+          </table>
+        </div>
+        <div class="hint">Tip: click file name to rename inline, press Enter to apply.</div>
+      </section>
+
+      <section class="stack">
+        <section class="panel">
+          <h2>Upload</h2>
+          <div id="dropzone" class="dropzone" tabindex="0">
+            <div>
+              <div class="drop-big">Drop media here / Click to choose</div>
+              <div class="drop-small">GIF must be 64x32. PNG/JPG/JPEG uses inline crop to 64x32 JPG.</div>
+            </div>
+          </div>
+          <input id="fileInput" type="file" accept=".gif,.png,.jpg,.jpeg,image/gif,image/png,image/jpeg" />
+          <div id="fileMeta" class="file-meta">No file selected</div>
+          <div class="toolbar">
+            <input id="baseName" type="text" placeholder="filename (optional)" class="grow" />
+          </div>
+
+          <div id="cropWrap" class="crop-wrap">
+            <img id="cropImage" alt="crop source" />
+            <div id="cropEmpty" class="crop-empty">Select JPG/PNG to crop inline. GIF uploads directly (must be 64x32).</div>
+          </div>
+
+          <div class="actions">
+            <button id="uploadBtn">Upload Current</button>
+            <button id="clearBtn" class="ghost">Clear Selection</button>
+          </div>
+        </section>
+
+      </section>
+    </section>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
+  <script>
+    const APP_ID = "media_gallery";
+    const ASSET_PREFIX = "assets/";
+    const MAX_API_FILENAME = 96;
+    const INDEX_FILE = `${ASSET_PREFIX}media_index.json`;
+    const API_WEB_BASE = `/api/apps/web/${APP_ID}/`;
+    const API_FILE_BASE = `/api/apps/${APP_ID}/`;
+
+    const state = {
+      files: [],
+      queuedFile: null,
+      storage: { used: 0, total: 0, free: 0 },
+      savingCfgTimer: null
+    };
+
+    const el = {
+      msg: document.getElementById("msg"),
+      storageStatus: document.getElementById("storageStatus"),
+      diskLabel: document.getElementById("diskLabel"),
+      diskPct: document.getElementById("diskPct"),
+      diskFill: document.getElementById("diskFill"),
+      refreshBtn: document.getElementById("refreshBtn"),
+      intervalMs: document.getElementById("intervalMs"),
+      randomPlay: document.getElementById("randomPlay"),
+      listBody: document.getElementById("listBody"),
+      dropzone: document.getElementById("dropzone"),
+      fileInput: document.getElementById("fileInput"),
+      fileMeta: document.getElementById("fileMeta"),
+      baseName: document.getElementById("baseName"),
+      cropWrap: document.getElementById("cropWrap"),
+      cropImage: document.getElementById("cropImage"),
+      cropEmpty: document.getElementById("cropEmpty"),
+      uploadBtn: document.getElementById("uploadBtn"),
+      clearBtn: document.getElementById("clearBtn")
+    };
+
+    let cropper = null;
+
+    async function api(method, url, body, headers = {}) {
+      const res = await fetch(url, { method, headers: { ...headers }, body: body ?? undefined });
+      const text = await res.text();
+      let json = null;
+      try { json = text ? JSON.parse(text) : null; } catch (_) {}
+      if (!res.ok || (json && json.ok === false)) {
+        throw new Error((json && (json.error || json.message)) || `${res.status} ${res.statusText}`);
+      }
+      return json;
+    }
+
+    function setMsg(text, cls = "") {
+      el.msg.textContent = text;
+      el.msg.className = `chip ${cls}`.trim();
+    }
+
+    function setStorage(text, cls = "") {
+      el.storageStatus.textContent = text;
+      el.storageStatus.className = `chip ${cls}`.trim();
+    }
+
+    function encodePath(p) {
+      return p.split("/").map(encodeURIComponent).join("/");
+    }
+
+    function assetUrl(name) {
+      return `${API_WEB_BASE}${encodePath(ASSET_PREFIX + name)}?v=${Date.now()}`;
+    }
+
+    function extOf(name) {
+      const m = String(name || "").toLowerCase().match(/\.([a-z0-9]+)$/);
+      return m ? m[1] : "";
+    }
+
+    function isCropType(ext) {
+      return ext === "png" || ext === "jpg" || ext === "jpeg";
+    }
+
+    function sanitizeBaseName(s) {
+      const raw = String(s || "").trim().toLowerCase();
+      const out = raw.replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+      return out || "media";
+    }
+
+    function maxBaseLenForExt(ext) {
+      const safeExt = String(ext || "jpg").replace(/[^a-z0-9]/gi, "").toLowerCase() || "jpg";
+      const suffixLen = 1 + safeExt.length; // ".jpg"
+      const max = MAX_API_FILENAME - ASSET_PREFIX.length - suffixLen;
+      return Math.max(8, max);
+    }
+
+    function clampBaseName(base, ext) {
+      const maxLen = maxBaseLenForExt(ext);
+      const b = sanitizeBaseName(base || "media");
+      return b.length > maxLen ? b.slice(0, maxLen) : b;
+    }
+
+    function toBool(v) {
+      const s = String(v == null ? "" : v).toLowerCase();
+      return v === true || s === "1" || s === "true" || s === "yes" || s === "on";
+    }
+
+    async function refreshStorage() {
+      try {
+        const st = await api("GET", "/api/system/status");
+        const used = Number(st?.storage?.used_bytes || 0);
+        const total = Number(st?.storage?.total_bytes || 0);
+        const free = Math.max(0, total - used);
+        const pct = total > 0 ? Math.round((used * 100) / total) : 0;
+        state.storage = { used, total, free };
+        setStorage(`Storage free: ${Math.floor(free / 1024)} KB / ${Math.floor(total / 1024)} KB`, "ok");
+        if (el.diskLabel) el.diskLabel.textContent = `${Math.floor(used / 1024)} KB / ${Math.floor(total / 1024)} KB`;
+        if (el.diskPct) el.diskPct.textContent = `${pct}%`;
+        if (el.diskFill) el.diskFill.style.width = `${pct}%`;
+      } catch (e) {
+        setStorage(`Storage check failed: ${e.message}`, "warn");
+        if (el.diskLabel) el.diskLabel.textContent = "Disk read failed";
+        if (el.diskPct) el.diskPct.textContent = "--";
+        if (el.diskFill) el.diskFill.style.width = "0%";
+      }
+    }
+
+    async function getExistingFileSize(name) {
+      try {
+        const r = await fetch(assetUrl(name));
+        if (!r.ok) return 0;
+        const b = await r.blob();
+        return Number(b.size || 0);
+      } catch (_) {
+        return 0;
+      }
+    }
+
+    async function ensureSpaceOrThrow(targetName, newBytes) {
+      const reserve = 4096;
+      const oldBytes = await getExistingFileSize(targetName);
+      const delta = Math.max(0, Number(newBytes || 0) - oldBytes);
+      if (delta + reserve > state.storage.free) {
+        throw new Error(`Not enough LittleFS space. Need +${delta} bytes, free=${state.storage.free}`);
+      }
+    }
+
+    async function readIndex() {
+      try {
+        const res = await fetch(`${API_WEB_BASE}${encodePath(INDEX_FILE)}?v=${Date.now()}`);
+        if (!res.ok) return null;
+        const obj = await res.json();
+        if (!obj || !Array.isArray(obj.files)) return null;
+        return obj.files.map((x) => (typeof x === "string" ? x : x?.name)).filter(Boolean);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    async function readActualAssetFiles() {
+      try {
+        const obj = await api("GET", `/api/apps/files/${APP_ID}?dir=assets`);
+        if (!obj || !Array.isArray(obj.files)) return null;
+        return obj.files.filter((n) => {
+          const ext = extOf(n);
+          return ext === "gif" || ext === "png" || ext === "jpg" || ext === "jpeg";
+        });
+      } catch (_) {
+        return null;
+      }
+    }
+
+    async function saveIndex() {
+      const payload = { version: 1, files: state.files.map((f) => f.name) };
+      const blob = new Blob([JSON.stringify(payload, null, 2) + "\n"], { type: "application/json" });
+      await api("PUT", `${API_FILE_BASE}${encodePath(INDEX_FILE)}`, blob, { "Content-Type": "application/json" });
+    }
+
+    async function loadPlaybackSettings() {
+      const obj = await api("GET", "/api/system/lua-data");
+      const items = Array.isArray(obj?.items) ? obj.items : [];
+      const map = {};
+      for (const it of items) {
+        if (it && typeof it.key === "string") map[it.key] = it.value;
+      }
+      let interval = Number(map["media_gallery.interval_ms"] ?? map["media_gallery.hold_ms"] ?? 3500);
+      if (!Number.isFinite(interval)) interval = 3500;
+      interval = Math.max(500, Math.min(60000, Math.floor(interval)));
+      el.intervalMs.value = String(interval);
+      el.randomPlay.checked = toBool(map["media_gallery.random_play"]);
+    }
+
+    async function savePlaybackSettings() {
+      let interval = Number(el.intervalMs.value || 3500);
+      if (!Number.isFinite(interval)) interval = 3500;
+      interval = Math.max(500, Math.min(60000, Math.floor(interval)));
+      el.intervalMs.value = String(interval);
+      await api(
+        "POST",
+        "/api/system/lua-data",
+        JSON.stringify({
+          items: {
+            "media_gallery.interval_ms": interval,
+            "media_gallery.random_play": el.randomPlay.checked ? "1" : "0"
+          }
+        }),
+        { "Content-Type": "application/json" }
+      );
+    }
+
+    function scheduleSavePlaybackSettings() {
+      if (state.savingCfgTimer) clearTimeout(state.savingCfgTimer);
+      state.savingCfgTimer = setTimeout(async () => {
+        try {
+          await savePlaybackSettings();
+          setMsg("Playback settings saved", "ok");
+        } catch (e) {
+          setMsg(e.message, "warn");
+        }
+      }, 220);
+    }
+
+    function renderList() {
+      el.listBody.innerHTML = state.files.map((f, i) => `
+        <tr data-i="${i}">
+          <td><img class="thumb" src="${assetUrl(f.name)}" alt="${f.name}" /></td>
+          <td><input class="name-input" data-act="rename" data-i="${i}" value="${f.name.replace(/"/g, "&quot;")}" /></td>
+          <td>
+            <span class="mini-actions">
+              <button data-act="delete" data-i="${i}" class="danger">Delete</button>
+            </span>
+          </td>
+        </tr>
+      `).join("");
+    }
+
+    function destroyCropper() {
+      if (cropper) {
+        cropper.destroy();
+        cropper = null;
+      }
+      if (el.cropWrap) el.cropWrap.style.display = "none";
+      el.cropImage.style.display = "none";
+      el.cropEmpty.style.display = "block";
+      el.cropImage.removeAttribute("src");
+    }
+
+    function loadImageFromBlob(blob) {
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image decode failed")); };
+        img.src = url;
+      });
+    }
+
+    async function prepareCropperForFile(file) {
+      destroyCropper();
+      const ext = extOf(file.name);
+      if (!isCropType(ext)) return;
+      if (el.cropWrap) el.cropWrap.style.display = "grid";
+      const url = URL.createObjectURL(file);
+      el.cropImage.onload = () => {
+        if (cropper) cropper.destroy();
+        cropper = new Cropper(el.cropImage, {
+          aspectRatio: 2,
+          viewMode: 1,
+          dragMode: "move",
+          autoCropArea: 1,
+          responsive: true,
+          background: false
+        });
+      };
+      el.cropImage.src = url;
+      el.cropImage.style.display = "block";
+      el.cropEmpty.style.display = "none";
+    }
+
+    function uniqueName(base, ext) {
+      const safeExt = String(ext || "jpg").toLowerCase();
+      const maxLen = maxBaseLenForExt(safeExt);
+      const seed = clampBaseName(base, safeExt);
+      const set = new Set(state.files.map((f) => f.name.toLowerCase()));
+      let i = 0;
+      while (true) {
+        const suffix = i === 0 ? "" : `-${i}`;
+        const keep = Math.max(1, maxLen - suffix.length);
+        const core = seed.slice(0, keep);
+        const n = `${core}${suffix}.${safeExt}`;
+        if (!set.has(n.toLowerCase())) return n;
+        i += 1;
+      }
+    }
+
+    async function putAsset(name, blob, mime) {
+      const body = await blob.arrayBuffer();
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", `${API_FILE_BASE}${encodePath(ASSET_PREFIX + name)}`, true);
+        xhr.setRequestHeader("Content-Type", mime || "application/octet-stream");
+        xhr.onreadystatechange = () => {
+          if (xhr.readyState !== 4) return;
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const j = xhr.responseText ? JSON.parse(xhr.responseText) : {};
+              if (j && j.ok === false) {
+                reject(new Error(j.error || "upload failed"));
+                return;
+              }
+            } catch (_) {}
+            resolve();
+            return;
+          }
+          let msg = `HTTP ${xhr.status}`;
+          try {
+            const j = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+            if (j && (j.error || j.message)) msg = j.error || j.message;
+          } catch (_) {}
+          reject(new Error(msg));
+        };
+        xhr.onerror = () => reject(new Error("network error"));
+        xhr.send(body);
+      });
+    }
+
+    async function delAsset(name) {
+      await api("DELETE", `${API_FILE_BASE}${encodePath(ASSET_PREFIX + name)}`);
+    }
+
+    async function renameAsset(oldName, newName) {
+      if (oldName === newName) return;
+      const r = await fetch(assetUrl(oldName));
+      if (!r.ok) throw new Error(`Read source failed: ${oldName}`);
+      const b = await r.blob();
+      await ensureSpaceOrThrow(newName, b.size);
+      await putAsset(newName, b, b.type || "application/octet-stream");
+      await delAsset(oldName);
+    }
+
+    async function queueFile(file) {
+      state.queuedFile = file;
+      if (!file) {
+        el.fileMeta.textContent = "No file selected";
+        destroyCropper();
+        return;
+      }
+      el.fileMeta.textContent = `${file.name} · ${Math.floor(file.size / 1024)} KB`;
+      if (!el.baseName.value) {
+        el.baseName.value = sanitizeBaseName(file.name.replace(/\.[^/.]+$/, ""));
+      }
+      await prepareCropperForFile(file);
+    }
+
+    async function handleUpload() {
+      const f = state.queuedFile || (el.fileInput.files && el.fileInput.files[0]);
+      if (!f) throw new Error("Choose a file first");
+
+      const ext = extOf(f.name);
+      const base = clampBaseName(el.baseName.value || f.name.replace(/\.[^/.]+$/, ""), ext || "jpg");
+      let targetName = "";
+      let blob = null;
+      let mime = "application/octet-stream";
+
+      if (ext === "gif") {
+        const img = await loadImageFromBlob(f);
+        if (img.naturalWidth !== 64 || img.naturalHeight !== 32) {
+          throw new Error(`GIF must be exactly 64x32, got ${img.naturalWidth}x${img.naturalHeight}`);
+        }
+        targetName = uniqueName(base, "gif");
+        blob = f;
+        mime = "image/gif";
+      } else if (isCropType(ext)) {
+        if (!cropper) throw new Error("Cropper is not ready yet");
+        const canvas = cropper.getCroppedCanvas({ width: 64, height: 32, imageSmoothingEnabled: true, imageSmoothingQuality: "high" });
+        if (!canvas || canvas.width !== 64 || canvas.height !== 32) {
+          throw new Error("Crop output must be 64x32");
+        }
+        const px = canvas.getContext("2d").getImageData(0, 0, 64, 32);
+        if (!px || !px.data || px.data.length !== 64 * 32 * 4) {
+          throw new Error("Pixel check failed after crop");
+        }
+        blob = await new Promise((resolve, reject) => {
+          canvas.toBlob((b) => b ? resolve(b) : reject(new Error("JPG export failed")), "image/jpeg", 0.9);
+        });
+        targetName = uniqueName(base, "jpg");
+        mime = "image/jpeg";
+      } else {
+        throw new Error("Only gif/png/jpg/jpeg are supported");
+      }
+
+      await refreshStorage();
+      await ensureSpaceOrThrow(targetName, blob.size);
+      await putAsset(targetName, blob, mime);
+
+      state.files.push({ name: targetName });
+      await saveIndex();
+      await refreshStorage();
+      renderList();
+      setMsg(`Uploaded ${targetName} (${blob.size} bytes)`, "ok");
+      el.fileInput.value = "";
+      await queueFile(null);
+    }
+
+    async function loadState() {
+      await refreshStorage();
+      const actual = await readActualAssetFiles();
+      const names = actual || (await readIndex()) || [
+        "ezgif-1-7d443236bb.gif",
+        "ezgif-7-279edd3fab.gif",
+        "ezgif-1-834ceb84c0.gif",
+        "logo.png",
+        "photo.jpg"
+      ];
+      state.files = names.map((name) => ({ name }));
+      try { await loadPlaybackSettings(); } catch (_) {}
+      renderList();
+    }
+
+    el.refreshBtn.addEventListener("click", async () => {
+      try {
+        await loadState();
+        setMsg("Reloaded", "ok");
+      } catch (e) {
+        setMsg(e.message, "warn");
+      }
+    });
+
+    el.intervalMs.addEventListener("input", scheduleSavePlaybackSettings);
+    el.randomPlay.addEventListener("change", scheduleSavePlaybackSettings);
+
+    el.dropzone.addEventListener("click", () => el.fileInput.click());
+    el.dropzone.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        el.fileInput.click();
+      }
+    });
+
+    ["dragenter", "dragover"].forEach((evt) => {
+      el.dropzone.addEventListener(evt, (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        el.dropzone.classList.add("dragover");
+      });
+    });
+
+    ["dragleave", "drop"].forEach((evt) => {
+      el.dropzone.addEventListener(evt, (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        el.dropzone.classList.remove("dragover");
+      });
+    });
+
+    el.dropzone.addEventListener("drop", async (ev) => {
+      const f = ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0];
+      if (!f) return;
+      try {
+        await queueFile(f);
+        setMsg("File ready", "ok");
+      } catch (e) {
+        setMsg(e.message, "warn");
+      }
+    });
+
+    el.fileInput.addEventListener("change", async () => {
+      const f = el.fileInput.files && el.fileInput.files[0];
+      try {
+        await queueFile(f || null);
+        if (f) setMsg("File ready", "ok");
+      } catch (e) {
+        setMsg(e.message, "warn");
+      }
+    });
+
+    el.uploadBtn.addEventListener("click", async () => {
+      try {
+        setMsg("Uploading...");
+        await handleUpload();
+      } catch (e) {
+        setMsg(e.message, "warn");
+      }
+    });
+
+    el.clearBtn.addEventListener("click", async () => {
+      await queueFile(null);
+      state.queuedFile = null;
+      el.baseName.value = "";
+      setMsg("Selection cleared");
+    });
+
+    el.listBody.addEventListener("click", async (ev) => {
+      const btn = ev.target.closest("button[data-act='delete']");
+      if (!btn) return;
+      const i = Number(btn.dataset.i);
+      if (!Number.isFinite(i) || i < 0 || i >= state.files.length) return;
+
+      const removed = state.files.splice(i, 1)[0];
+      renderList();
+      try {
+        await delAsset(removed.name);
+        await saveIndex();
+        await refreshStorage();
+        setMsg(`Deleted ${removed.name}`, "ok");
+      } catch (e) {
+        state.files.splice(Math.min(i, state.files.length), 0, { name: removed.name });
+        renderList();
+        setMsg(e.message, "warn");
+      }
+    });
+
+    el.listBody.addEventListener("keydown", async (ev) => {
+      const input = ev.target.closest("input[data-act='rename']");
+      if (!input) return;
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        input.blur();
+      }
+    });
+
+    el.listBody.addEventListener("blur", async (ev) => {
+      const input = ev.target.closest("input[data-act='rename']");
+      if (!input) return;
+      const i = Number(input.dataset.i);
+      if (!Number.isFinite(i) || i < 0 || i >= state.files.length) return;
+      const oldName = state.files[i].name;
+      const typed = String(input.value || "").trim();
+      if (!typed || typed === oldName) {
+        input.value = oldName;
+        return;
+      }
+      const clean = sanitizeBaseName(typed.replace(/\.[^/.]+$/, ""));
+      const ext = extOf(typed) || extOf(oldName) || "jpg";
+      const next = `${clampBaseName(clean, ext)}.${String(ext).toLowerCase()}`;
+      try {
+        await renameAsset(oldName, next);
+        state.files[i].name = next;
+        await saveIndex();
+        await refreshStorage();
+        renderList();
+        setMsg(`Renamed ${oldName} -> ${next}`, "ok");
+      } catch (e) {
+        input.value = oldName;
+        setMsg(e.message, "warn");
+      }
+    }, true);
+
+    loadState().then(() => setMsg("Ready", "ok")).catch((e) => setMsg(e.message, "warn"));
+  </script>
+</body>
+</html>

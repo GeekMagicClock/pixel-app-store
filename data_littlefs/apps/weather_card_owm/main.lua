@@ -44,6 +44,7 @@ local ASSET_BASE = "S:/littlefs/apps/weather_card_owm/assets/"
 
 local state = {
   req_id = nil,
+  om_req_id = nil,
   last_req_ms = 0,
   last_ok_ms = 0,
   err = nil,
@@ -54,6 +55,8 @@ local state = {
   humidity = nil,
   weather_id = nil,
   weather_main = nil,
+  lon = nil,
+  lat = nil,
 }
 
 local function now_ms()
@@ -163,9 +166,11 @@ local function handle_response(status, body)
   if obj.timezone ~= nil then state.tz_shift_sec = tonumber(obj.timezone) or 0 end
   if obj.main then
     if obj.main.temp ~= nil then state.now_temp = obj.main.temp end
-    if obj.main.temp_min ~= nil then state.temp_min = obj.main.temp_min end
-    if obj.main.temp_max ~= nil then state.temp_max = obj.main.temp_max end
     if obj.main.humidity ~= nil then state.humidity = tonumber(obj.main.humidity) end
+  end
+  if obj.coord then
+    state.lon = tonumber(obj.coord.lon)
+    state.lat = tonumber(obj.coord.lat)
   end
   if obj.weather and obj.weather[1] then
     state.weather_id = tonumber(obj.weather[1].id)
@@ -174,6 +179,60 @@ local function handle_response(status, body)
 
   state.err = nil
   state.last_ok_ms = now_ms()
+end
+
+local function handle_open_meteo_response(status, body)
+  if status ~= 200 then
+    sys.log("weather_card_owm: open-meteo HTTP " .. tostring(status))
+    return
+  end
+  local obj, jerr = json.decode(body)
+  if not obj then
+    sys.log("weather_card_owm: open-meteo JSON ERR " .. tostring(jerr or "unknown"))
+    return
+  end
+  local daily = obj.daily
+  if type(daily) ~= "table" then return end
+  local mins = daily.temperature_2m_min
+  local maxs = daily.temperature_2m_max
+  if type(mins) == "table" and mins[1] ~= nil then
+    state.temp_min = mins[1]
+  end
+  if type(maxs) == "table" and maxs[1] ~= nil then
+    state.temp_max = maxs[1]
+  end
+end
+
+local function start_open_meteo_request(lat, lon)
+  local lat_n = tonumber(lat)
+  local lon_n = tonumber(lon)
+  if not lat_n or not lon_n then return end
+  if state.om_req_id then return end
+
+  local unit_q = ""
+  if cfg_units() == "imperial" then
+    unit_q = "&temperature_unit=fahrenheit"
+  end
+  local url = string.format(
+    "https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&daily=temperature_2m_max,temperature_2m_min&forecast_days=1&timezone=auto%s",
+    lat_n, lon_n, unit_q
+  )
+
+  local ttl_ms = cfg_refresh_ms()
+  local id, body, age_ms, err = net.cached_get(url, ttl_ms, 5000, 3072)
+  if err then
+    sys.log("weather_card_owm: open-meteo request err " .. tostring(err))
+    return
+  end
+  if body then
+    handle_open_meteo_response(200, body)
+    return
+  end
+  if id then
+    state.om_req_id = id
+    return
+  end
+  sys.log("weather_card_owm: open-meteo HTTP GET FAIL")
 end
 
 local function start_request()
@@ -197,6 +256,10 @@ local function start_request()
 
   if body then
     handle_response(200, body)
+    -- High/Low must come from Open-Meteo (not OWM main.temp_min/max).
+    state.temp_min = nil
+    state.temp_max = nil
+    start_open_meteo_request(state.lat, state.lon)
     state.last_req_ms = now_ms()
     return
   end
@@ -213,6 +276,7 @@ end
 function app.init(config)
   sys.log("weather_card_owm init")
   state.req_id = nil
+  state.om_req_id = nil
   state.last_req_ms = 0
   state.last_ok_ms = 0
   state.err = nil
@@ -229,8 +293,26 @@ function app.tick(dt_ms)
         state.err = body or "HTTP ERR"
       else
         handle_response(status, body or "")
+        state.temp_min = nil
+        state.temp_max = nil
+        start_open_meteo_request(state.lat, state.lon)
       end
     end
+  end
+
+  if state.om_req_id then
+    local done, status, body = net.cached_poll(state.om_req_id)
+    if done then
+      state.om_req_id = nil
+      if status == 0 then
+        sys.log("weather_card_owm: open-meteo poll err " .. tostring(body or "HTTP ERR"))
+      else
+        handle_open_meteo_response(status, body or "")
+      end
+    end
+  end
+
+  if state.req_id or state.om_req_id then
     return
   end
 
@@ -276,6 +358,92 @@ function app.render_fb(fb)
   fb:text_box(28, 13, 33, 8, hi_lo_txt, C_MUTED, font, 8, "right", true)
   draw_degree_mark(fb, 61, 13, C_MUTED)
   fb:text_box(28, 24, 36, 8, hum_txt, C_TEXT, font, 8, "right", true)
+end
+
+
+-- __GLOBAL_BOOT_SPLASH_WRAPPER_V1__
+local __boot_now_ms = now_ms or (sys and sys.now_ms) or function() return 0 end
+local __boot_started_ms = 0
+local __boot_ms = tonumber(data.get("weather_card_owm.boot_splash_ms") or data.get("app.boot_splash_ms") or 1200) or 1200
+if __boot_ms < 0 then __boot_ms = 0 end
+local __boot_name = tostring(data.get("weather_card_owm.app_name") or "Weather Card")
+
+local function __boot_compact_text(s, limit)
+  s = tostring(s or "")
+  s = string.gsub(s, "%s+", " ")
+  s = string.gsub(s, "^%s+", "")
+  s = string.gsub(s, "%s+$", "")
+  local n = tonumber(limit) or 16
+  if #s > n then return string.sub(s, 1, n - 1) .. "…" end
+  return s
+end
+
+local function __boot_split_title_lines(name)
+  local text = tostring(name or "")
+  text = string.gsub(text, "%s+", " ")
+  text = string.gsub(text, "^%s+", "")
+  text = string.gsub(text, "%s+$", "")
+  if text == "" then return "APP", "" end
+  local mid = math.floor(#text / 2)
+  local cut = nil
+  local best = 999
+  for i = 1, #text do
+    if string.sub(text, i, i) == " " then
+      local d = math.abs(i - mid)
+      if d < best then
+        best = d
+        cut = i
+      end
+    end
+  end
+  if not cut then return text, "" end
+  local a = string.gsub(string.sub(text, 1, cut - 1), "%s+$", "")
+  local b = string.gsub(string.sub(text, cut + 1), "^%s+", "")
+  return a, b
+end
+
+local function __boot_is_active()
+  if __boot_started_ms <= 0 then return false end
+  return (__boot_now_ms() - __boot_started_ms) < __boot_ms
+end
+
+local __orig_init = app.init
+app.init = function(...)
+  __boot_started_ms = __boot_now_ms()
+  if __orig_init then return __orig_init(...) end
+end
+
+local __orig_render_fb = app.render_fb
+if __orig_render_fb then
+  app.render_fb = function(...)
+    local fb = select(1, ...)
+    if __boot_is_active() and fb and fb.fill and fb.text_box then
+      local t1, t2 = __boot_split_title_lines(__boot_name)
+      fb:fill(0x0000)
+      if t2 ~= "" then
+        fb:text_box(0, 8, 64, 8, __boot_compact_text(t1, 14), 0x07FF, "builtin:silkscreen_regular_8", 8, "center", false)
+        fb:text_box(0, 16, 64, 8, __boot_compact_text(t2, 14), 0x07FF, "builtin:silkscreen_regular_8", 8, "center", false)
+      else
+        fb:text_box(0, 12, 64, 8, __boot_compact_text(t1, 14), 0x07FF, "builtin:silkscreen_regular_8", 8, "center", false)
+      end
+      return true
+    end
+    return __orig_render_fb(...)
+  end
+end
+
+local __orig_render = app.render
+if __orig_render then
+  app.render = function(...)
+    if __boot_is_active() then
+      local t1, t2 = __boot_split_title_lines(__boot_name)
+      if t2 ~= "" then
+        return {"", __boot_compact_text(t1, 16), __boot_compact_text(t2, 16), ""}
+      end
+      return {"", __boot_compact_text(t1, 16), "", ""}
+    end
+    return __orig_render(...)
+  end
 end
 
 return app

@@ -726,20 +726,24 @@
       inset: 0;
       z-index: 1100;
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: center;
-      padding: 14px;
+      padding: 10px;
       background: rgba(30, 28, 24, 0.38);
       backdrop-filter: blur(4px);
+      overflow: auto;
     }
 
     .settings-card {
-      width: min(560px, 100%);
+      width: min(1120px, calc(100vw - 20px));
       border: 1px solid rgba(143, 64, 29, 0.2);
       border-radius: 20px;
       background: linear-gradient(135deg, rgba(255, 251, 244, 0.98), rgba(247, 236, 218, 0.98));
       box-shadow: 0 20px 48px rgba(43, 26, 16, 0.24);
-      padding: 18px;
+      padding: 18px 18px 16px;
+      margin: 4px 0;
+      max-height: calc(100vh - 20px);
+      overflow: auto;
       animation: fade-up 0.18s ease;
     }
 
@@ -764,15 +768,37 @@
       border-radius: 12px;
       overflow: hidden;
       background: #fffdfa;
-      min-height: 340px;
+      min-height: clamp(420px, 62vh, 760px);
     }
 
     .settings-page-host iframe {
       width: 100%;
-      height: 360px;
+      height: clamp(420px, 62vh, 760px);
       border: 0;
       display: block;
       background: #fffdfa;
+    }
+
+    @media (max-width: 860px) {
+      .settings-overlay {
+        padding: 4px;
+        align-items: flex-start;
+      }
+
+      .settings-card {
+        width: calc(100vw - 8px);
+        border-radius: 14px;
+        padding: 12px 10px 12px;
+        max-height: calc(100vh - 8px);
+      }
+
+      .settings-page-host {
+        min-height: 72vh;
+      }
+
+      .settings-page-host iframe {
+        height: 72vh;
+      }
     }
 
     .uninstall-mode-on {

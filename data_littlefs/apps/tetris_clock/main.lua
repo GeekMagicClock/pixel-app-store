@@ -163,6 +163,7 @@ local state = {
   drop_step_ms = 100,
   twelve_hour = true,
   force_refresh = true,
+  minute_anim_mode = "all",
   time_ready = false,
   last_time = "",
   last_ampm = "",
@@ -212,6 +213,21 @@ local function read_int(key, default)
   raw = math.floor(raw)
   if raw <= 0 then return default end
   return raw
+end
+
+local function clamp_int(v, lo, hi)
+  local n = math.floor(tonumber(v) or 0)
+  if n < lo then n = lo end
+  if n > hi then n = hi end
+  return n
+end
+
+local function read_minute_anim_mode()
+  local mode = string.lower(tostring(read_setting("tetris_clock.minute_anim_mode") or ""))
+  if mode == "changed" or mode == "changed_only" or mode == "delta" then return "changed" end
+  if mode == "all" or mode == "full" then return "all" end
+  -- Backward compatibility with previous boolean key.
+  return read_bool("tetris_clock.force_refresh", true) and "all" or "changed"
 end
 
 local function civil_from_days(days)
@@ -329,10 +345,11 @@ local function parse_digit_chars(text)
 end
 
 local function update_targets(t)
+  local full_refresh = (state.minute_anim_mode == "all")
   local digits_text, ap = format_time_target(t, state.twelve_hour)
   if digits_text ~= state.last_time then
     state.last_time = digits_text
-    queue_values(state.digits, parse_digit_chars(digits_text), state.force_refresh, digit_x_shift)
+    queue_values(state.digits, parse_digit_chars(digits_text), full_refresh, digit_x_shift)
   end
 
   if state.twelve_hour then
@@ -444,9 +461,15 @@ end
 
 function app.init()
   state.anim_ms = 0
-  state.drop_step_ms = read_int("tetris_clock.step_ms", 100)
+  local drop_ms = read_int("tetris_clock.drop_step_ms", read_int("tetris_clock.step_ms", 100))
+  state.drop_step_ms = clamp_int(drop_ms, 30, 500)
   state.twelve_hour = read_bool("tetris_clock.twelve_hour", true)
-  state.force_refresh = read_bool("tetris_clock.force_refresh", true)
+  state.minute_anim_mode = read_minute_anim_mode()
+  state.force_refresh = (state.minute_anim_mode == "all")
+  if sys and sys.log then
+    sys.log(string.format("tetris_clock settings: drop_step_ms=%d minute_anim_mode=%s twelve_hour=%s",
+      state.drop_step_ms, state.minute_anim_mode, state.twelve_hour and "1" or "0"))
+  end
   state.time_ready = false
   state.last_time = ""
   state.last_ampm = ""
@@ -458,6 +481,14 @@ end
 
 function app.tick(dt_ms)
   state.anim_ms = state.anim_ms + (dt_ms or 0)
+  local current_mode = read_minute_anim_mode()
+  if current_mode ~= state.minute_anim_mode then
+    state.minute_anim_mode = current_mode
+    state.force_refresh = (current_mode == "all")
+    if sys and sys.log then
+      sys.log("tetris_clock minute_anim_mode changed -> " .. tostring(current_mode))
+    end
+  end
 
   local t = get_local_time()
   if not t then
@@ -499,6 +530,92 @@ function app.render_fb(fb)
 
   if state.show_colon then
     draw_colon(fb, digit_x, digit_y, DIGIT_SCALE, C_WHITE)
+  end
+end
+
+
+-- __GLOBAL_BOOT_SPLASH_WRAPPER_V1__
+local __boot_now_ms = now_ms or (sys and sys.now_ms) or function() return 0 end
+local __boot_started_ms = 0
+local __boot_ms = tonumber(data.get("tetris_clock.boot_splash_ms") or data.get("app.boot_splash_ms") or 1200) or 1200
+if __boot_ms < 0 then __boot_ms = 0 end
+local __boot_name = tostring(data.get("tetris_clock.app_name") or "Tetris Clock")
+
+local function __boot_compact_text(s, limit)
+  s = tostring(s or "")
+  s = string.gsub(s, "%s+", " ")
+  s = string.gsub(s, "^%s+", "")
+  s = string.gsub(s, "%s+$", "")
+  local n = tonumber(limit) or 16
+  if #s > n then return string.sub(s, 1, n - 1) .. "…" end
+  return s
+end
+
+local function __boot_split_title_lines(name)
+  local text = tostring(name or "")
+  text = string.gsub(text, "%s+", " ")
+  text = string.gsub(text, "^%s+", "")
+  text = string.gsub(text, "%s+$", "")
+  if text == "" then return "APP", "" end
+  local mid = math.floor(#text / 2)
+  local cut = nil
+  local best = 999
+  for i = 1, #text do
+    if string.sub(text, i, i) == " " then
+      local d = math.abs(i - mid)
+      if d < best then
+        best = d
+        cut = i
+      end
+    end
+  end
+  if not cut then return text, "" end
+  local a = string.gsub(string.sub(text, 1, cut - 1), "%s+$", "")
+  local b = string.gsub(string.sub(text, cut + 1), "^%s+", "")
+  return a, b
+end
+
+local function __boot_is_active()
+  if __boot_started_ms <= 0 then return false end
+  return (__boot_now_ms() - __boot_started_ms) < __boot_ms
+end
+
+local __orig_init = app.init
+app.init = function(...)
+  __boot_started_ms = __boot_now_ms()
+  if __orig_init then return __orig_init(...) end
+end
+
+local __orig_render_fb = app.render_fb
+if __orig_render_fb then
+  app.render_fb = function(...)
+    local fb = select(1, ...)
+    if __boot_is_active() and fb and fb.fill and fb.text_box then
+      local t1, t2 = __boot_split_title_lines(__boot_name)
+      fb:fill(0x0000)
+      if t2 ~= "" then
+        fb:text_box(0, 8, 64, 8, __boot_compact_text(t1, 14), 0x07FF, "builtin:silkscreen_regular_8", 8, "center", false)
+        fb:text_box(0, 16, 64, 8, __boot_compact_text(t2, 14), 0x07FF, "builtin:silkscreen_regular_8", 8, "center", false)
+      else
+        fb:text_box(0, 12, 64, 8, __boot_compact_text(t1, 14), 0x07FF, "builtin:silkscreen_regular_8", 8, "center", false)
+      end
+      return true
+    end
+    return __orig_render_fb(...)
+  end
+end
+
+local __orig_render = app.render
+if __orig_render then
+  app.render = function(...)
+    if __boot_is_active() then
+      local t1, t2 = __boot_split_title_lines(__boot_name)
+      if t2 ~= "" then
+        return {"", __boot_compact_text(t1, 16), __boot_compact_text(t2, 16), ""}
+      end
+      return {"", __boot_compact_text(t1, 16), "", ""}
+    end
+    return __orig_render(...)
   end
 end
 

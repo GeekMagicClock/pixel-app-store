@@ -17,6 +17,9 @@ local C_VBAD = 0xC81F
 local C_PANEL = 0x0843
 local C_FRAME = 0x18C6
 local C_WARN = 0xF800
+local C_ACCENT = 0x07FF
+local BOOT_SPLASH_MS = 1200
+local APP_NAME = tostring(data.get("aqi_now.app_name") or "AQI Now")
 
 local DIGITS = {
   ["0"] = {"111", "101", "101", "101", "111"},
@@ -50,6 +53,8 @@ local state = {
   ozone = nil,
   dominant = "PM25",
   dominant_value = nil,
+  country_code = "--",
+  boot_started_ms = 0,
 }
 
 local function now_ms()
@@ -136,6 +141,40 @@ local function current_hour_index(hourly)
     end
   end
   return 1
+end
+
+local function compact_text(s, limit)
+  s = tostring(s or "")
+  s = string.gsub(s, "%s+", " ")
+  s = string.gsub(s, "^%s+", "")
+  s = string.gsub(s, "%s+$", "")
+  local n = tonumber(limit) or 16
+  if #s > n then return string.sub(s, 1, n - 1) .. "…" end
+  return s
+end
+
+local function split_title_lines(name)
+  local text = tostring(name or "")
+  text = string.gsub(text, "%s+", " ")
+  text = string.gsub(text, "^%s+", "")
+  text = string.gsub(text, "%s+$", "")
+  if text == "" then return "APP", "" end
+  local mid = math.floor(#text / 2)
+  local cut = nil
+  local best = 999
+  for i = 1, #text do
+    if string.sub(text, i, i) == " " then
+      local d = math.abs(i - mid)
+      if d < best then
+        best = d
+        cut = i
+      end
+    end
+  end
+  if not cut then return text, "" end
+  local a = string.gsub(string.sub(text, 1, cut - 1), "%s+$", "")
+  local b = string.gsub(string.sub(text, cut + 1), "^%s+", "")
+  return a, b
 end
 
 local function aqi_color(v)
@@ -249,6 +288,7 @@ local function handle_geo_response(status, body)
     state.geo_ok = false
     state.lat = DEFAULT_LAT
     state.lon = DEFAULT_LON
+    state.country_code = "--"
     start_aqi_request()
     return
   end
@@ -257,6 +297,7 @@ local function handle_geo_response(status, body)
     state.geo_ok = false
     state.lat = DEFAULT_LAT
     state.lon = DEFAULT_LON
+    state.country_code = "--"
     start_aqi_request()
     return
   end
@@ -264,6 +305,11 @@ local function handle_geo_response(status, body)
   local item = (type(results) == "table" and #results > 0) and results[1] or nil
   local lat = item and tonumber(item.latitude)
   local lon = item and tonumber(item.longitude)
+  local cc = item and tostring(item.country_code or "") or ""
+  cc = string.upper(trim(cc))
+  if #cc > 2 then cc = string.sub(cc, 1, 2) end
+  if cc == "" then cc = "--" end
+  state.country_code = cc
   if lat and lon then
     state.lat = lat
     state.lon = lon
@@ -289,6 +335,7 @@ local function start_request()
     state.geo_ok = false
     state.lat = DEFAULT_LAT
     state.lon = DEFAULT_LON
+    state.country_code = "--"
     start_aqi_request()
     return
   end
@@ -306,6 +353,7 @@ local function start_request()
   state.geo_ok = false
   state.lat = DEFAULT_LAT
   state.lon = DEFAULT_LON
+  state.country_code = "--"
   start_aqi_request()
 end
 
@@ -320,6 +368,8 @@ function app.init()
   state.lat = DEFAULT_LAT
   state.lon = DEFAULT_LON
   state.geo_ok = false
+  state.country_code = "--"
+  state.boot_started_ms = now_ms()
   start_request()
 end
 
@@ -336,6 +386,7 @@ function app.tick(dt_ms)
           state.geo_ok = false
           state.lat = DEFAULT_LAT
           state.lon = DEFAULT_LON
+          state.country_code = "--"
           start_aqi_request()
         else
           state.err = body or "HTTP ERR"
@@ -357,6 +408,17 @@ end
 function app.render_fb(fb)
   fb:fill(C_BG)
 
+  if state.boot_started_ms > 0 and (now_ms() - state.boot_started_ms) < BOOT_SPLASH_MS then
+    local t1, t2 = split_title_lines(APP_NAME)
+    if t2 ~= "" then
+      fb:text_box(0, 8, 64, 8, compact_text(t1, 14), C_ACCENT, font, 8, "center", false)
+      fb:text_box(0, 16, 64, 8, compact_text(t2, 14), C_ACCENT, font, 8, "center", false)
+    else
+      fb:text_box(0, 12, 64, 8, compact_text(t1, 14), C_ACCENT, font, 8, "center", false)
+    end
+    return
+  end
+
   if state.err then
     fb:text_box(0, 8, 64, 8, "AQI NOW", C_WARN, font, 8, "center", true)
     fb:text_box(0, 18, 64, 8, "DATA ERR", C_MUTED, font, 8, "center", true)
@@ -377,10 +439,9 @@ function app.render_fb(fb)
   draw_big_text(fb, fmt_int(aqi), 2, 7, 2, accent)
   fb:text_box(28, -1, 35, 8, "AQI NOW", C_TEXT, font, 8, "left", true)
   draw_chip(fb, 26, 10, 23, label, accent, C_BG, 9)
-  draw_chip(fb, 51, 10, 13, "US", C_PANEL, C_MUTED, 9)
+  draw_chip(fb, 51, 10, 13, state.country_code or "--", C_PANEL, C_MUTED, 9)
   draw_chip(fb, 25, 20, 26, dominant_label(state.dominant), C_PANEL, C_TEXT, 19)
   fb:text_box(50, 20, 12, 8, fmt_int(state.dominant_value), accent, font, 8, "right", false)
-  fb:text_box(0, -1, 28, 8, state.geo_ok and "CITY" or "DEF", C_MUTED, font, 8, "left", false)
 
   rect_fill(fb, 2, 29, 60, 2, C_PANEL)
   rect_fill(fb, 2, 29, 10, 2, C_GOOD)
@@ -393,6 +454,92 @@ function app.render_fb(fb)
   end
   local pos = math.floor(math.min(aqi, 300) / 300 * 59 + 0.5)
   rect_fill(fb, 2 + pos, 28, 2, 4, C_TEXT)
+end
+
+
+-- __GLOBAL_BOOT_SPLASH_WRAPPER_V1__
+local __boot_now_ms = now_ms or (sys and sys.now_ms) or function() return 0 end
+local __boot_started_ms = 0
+local __boot_ms = tonumber(data.get("aqi_now.boot_splash_ms") or data.get("app.boot_splash_ms") or 1200) or 1200
+if __boot_ms < 0 then __boot_ms = 0 end
+local __boot_name = tostring(data.get("aqi_now.app_name") or "AQI Now")
+
+local function __boot_compact_text(s, limit)
+  s = tostring(s or "")
+  s = string.gsub(s, "%s+", " ")
+  s = string.gsub(s, "^%s+", "")
+  s = string.gsub(s, "%s+$", "")
+  local n = tonumber(limit) or 16
+  if #s > n then return string.sub(s, 1, n - 1) .. "…" end
+  return s
+end
+
+local function __boot_split_title_lines(name)
+  local text = tostring(name or "")
+  text = string.gsub(text, "%s+", " ")
+  text = string.gsub(text, "^%s+", "")
+  text = string.gsub(text, "%s+$", "")
+  if text == "" then return "APP", "" end
+  local mid = math.floor(#text / 2)
+  local cut = nil
+  local best = 999
+  for i = 1, #text do
+    if string.sub(text, i, i) == " " then
+      local d = math.abs(i - mid)
+      if d < best then
+        best = d
+        cut = i
+      end
+    end
+  end
+  if not cut then return text, "" end
+  local a = string.gsub(string.sub(text, 1, cut - 1), "%s+$", "")
+  local b = string.gsub(string.sub(text, cut + 1), "^%s+", "")
+  return a, b
+end
+
+local function __boot_is_active()
+  if __boot_started_ms <= 0 then return false end
+  return (__boot_now_ms() - __boot_started_ms) < __boot_ms
+end
+
+local __orig_init = app.init
+app.init = function(...)
+  __boot_started_ms = __boot_now_ms()
+  if __orig_init then return __orig_init(...) end
+end
+
+local __orig_render_fb = app.render_fb
+if __orig_render_fb then
+  app.render_fb = function(...)
+    local fb = select(1, ...)
+    if __boot_is_active() and fb and fb.fill and fb.text_box then
+      local t1, t2 = __boot_split_title_lines(__boot_name)
+      fb:fill(0x0000)
+      if t2 ~= "" then
+        fb:text_box(0, 8, 64, 8, __boot_compact_text(t1, 14), 0x07FF, "builtin:silkscreen_regular_8", 8, "center", false)
+        fb:text_box(0, 16, 64, 8, __boot_compact_text(t2, 14), 0x07FF, "builtin:silkscreen_regular_8", 8, "center", false)
+      else
+        fb:text_box(0, 12, 64, 8, __boot_compact_text(t1, 14), 0x07FF, "builtin:silkscreen_regular_8", 8, "center", false)
+      end
+      return true
+    end
+    return __orig_render_fb(...)
+  end
+end
+
+local __orig_render = app.render
+if __orig_render then
+  app.render = function(...)
+    if __boot_is_active() then
+      local t1, t2 = __boot_split_title_lines(__boot_name)
+      if t2 ~= "" then
+        return {"", __boot_compact_text(t1, 16), __boot_compact_text(t2, 16), ""}
+      end
+      return {"", __boot_compact_text(t1, 16), "", ""}
+    end
+    return __orig_render(...)
+  end
 end
 
 return app

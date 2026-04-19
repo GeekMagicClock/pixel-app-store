@@ -31,15 +31,31 @@ local FONT = {
   ["8"] = {"111", "101", "111", "101", "111"},
   ["9"] = {"111", "101", "111", "001", "111"},
   ["A"] = {"010", "101", "111", "101", "101"},
+  ["B"] = {"110", "101", "110", "101", "110"},
   ["C"] = {"011", "100", "100", "100", "011"},
   ["D"] = {"110", "101", "101", "101", "110"},
   ["E"] = {"111", "100", "110", "100", "111"},
+  ["F"] = {"111", "100", "110", "100", "100"},
+  ["G"] = {"011", "100", "101", "101", "011"},
   ["H"] = {"101", "101", "111", "101", "101"},
+  ["I"] = {"111", "010", "010", "010", "111"},
+  ["J"] = {"001", "001", "001", "101", "010"},
+  ["K"] = {"101", "101", "110", "101", "101"},
+  ["L"] = {"100", "100", "100", "100", "111"},
   ["M"] = {"101", "111", "111", "101", "101"},
+  ["N"] = {"101", "111", "111", "111", "101"},
   ["O"] = {"111", "101", "101", "101", "111"},
+  ["P"] = {"110", "101", "110", "100", "100"},
+  ["Q"] = {"111", "101", "101", "111", "001"},
   ["R"] = {"110", "101", "110", "101", "101"},
+  ["S"] = {"011", "100", "111", "001", "110"},
   ["T"] = {"111", "010", "010", "010", "010"},
+  ["U"] = {"101", "101", "101", "101", "111"},
+  ["V"] = {"101", "101", "101", "101", "010"},
   ["W"] = {"101", "101", "111", "111", "101"},
+  ["X"] = {"101", "101", "010", "101", "101"},
+  ["Y"] = {"101", "101", "010", "010", "010"},
+  ["Z"] = {"111", "001", "010", "100", "111"},
   [" "] = {"000", "000", "000", "000", "000"},
 }
 
@@ -189,6 +205,92 @@ function app.render_fb(fb)
   draw_text(fb, string.format("%02d", tonumber(t.day or 1) or 1), 53, 25, C_ACCENT, C_SHADOW)
   rect_safe(fb, 5, 27, 44, 1, C_SEG_DIM)
   rect_safe(fb, 5, 27, math.floor((sec / 59) * 44 + 0.5), 1, C_ACCENT)
+end
+
+
+-- __GLOBAL_BOOT_SPLASH_WRAPPER_V1__
+local __boot_now_ms = now_ms or (sys and sys.now_ms) or function() return 0 end
+local __boot_started_ms = 0
+local __boot_ms = tonumber(data.get("chrome_mech_3d_clock.boot_splash_ms") or data.get("app.boot_splash_ms") or 1200) or 1200
+if __boot_ms < 0 then __boot_ms = 0 end
+local __boot_name = tostring(data.get("chrome_mech_3d_clock.app_name") or "Chrome Mech 3D Clock")
+
+local function __boot_compact_text(s, limit)
+  s = tostring(s or "")
+  s = string.gsub(s, "%s+", " ")
+  s = string.gsub(s, "^%s+", "")
+  s = string.gsub(s, "%s+$", "")
+  local n = tonumber(limit) or 16
+  if #s > n then return string.sub(s, 1, n - 1) .. "…" end
+  return s
+end
+
+local function __boot_split_title_lines(name)
+  local text = tostring(name or "")
+  text = string.gsub(text, "%s+", " ")
+  text = string.gsub(text, "^%s+", "")
+  text = string.gsub(text, "%s+$", "")
+  if text == "" then return "APP", "" end
+  local mid = math.floor(#text / 2)
+  local cut = nil
+  local best = 999
+  for i = 1, #text do
+    if string.sub(text, i, i) == " " then
+      local d = math.abs(i - mid)
+      if d < best then
+        best = d
+        cut = i
+      end
+    end
+  end
+  if not cut then return text, "" end
+  local a = string.gsub(string.sub(text, 1, cut - 1), "%s+$", "")
+  local b = string.gsub(string.sub(text, cut + 1), "^%s+", "")
+  return a, b
+end
+
+local function __boot_is_active()
+  if __boot_started_ms <= 0 then return false end
+  return (__boot_now_ms() - __boot_started_ms) < __boot_ms
+end
+
+local __orig_init = app.init
+app.init = function(...)
+  __boot_started_ms = __boot_now_ms()
+  if __orig_init then return __orig_init(...) end
+end
+
+local __orig_render_fb = app.render_fb
+if __orig_render_fb then
+  app.render_fb = function(...)
+    local fb = select(1, ...)
+    if __boot_is_active() and fb and fb.fill and fb.text_box then
+      local t1, t2 = __boot_split_title_lines(__boot_name)
+      fb:fill(0x0000)
+      if t2 ~= "" then
+        fb:text_box(0, 8, 64, 8, __boot_compact_text(t1, 14), 0x07FF, "builtin:silkscreen_regular_8", 8, "center", false)
+        fb:text_box(0, 16, 64, 8, __boot_compact_text(t2, 14), 0x07FF, "builtin:silkscreen_regular_8", 8, "center", false)
+      else
+        fb:text_box(0, 12, 64, 8, __boot_compact_text(t1, 14), 0x07FF, "builtin:silkscreen_regular_8", 8, "center", false)
+      end
+      return true
+    end
+    return __orig_render_fb(...)
+  end
+end
+
+local __orig_render = app.render
+if __orig_render then
+  app.render = function(...)
+    if __boot_is_active() then
+      local t1, t2 = __boot_split_title_lines(__boot_name)
+      if t2 ~= "" then
+        return {"", __boot_compact_text(t1, 16), __boot_compact_text(t2, 16), ""}
+      end
+      return {"", __boot_compact_text(t1, 16), "", ""}
+    end
+    return __orig_render(...)
+  end
 end
 
 return app

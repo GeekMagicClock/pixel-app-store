@@ -1302,6 +1302,86 @@ static esp_err_t HandleInstalledApps(httpd_req_t* req) {
   return ESP_OK;
 }
 
+static bool ParseAppFilesUri(const char* uri, std::string* out_app_id) {
+  if (out_app_id) out_app_id->clear();
+  if (!uri || !out_app_id) return false;
+  const std::string raw = UriWithoutQuery(uri);
+  static const std::string kPrefix = "/api/apps/files/";
+  if (raw.rfind(kPrefix, 0) != 0) return false;
+  const std::string app_id = raw.substr(kPrefix.size());
+  if (!IsValidAppId(app_id)) return false;
+  *out_app_id = app_id;
+  return true;
+}
+
+static esp_err_t HandleAppFilesList(httpd_req_t* req) {
+  std::string app_id;
+  if (!ParseAppFilesUri(req->uri, &app_id)) {
+    SendJson(req, "400 Bad Request", "{\"ok\":false,\"error\":\"invalid app_id\"}");
+    return ESP_OK;
+  }
+
+  std::string rel_dir = "assets";
+  std::string q_dir;
+  if (ReadQueryParam(req, "dir", &q_dir) && !q_dir.empty()) {
+    if (!IsAllowedFilename(q_dir) || q_dir.find("..") != std::string::npos || q_dir.front() == '/' ||
+        q_dir.back() == '/') {
+      SendJson(req, "400 Bad Request", "{\"ok\":false,\"error\":\"invalid dir\"}");
+      return ESP_OK;
+    }
+    rel_dir = q_dir;
+  }
+
+  const std::string base_dir = std::string("/littlefs/apps/") + app_id + "/" + rel_dir;
+  struct stat st = {};
+  if (stat(base_dir.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)) {
+    SendJson(req, "404 Not Found", "{\"ok\":false,\"error\":\"dir not found\"}");
+    return ESP_OK;
+  }
+
+  cJSON* root = cJSON_CreateObject();
+  cJSON* files = cJSON_CreateArray();
+  if (!root || !files) {
+    if (root) cJSON_Delete(root);
+    if (files) cJSON_Delete(files);
+    SendJson(req, "500 Internal Server Error", "{\"ok\":false,\"error\":\"oom\"}");
+    return ESP_OK;
+  }
+  cJSON_AddItemToObject(root, "ok", cJSON_CreateTrue());
+  cJSON_AddStringToObject(root, "app_id", app_id.c_str());
+  cJSON_AddStringToObject(root, "dir", rel_dir.c_str());
+  cJSON_AddItemToObject(root, "files", files);
+
+  DIR* dir = opendir(base_dir.c_str());
+  if (dir) {
+    while (true) {
+      struct dirent* ent = readdir(dir);
+      if (!ent) break;
+      const char* name = ent->d_name;
+      if (!name || !*name) continue;
+      if ((strcmp(name, ".") == 0) || (strcmp(name, "..") == 0)) continue;
+      if (name[0] == '.') continue;
+
+      const std::string filename = name;
+      if (!IsAllowedFilename(filename)) continue;
+
+      const std::string full = base_dir + "/" + filename;
+      struct stat fst = {};
+      if (stat(full.c_str(), &fst) != 0) continue;
+      if (!S_ISREG(fst.st_mode)) continue;
+      cJSON_AddItemToArray(files, cJSON_CreateString(filename.c_str()));
+    }
+    closedir(dir);
+  }
+
+  char* rendered = cJSON_PrintUnformatted(root);
+  std::string body = rendered ? rendered : "{\"ok\":true,\"files\":[]}";
+  if (rendered) cJSON_free(rendered);
+  cJSON_Delete(root);
+  SendJson(req, "200 OK", body.c_str());
+  return ESP_OK;
+}
+
 static esp_err_t HandleAppThumbnail(httpd_req_t* req) {
   std::string app_id;
   if (!ParseAppIdFromPrefix(req->uri, "/api/apps/thumbnail/", &app_id)) {
@@ -1988,6 +2068,17 @@ bool AppUpdateServerStart(AppUpdateReloadCallback reload_cb, AppUpdateSwitchCall
   installed.handler = HandleInstalledApps;
   if (httpd_register_uri_handler(g_httpd, &installed) != ESP_OK) {
     ESP_LOGE(kTag, "register apps list failed");
+    httpd_stop(g_httpd);
+    g_httpd = nullptr;
+    return false;
+  }
+
+  httpd_uri_t app_files = {};
+  app_files.uri = "/api/apps/files/*";
+  app_files.method = HTTP_GET;
+  app_files.handler = HandleAppFilesList;
+  if (httpd_register_uri_handler(g_httpd, &app_files) != ESP_OK) {
+    ESP_LOGE(kTag, "register app files failed");
     httpd_stop(g_httpd);
     g_httpd = nullptr;
     return false;
