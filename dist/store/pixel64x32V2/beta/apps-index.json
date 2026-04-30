@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-04-30T10:59:17.339294+00:00",
+  "generated_at": "2026-04-30T10:59:25.736017+00:00",
   "channel": "beta",
   "category_order": [
     "art",
@@ -122,14 +122,14 @@
     {
       "id": "stock1",
       "name": "Stock Brief",
-      "version": "1.1.4",
+      "version": "1.1.5",
       "category": "finance",
       "description": "",
-      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/stock1-1.1.4.zip",
+      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/stock1-1.1.5.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/thumbs/stock1.png?v=607e84eb7e96",
       "thumbnail_sha256": "607e84eb7e962740808a783bf3c1506badeef4dbb031f1041e37bd2c49f71c42",
-      "crc32": "4bffb6df",
-      "size": 8612,
+      "crc32": "6c5c89c3",
+      "size": 8822,
       "lua_bytecode": true,
       "entry": "app.bin",
       "compiler": "Lua 5.4.7  Copyright (C) 1994-2024 Lua.org, PUC-Rio",
