@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-04-30T11:03:58.255558+00:00",
+  "generated_at": "2026-04-30T11:06:47.729638+00:00",
   "channel": "beta",
   "category_order": [
     "art",
@@ -138,14 +138,14 @@
     {
       "id": "stock_chart",
       "name": "Stock Chart",
-      "version": "1.0.6",
+      "version": "1.0.7",
       "category": "finance",
       "description": "",
-      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/stock_chart-1.0.6.zip",
+      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/stock_chart-1.0.7.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/thumbs/stock_chart.png?v=7bcf98b4faaa",
       "thumbnail_sha256": "7bcf98b4faaafb1548b5b42f2cf1004d5a090f217f4fafbdba751ed5142db071",
-      "crc32": "14bdb9bb",
-      "size": 18039,
+      "crc32": "f29297d8",
+      "size": 18187,
       "lua_bytecode": true,
       "entry": "app.bin",
       "compiler": "Lua 5.4.7  Copyright (C) 1994-2024 Lua.org, PUC-Rio",
