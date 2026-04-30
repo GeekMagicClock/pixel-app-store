@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-04-30T11:06:47.729638+00:00",
+  "generated_at": "2026-04-30T11:10:38.978415+00:00",
   "channel": "beta",
   "category_order": [
     "art",
@@ -154,14 +154,14 @@
     {
       "id": "stock_fear_index",
       "name": "Stock Fear",
-      "version": "1.0.3",
+      "version": "1.0.4",
       "category": "finance",
       "description": "",
-      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/stock_fear_index-1.0.3.zip",
+      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/stock_fear_index-1.0.4.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/thumbs/stock_fear_index.png?v=3a2ea2ebaa77",
       "thumbnail_sha256": "3a2ea2ebaa77cb5553152c1f556fd9cda6a01f38b409f3eceb49a2b62d2f17d6",
-      "crc32": "b88e17ab",
-      "size": 8087,
+      "crc32": "8215f5f2",
+      "size": 8565,
       "lua_bytecode": true,
       "entry": "app.bin",
       "compiler": "Lua 5.4.7  Copyright (C) 1994-2024 Lua.org, PUC-Rio",
