@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-05-01T06:48:00.113296+00:00",
+  "generated_at": "2026-05-01T06:51:02.064827+00:00",
   "channel": "beta",
   "category_order": [
     "art",
@@ -362,13 +362,13 @@
     {
       "id": "media_gallery",
       "name": "Media Gallery",
-      "version": "1.4.14",
+      "version": "1.4.15",
       "category": "media",
       "description": "",
-      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/media_gallery-1.4.14.zip",
+      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/media_gallery-1.4.15.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/thumbs/media_gallery.png?v=e61e08701d6a",
       "thumbnail_sha256": "e61e08701d6a9d0193528d47dfeb3ce7ba5c828949f809700a03dc5b38f80770",
-      "crc32": "5db01659",
+      "crc32": "57b6d05a",
       "size": 168490,
       "lua_bytecode": true,
       "entry": "app.bin",
