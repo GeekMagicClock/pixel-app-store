@@ -44,13 +44,14 @@ HUB75_I2S_CFG MakePanelConfig() {
 #define HUB75_LATCH_BLANKING 2
 #endif
 #ifndef HUB75_I2S_SPEED
-#define HUB75_I2S_SPEED HUB75_I2S_CFG::HZ_10M
+#define HUB75_I2S_SPEED HUB75_I2S_CFG::HZ_20M
 #endif
 #ifndef HUB75_MIN_REFRESH_RATE
 #define HUB75_MIN_REFRESH_RATE 60
 #endif
 #ifndef HUB75_CLKPHASE
-#define HUB75_CLKPHASE false
+//#define HUB75_CLKPHASE false
+#define HUB75_CLKPHASE true 
 #endif
 #ifndef HUB75_PANEL_DRIVER
 #define HUB75_PANEL_DRIVER HUB75_I2S_CFG::SHIFTREG
@@ -61,7 +62,7 @@ HUB75_I2S_CFG MakePanelConfig() {
   cfg.clkphase = HUB75_CLKPHASE;
   cfg.driver = HUB75_PANEL_DRIVER;
   cfg.min_refresh_rate = HUB75_MIN_REFRESH_RATE;
-
+  cfg.x_compensation = true;
   LogPanelConfig(cfg);
   return cfg;
 }

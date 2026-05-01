@@ -18,7 +18,7 @@ local C_PANEL = 0x0843
 local C_FRAME = 0x18C6
 local C_WARN = 0xF800
 local C_ACCENT = 0x07FF
-local BOOT_SPLASH_MS = 1200
+local BOOT_SPLASH_MS = 5000
 local APP_NAME = tostring(data.get("aqi_now.app_name") or "AQI Now")
 
 local DIGITS = {
@@ -261,7 +261,7 @@ end
 local function start_aqi_request()
   if state.req_id then return end
   local url = string.format(
-    "https://air-quality-api.open-meteo.com/v1/air-quality?latitude=%s&longitude=%s&hourly=us_aqi,pm2_5,pm10,nitrogen_dioxide,ozone&forecast_days=2&timezone=auto",
+    "http://air-quality-api.open-meteo.com/v1/air-quality?latitude=%s&longitude=%s&hourly=us_aqi,pm2_5,pm10,nitrogen_dioxide,ozone&forecast_days=2&timezone=auto",
     tostring(state.lat), tostring(state.lon)
   )
   local id, body, age_ms, err = net.cached_get(url, 30 * 60 * 1000, 7000, 12288)
@@ -327,7 +327,7 @@ local function start_request()
   local city = cfg_city()
   state.city = city
   local geo_url = string.format(
-    "https://geocoding-api.open-meteo.com/v1/search?name=%s&count=1&language=en&format=json",
+    "http://geocoding-api.open-meteo.com/v1/search?name=%s&count=1&language=en&format=json",
     url_encode(city)
   )
   local id, body, age_ms, err = net.cached_get(geo_url, 24 * 60 * 60 * 1000, 7000, 6144)
@@ -460,7 +460,7 @@ end
 -- __GLOBAL_BOOT_SPLASH_WRAPPER_V1__
 local __boot_now_ms = now_ms or (sys and sys.now_ms) or function() return 0 end
 local __boot_started_ms = 0
-local __boot_ms = tonumber(data.get("aqi_now.boot_splash_ms") or data.get("app.boot_splash_ms") or 1200) or 1200
+local __boot_ms = tonumber(data.get("aqi_now.boot_splash_ms") or data.get("app.boot_splash_ms") or 5000) or 5000
 if __boot_ms < 0 then __boot_ms = 0 end
 local __boot_name = tostring(data.get("aqi_now.app_name") or "AQI Now")
 

@@ -129,7 +129,6 @@ if [[ ! -x "${LUA_COMPILER}" ]]; then
 fi
 
 STAGE_ROOT="$(mktemp -d "/tmp/push_app_stage_${APP_ID}_XXXXXX")"
-trap 'rm -rf "${STAGE_ROOT}"' EXIT
 STAGE_APP_DIR="${STAGE_ROOT}/${APP_ID}"
 mkdir -p "${STAGE_APP_DIR}"
 
@@ -214,6 +213,19 @@ PY
 fi
 
 uploaded=0
+session_started=0
+session_committed=0
+abort_session() {
+  if [[ "${session_started}" -eq 1 && "${session_committed}" -eq 0 ]]; then
+    curl "${CURL_ARGS[@]}" -X POST "${BASE_URL}/api/apps/install/abort" >/dev/null || true
+  fi
+}
+trap 'abort_session; rm -rf "${STAGE_ROOT}"' EXIT
+
+echo "==> Begin install session: ${APP_ID}"
+curl "${CURL_ARGS[@]}" -X POST "${BASE_URL}/api/apps/install/begin?app_id=${APP_ID}" >/dev/null
+session_started=1
+
 while IFS= read -r -d '' file_path; do
   rel="${file_path#${STAGE_APP_DIR}/}"
   if [[ -z "${rel}" ]]; then
@@ -250,6 +262,10 @@ done < <(find "${STAGE_APP_DIR}" -type f -name "*.html.gz" -print0 | sort -z)
 
 echo "==> Reloading app carousel"
 curl "${CURL_ARGS[@]}" -X POST "${BASE_URL}/api/apps/reload" >/dev/null
+
+echo "==> Commit install session"
+curl "${CURL_ARGS[@]}" -X POST "${BASE_URL}/api/apps/install/commit" >/dev/null
+session_committed=1
 
 if [[ "${SWITCH_AFTER_PUSH}" == "--switch" ]]; then
   echo "==> Switching to ${APP_ID}"

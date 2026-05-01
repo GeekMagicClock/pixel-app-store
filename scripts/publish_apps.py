@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import zlib
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,11 +23,13 @@ ROOT = Path(__file__).resolve().parents[1]
 APPS_DIR = ROOT / "data_littlefs" / "apps"
 DEFAULT_DIST_ROOT = ROOT / "dist" / "store"
 DEFAULT_BOARD = "pixel64x32V2"
-DEFAULT_REMOTE = "root@111.229.177.3:/root/fw/pixel64x32V2/apps"
-DEFAULT_PUBLIC_BASE = "http://ota.geekmagic.cc:8001/fw/pixel64x32V2/apps"
+DEFAULT_CHANNEL = "stable"
+DEFAULT_REMOTE = "root@111.229.177.3:/www/wwwroot/ota.geekmagic.cc/store_data/pixel64x32V2"
+DEFAULT_PUBLIC_BASE = "https://ota.geekmagic.cc/apps/{board}/{channel}"
 DEFAULT_HTTP_HOST = "ota.geekmagic.cc"
 DEFAULT_HTTP_PORT = 8001
 DEFAULT_SSH_PORT = 22
+DEFAULT_SSH_IDENTITY = str(Path.home() / ".ssh" / "t20260309.pem")
 DEFAULT_LUAC_TOOL = ROOT / "python" / "store" / "tools" / "luac-esp-compat"
 FORBIDDEN_TERMS = ("lua", "http", "api", "json", "proxy", "firmware", "littlefs")
 
@@ -153,6 +156,17 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def crc32_file(path: Path) -> str:
+    crc = 0
+    with path.open("rb") as f:
+        while True:
+            chunk = f.read(1024 * 1024)
+            if not chunk:
+                break
+            crc = zlib.crc32(chunk, crc)
+    return f"{crc & 0xFFFFFFFF:08x}"
+
+
 def normalize_category(value: str | None) -> str:
     text = (value or "other").strip().lower()
     return text or "other"
@@ -163,6 +177,13 @@ def parse_remote_target(remote: str) -> tuple[str, str]:
         raise SystemExit("--remote must look like user@host:/abs/path")
     remote_login, remote_path = remote.split(":", 1)
     return remote_login, remote_path.rstrip("/")
+
+def remote_with_channel(remote: str, channel: str) -> str:
+    remote_login, remote_path = parse_remote_target(remote)
+    tail = remote_path.rstrip("/").split("/")[-1].lower()
+    if tail in {"stable", "beta"}:
+        return f"{remote_login}:{remote_path}"
+    return f"{remote_login}:{remote_path}/{channel}"
 
 
 def semver_cmp(a: str, b: str) -> int:
@@ -245,7 +266,15 @@ def validate_zip_has_no_lua_source(zip_path: Path) -> None:
                 raise SystemExit(f"{zip_path.name}: contains forbidden source file '{name}'")
 
 
-def package_app(app_id: str, board_dir: Path, thumbs_dir: Path, base_url: str, luac: str, luac_version: str) -> dict:
+def package_app(
+    app_id: str,
+    board_dir: Path,
+    thumbs_dir: Path,
+    thumbnail_url_base: str,
+    zip_url_base: str,
+    luac: str,
+    luac_version: str,
+) -> dict:
     app_dir = APPS_DIR / app_id
     if not app_dir.exists():
         raise SystemExit(f"missing app dir: {app_dir}")
@@ -294,27 +323,48 @@ def package_app(app_id: str, board_dir: Path, thumbs_dir: Path, base_url: str, l
 
     category = normalize_category(manifest.get("category"))
     desc = str(manifest.get("description") or "")
+    min_fw = str(
+        manifest.get("min_fw")
+        or manifest.get("min_firmware")
+        or manifest.get("min_firmware_version")
+        or ""
+    ).strip()
     entry = {
         "id": app_id,
         "name": str(manifest.get("name") or app_id),
         "version": version,
         "category": category,
         "description": desc,
-        "zip_url": f"{base_url}/{zip_name}",
-        "thumbnail_url": f"{base_url}/thumbs/{thumb_name}?v={thumb_sha[:12]}",
+        "zip_url": f"{zip_url_base}/{zip_name}",
+        "thumbnail_url": f"{thumbnail_url_base}/thumbs/{thumb_name}?v={thumb_sha[:12]}",
         "thumbnail_sha256": thumb_sha,
-        "sha256": sha256_file(zip_path),
+        "crc32": crc32_file(zip_path),
         "size": zip_path.stat().st_size,
         "lua_bytecode": True,
         "entry": "app.bin",
         "compiler": luac_version,
     }
+    if min_fw:
+        entry["min_fw"] = min_fw
     if extra_lua:
         entry["compiled_helpers"] = True
     return entry
 
 
-def write_index(board_dir: Path, entries: list[dict]) -> None:
+def validate_published_entry(entry: dict, app_id: str) -> None:
+    crc32 = str(entry.get("crc32") or "").strip().lower()
+    if not crc32:
+        raise SystemExit(f"{app_id}: missing crc32 in published catalog entry")
+    if not re.fullmatch(r"(?:crc32:)?[0-9a-f]{8}", crc32):
+        raise SystemExit(f"{app_id}: invalid crc32 '{entry.get('crc32')}'")
+    size = int(entry.get("size") or 0)
+    if size <= 0:
+        raise SystemExit(f"{app_id}: missing or invalid size in published catalog entry")
+
+
+def write_index(board_dir: Path, entries: list[dict], channel: str) -> None:
+    for item in entries:
+        validate_published_entry(item, str(item.get("id") or "unknown"))
     categories = []
     for item in entries:
         cat = item["category"]
@@ -323,6 +373,7 @@ def write_index(board_dir: Path, entries: list[dict]) -> None:
     payload = {
         "schema": 1,
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "channel": channel,
         "category_order": categories,
         "category_labels": {cat: CATEGORY_LABELS.get(cat, cat.replace("_", " ").title()) for cat in categories},
         "apps": entries,
@@ -438,6 +489,8 @@ def deploy_remote(
 ) -> None:
     remote_target = remote
     remote_login, remote_path = parse_remote_target(remote)
+    helper_script = Path(tempfile.gettempdir()) / "pixel_store_cors_server.py"
+    helper_script.write_text(CORS_SERVER_SCRIPT + "\n", encoding="utf-8")
 
     scp_cmd = ["scp", "-r", "-P", str(ssh_port)]
     ssh_cmd = ["ssh", "-p", str(ssh_port)]
@@ -446,17 +499,21 @@ def deploy_remote(
         ssh_cmd.extend(["-i", identity])
 
     run(ssh_cmd + [remote_login, f"mkdir -p {shlex.quote(remote_path)}"])
+    run(scp_cmd + [str(helper_script), f"{remote_login}:/tmp/pixel_store_cors_server.py"])
     run(scp_cmd + [f"{str(local_dir)}/.", f"{remote_target}/"])
-    kill_cmd = (
-        f"pkill -f 'python3 .* {http_port} {bind} {remote_path}' || true; "
-        f"pkill -f 'http.server {http_port}' || true"
+    pidfile = f"{remote_path}/web.pid"
+    stop_cmd = (
+        f"if [ -f {shlex.quote(pidfile)} ]; then "
+        f"kill $(cat {shlex.quote(pidfile)}) >/dev/null 2>&1 || true; "
+        f"rm -f {shlex.quote(pidfile)}; "
+        f"fi"
     )
     web_cmd = (
-        "nohup python3 -c "
-        + shlex.quote(CORS_SERVER_SCRIPT)
-        + f" {http_port} {bind} {remote_path} >{remote_path}/web.log 2>&1 &"
+        f"nohup python3 /tmp/pixel_store_cors_server.py {http_port} {bind} {remote_path} "
+        f">{remote_path}/web.log 2>&1 & echo $! > {shlex.quote(pidfile)}"
     )
-    run(ssh_cmd + [remote_login, f"{kill_cmd}; {web_cmd}"])
+    run(ssh_cmd + [remote_login, stop_cmd])
+    run(ssh_cmd + [remote_login, web_cmd])
     print(f"published: http://{http_host}:{http_port}/")
     print(f"index: http://{http_host}:{http_port}/apps-index.json")
 
@@ -477,11 +534,32 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Build compiled app-store packages and optionally publish them to the remote app server.")
     ap.add_argument("apps", nargs="*", help="app ids to publish; default: all apps with manifest.json + main.lua")
     ap.add_argument("--board", default=DEFAULT_BOARD)
+    ap.add_argument("--channel", choices=("stable", "beta"), default=DEFAULT_CHANNEL)
     ap.add_argument("--dist-root", default=str(DEFAULT_DIST_ROOT))
-    ap.add_argument("--base-url", default=DEFAULT_PUBLIC_BASE)
+    ap.add_argument(
+        "--base-url",
+        default=DEFAULT_PUBLIC_BASE,
+        help="public base for index/thumb URL. Supports {board} and {channel} placeholders.",
+    )
+    ap.add_argument(
+        "--thumbnail-base-url",
+        default="",
+        help="base URL for thumbnail_url. Supports {board} and {channel} placeholders. Defaults to --base-url.",
+    )
+    ap.add_argument(
+        "--zip-base-url",
+        default="",
+        help="base URL for zip_url. Supports {board} and {channel} placeholders. Defaults to --base-url.",
+    )
+    ap.add_argument(
+        "--zip-url-mode",
+        choices=("redirect", "direct"),
+        default="redirect",
+        help="redirect: zip_url -> {base-url}/redirect/<zip>; direct: zip_url -> {base-url}/<zip>",
+    )
     ap.add_argument("--remote", default=DEFAULT_REMOTE)
     ap.add_argument("--ssh-port", type=int, default=DEFAULT_SSH_PORT)
-    ap.add_argument("--identity", help="ssh private key path for scp/ssh upload")
+    ap.add_argument("--identity", default=DEFAULT_SSH_IDENTITY, help="ssh private key path for scp/ssh upload")
     ap.add_argument("--http-host", default=DEFAULT_HTTP_HOST)
     ap.add_argument("--http-port", type=int, default=DEFAULT_HTTP_PORT)
     ap.add_argument("--bind", default="0.0.0.0")
@@ -501,7 +579,12 @@ def main() -> int:
     )
     args = ap.parse_args()
 
-    board_dir = Path(args.dist_root).resolve() / args.board / "apps"
+    base_url = args.base_url.format(board=args.board, channel=args.channel).rstrip("/")
+    thumbnail_base_url = (args.thumbnail_base_url or args.base_url).format(board=args.board, channel=args.channel).rstrip("/")
+    zip_base_url = (args.zip_base_url or args.base_url).format(board=args.board, channel=args.channel).rstrip("/")
+    zip_url_base = f"{zip_base_url}/redirect" if args.zip_url_mode == "redirect" else zip_base_url
+    remote_target = remote_with_channel(args.remote, args.channel)
+    board_dir = Path(args.dist_root).resolve() / args.board / args.channel
     thumbs_dir = board_dir / "thumbs"
     if args.clean and board_dir.exists():
         shutil.rmtree(board_dir)
@@ -519,7 +602,7 @@ def main() -> int:
 
     entries: list[dict] = []
     for app_id in app_ids:
-        entry = package_app(app_id, board_dir, thumbs_dir, args.base_url.rstrip("/"), args.luac, luac_version)
+        entry = package_app(app_id, board_dir, thumbs_dir, thumbnail_base_url, zip_url_base, args.luac, luac_version)
         entries.append(entry)
 
     incremental_mode = bool(selected_apps) and not args.full_index
@@ -527,8 +610,8 @@ def main() -> int:
         identity = os.path.expanduser(args.identity) if args.identity else None
         existing_entries = load_existing_entries(
             board_dir=board_dir,
-            base_url=args.base_url.rstrip("/"),
-            remote=args.remote,
+            base_url=base_url,
+            remote=remote_target,
             ssh_port=args.ssh_port,
             identity=identity,
             prefer_remote=bool(args.upload),
@@ -538,18 +621,18 @@ def main() -> int:
             updates=entries,
             enforce_version_bump=not args.allow_no_bump,
         )
-        write_index(board_dir, merged_entries)
+        write_index(board_dir, merged_entries, args.channel)
         print(
             f"incremental index merge: updated {len(entries)} app(s), total {len(merged_entries)} app(s) in index"
         )
     else:
         entries.sort(key=lambda item: (item["category"], item["name"].lower(), item["id"]))
-        write_index(board_dir, entries)
+        write_index(board_dir, entries, args.channel)
 
     print(f"packaged {len(entries)} app(s) into {board_dir}")
     if args.upload:
         identity = os.path.expanduser(args.identity) if args.identity else None
-        deploy_remote(board_dir, args.remote, args.ssh_port, args.http_host, args.http_port, args.bind, identity)
+        deploy_remote(board_dir, remote_target, args.ssh_port, args.http_host, args.http_port, args.bind, identity)
     return 0
 
 

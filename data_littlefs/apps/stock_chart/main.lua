@@ -77,8 +77,7 @@ if MIN_REFRESH_MS > 600000 then MIN_REFRESH_MS = 600000 end
 local CACHE_KEY = "stock_chart.cache.v1"
 
 local YAHOO_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
-local DEV_PROXY_BASE = "http://192.168.3.156:8787"
-local PROXY_BASE = tostring(data.get("proxy.market_data_base") or data.get("proxy.stock_base") or DEV_PROXY_BASE)
+local PROXY_BASE = tostring(data.get("proxy.market_data_base") or data.get("proxy.stock_base") or "")
 local HOSTS = {
   "https://query1.finance.yahoo.com",
 }
@@ -114,6 +113,7 @@ local state = {
   klines_pause_until_ms = 0,
   klines_fail_count = 0,
   yahoo_cookie = nil,
+  yahoo_cookie_prev = nil,
   yahoo_crumb = nil,
   yahoo_crumb_ms = 0,
   auth_pending_kind = nil,
@@ -680,13 +680,39 @@ end
 local function start_fc_request(kind)
   if state.req_id then return false end
   local headers = { ["User-Agent"] = YAHOO_UA }
-  local id, err = net.http_get("https://fc.yahoo.com", 8000, 4096, headers)
+  local prev = tostring(state.yahoo_cookie or "")
+  if prev ~= "" then headers["Cookie"] = prev end
+  local id, err = net.http_get("https://fc.yahoo.com", 8000, 8192, headers)
   if not id then
     note_error(err or "FC REQ FAIL", kind)
     return false
   end
   state.req_id = id
   state.req_kind = "fc"
+  state.auth_pending_kind = kind
+  state.last_req_start_ms = now_ms()
+  return true
+end
+
+local function start_crumb_request_get(kind)
+  if state.req_id then return false end
+  local cookie = tostring(state.yahoo_cookie or "")
+  if cookie == "" then
+    return start_fc_request(kind)
+  end
+  local headers = {
+    ["User-Agent"] = YAHOO_UA,
+    ["Cookie"] = cookie,
+    ["Accept"] = "*/*",
+  }
+  sys.log("stock_chart crumb GET cookie_len=" .. tostring(#cookie))
+  local id, err = net.http_get("https://query1.finance.yahoo.com/v1/test/getcrumb?ts=1", 8000, 8192, headers)
+  if not id then
+    note_error(err or "CRUMB GET REQ FAIL", kind)
+    return false
+  end
+  state.req_id = id
+  state.req_kind = "crumb_get"
   state.auth_pending_kind = kind
   state.last_req_start_ms = now_ms()
   return true
@@ -701,10 +727,10 @@ local function start_crumb_request(kind)
   local headers = {
     ["User-Agent"] = YAHOO_UA,
     ["Cookie"] = cookie,
-    ["Referer"] = "https://finance.yahoo.com/",
-    ["Accept-Language"] = "en-US,en;q=0.9",
+    ["Accept"] = "*/*",
   }
-  local id, err = net.http_get("https://query1.finance.yahoo.com/v1/test/getcrumb", 8000, 4096, headers)
+  sys.log("stock_chart crumb POST cookie_len=" .. tostring(#cookie))
+  local id, err = net.http_get("https://query1.finance.yahoo.com/v1/test/getcrumb", 8000, 8192, headers)
   if not id then
     note_error(err or "CRUMB REQ FAIL", kind)
     return false
@@ -736,10 +762,10 @@ local function start_direct_request(kind, sym, host_idx)
     headers["Cookie"] = tostring(state.yahoo_cookie or "")
     max_body = 8192
   else
+    url = klines_url(sym, host_idx)
     if not auth_is_fresh(false) then
       return start_fc_request(kind)
     end
-    url = klines_url(sym, host_idx)
     headers["Cookie"] = tostring(state.yahoo_cookie or "")
     timeout_ms = 9000
     max_body = klines_buf_size(state.active_klimit)
@@ -926,7 +952,9 @@ local function poll_request()
         set_cookie = headers["set-cookie"] or headers["Set-Cookie"]
       end
       local a3 = extract_a3_cookie(set_cookie)
+      sys.log("stock_chart fc status=" .. tostring(status) .. " set_cookie_len=" .. tostring(#tostring(set_cookie or "")) .. " a3=" .. tostring(a3 and "ok" or "nil"))
       if a3 and (status == 200 or status == 301 or status == 302 or status == 404) then
+        state.yahoo_cookie_prev = state.yahoo_cookie
         state.yahoo_cookie = a3
         local pending = state.auth_pending_kind or "ticker"
         state.auth_pending_kind = nil
@@ -943,6 +971,17 @@ local function poll_request()
     end
 
     if kind == "crumb" then
+      if status == 405 then
+        start_crumb_request_get("ticker")
+        return
+      end
+      if (status == 401 or status == 403) and tostring(state.yahoo_cookie_prev or "") ~= "" then
+        state.yahoo_cookie = state.yahoo_cookie_prev
+        state.yahoo_cookie_prev = nil
+        start_crumb_request("ticker")
+        return
+      end
+      state.yahoo_cookie_prev = nil
       if status == 200 then
         local crumb = tostring(body or ""):gsub("^%s+", ""):gsub("%s+$", "")
         if crumb ~= "" then
@@ -954,6 +993,25 @@ local function poll_request()
           return
         end
       end
+      state.auth_pending_kind = nil
+      note_error("CRUMB HTTP " .. tostring(status), "ticker")
+      return
+    end
+
+    if kind == "crumb_get" then
+      if status == 200 then
+        local crumb = tostring(body or ""):gsub("^%s+", ""):gsub("%s+$", "")
+        if crumb ~= "" then
+          state.yahoo_crumb = crumb
+          state.yahoo_crumb_ms = now_ms()
+          state.yahoo_cookie_prev = nil
+          local pending = state.auth_pending_kind or "ticker"
+          state.auth_pending_kind = nil
+          start_direct_request(pending, req_symbol or state.fetch_symbol or state.symbol, state.req_host_idx or 1)
+          return
+        end
+      end
+      state.yahoo_cookie_prev = nil
       state.auth_pending_kind = nil
       note_error("CRUMB HTTP " .. tostring(status), "ticker")
       return
@@ -1237,7 +1295,7 @@ end
 -- __GLOBAL_BOOT_SPLASH_WRAPPER_V1__
 local __boot_now_ms = now_ms or (sys and sys.now_ms) or function() return 0 end
 local __boot_started_ms = 0
-local __boot_ms = tonumber(data.get("stock_chart.boot_splash_ms") or data.get("app.boot_splash_ms") or 1200) or 1200
+local __boot_ms = tonumber(data.get("stock_chart.boot_splash_ms") or data.get("app.boot_splash_ms") or 5000) or 5000
 if __boot_ms < 0 then __boot_ms = 0 end
 local __boot_name = tostring(data.get("stock_chart.app_name") or "Stock Chart")
 

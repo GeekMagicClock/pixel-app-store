@@ -12,3 +12,4 @@ void DisplayControlBind(MatrixPanel_I2S_DMA* display, SemaphoreHandle_t display_
 bool DisplayControlSetBrightness(uint8_t brightness);
 uint8_t DisplayControlGetBrightness();
 bool DisplayControlIsReady();
+bool DisplayControlShowSleepCountdown(int seconds_left);

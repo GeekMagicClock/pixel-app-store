@@ -1,9 +1,9 @@
 # Name,   Type, SubType, Offset,  Size, Flags
 nvs,      data, nvs,     0x9000,  0x5000,
 otadata,  data, ota,     0xe000,  0x2000,
-# Keep OTA app slots unchanged.
-app0,     app,  ota_0,   0x10000, 0x1A0000,
-app1,     app,  ota_1,   0x1B0000, 0x1A0000,
+# Use 2MB OTA app slots to match 8MB layout behavior.
+app0,     app,  ota_0,   0x10000, 0x200000,
+app1,     app,  ota_1,   0x210000,0x200000,
 # 16MB flash total: use all remaining space for LittleFS.
-# 0x1000000 - 0x350000 = 0xCB0000
-littlefs, data, spiffs,  0x350000,0xCB0000,
+# 0x1000000 - 0x410000 = 0xBF0000
+littlefs, data, spiffs,  0x410000,0xBF0000,

@@ -341,7 +341,7 @@ local function start_forecast_request()
   if state.req_id then return end
 
   local url = string.format(
-    "https://api.open-meteo.com/v1/forecast?latitude=%s&longitude=%s&daily=weather_code,temperature_2m_max&forecast_days=3&timezone=auto&temperature_unit=%s",
+    "http://api.open-meteo.com/v1/forecast?latitude=%s&longitude=%s&daily=weather_code,temperature_2m_max&forecast_days=3&timezone=auto&temperature_unit=%s",
     tostring(state.lat),
     tostring(state.lon),
     tostring(cfg_temp_unit())
@@ -398,7 +398,7 @@ local function start_request()
   end
 
   local geo_url = string.format(
-    "https://api.openweathermap.org/geo/1.0/direct?q=%s&limit=1&appid=%s",
+    "http://api.openweathermap.org/geo/1.0/direct?q=%s&limit=1&appid=%s",
     url_encode(cfg_city()), OWM_API_KEY
   )
   local id, body, age_ms, err = net.cached_get(geo_url, 12 * 60 * 60 * 1000, 6000, 4096)
@@ -523,7 +523,7 @@ end
 -- __GLOBAL_BOOT_SPLASH_WRAPPER_V1__
 local __boot_now_ms = now_ms or (sys and sys.now_ms) or function() return 0 end
 local __boot_started_ms = 0
-local __boot_ms = tonumber(data.get("openmeteo_3day.boot_splash_ms") or data.get("app.boot_splash_ms") or 1200) or 1200
+local __boot_ms = tonumber(data.get("openmeteo_3day.boot_splash_ms") or data.get("app.boot_splash_ms") or 5000) or 5000
 if __boot_ms < 0 then __boot_ms = 0 end
 local __boot_name = tostring(data.get("openmeteo_3day.app_name") or "3-Day Forecast")
 

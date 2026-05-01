@@ -15,7 +15,7 @@ extern "C" {
 
 #include "ui/lvgl_lua_app_screen.h"
 
-static const char* kTag = "lua_carousel";
+static const char* kTag = "app_carousel";
 
 namespace {
 
@@ -24,6 +24,7 @@ static int g_index = -1;
 static unsigned g_interval_ms = 10000;
 static std::vector<std::string> g_app_dirs;
 static std::atomic_uint g_pending_next_requests{0};
+static lv_obj_t* g_empty_hint = nullptr;
 
 static bool IsDir(const std::string& path) {
   struct stat st;
@@ -45,8 +46,6 @@ static void ScanLittlefsApps() {
   if (!d) {
     ESP_LOGW(kTag, "opendir failed: %s", root);
     // Fallback: keep a known app if present.
-    const std::string fb = std::string(root) + "/fb_test/main.lua";
-    if (IsFile(fb)) g_app_dirs.push_back(std::string(root) + "/fb_test");
     return;
   }
 
@@ -60,8 +59,8 @@ static void ScanLittlefsApps() {
     const std::string dir = std::string(root) + "/" + name;
     if (!IsDir(dir)) continue;
 
-    const std::string main_lua = dir + "/main.lua";
-    if (!IsFile(main_lua)) continue;
+    const std::string app_bin = dir + "/app.bin";
+    if (!IsFile(app_bin)) continue;
 
     g_app_dirs.push_back(dir);
   }
@@ -101,6 +100,22 @@ static void TimerCb(lv_timer_t* t) {
   Show(g_index);
 }
 
+static void ShowNoAppsHint() {
+  lv_obj_t* scr = lv_scr_act();
+  if (!scr) return;
+  if (g_empty_hint && lv_obj_is_valid(g_empty_hint)) {
+    lv_obj_del(g_empty_hint);
+    g_empty_hint = nullptr;
+  }
+  g_empty_hint = lv_label_create(scr);
+  lv_label_set_long_mode(g_empty_hint, LV_LABEL_LONG_WRAP);
+  lv_obj_set_width(g_empty_hint, 62);
+  lv_obj_align(g_empty_hint, LV_ALIGN_CENTER, 0, 0);
+  lv_obj_set_style_text_align(g_empty_hint, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_set_style_text_color(g_empty_hint, lv_color_white(), 0);
+  lv_label_set_text(g_empty_hint, "No apps installed.\nUse Web UI to install.");
+}
+
 }  // namespace
 
 void LvglStartLuaAppCarousel(unsigned interval_ms) {
@@ -115,11 +130,12 @@ void LvglStartLuaAppCarousel(unsigned interval_ms) {
   ScanLittlefsApps();
   if (g_app_dirs.empty()) {
     ESP_LOGW(kTag, "carousel not started: no apps");
+    ShowNoAppsHint();
     return;
   }
 
   g_index = 0;
-  ESP_LOGI(kTag, "Start lua carousel interval=%ums", g_interval_ms);
+  ESP_LOGI(kTag, "Start app carousel interval=%ums", g_interval_ms);
   Show(g_index);
 
   g_timer = lv_timer_create(TimerCb, g_interval_ms, nullptr);
@@ -129,7 +145,7 @@ void LvglStopLuaAppCarousel() {
   if (g_timer) {
     lv_timer_del(g_timer);
     g_timer = nullptr;
-    ESP_LOGI(kTag, "Lua carousel stopped");
+  ESP_LOGI(kTag, "app carousel stopped");
   }
 }
 
@@ -166,11 +182,12 @@ void LvglReloadLuaAppCarousel() {
   ScanLittlefsApps();
   if (g_app_dirs.empty()) {
     ESP_LOGW(kTag, "reload skipped: no apps");
+    ShowNoAppsHint();
     return;
   }
 
   g_index = 0;
-  ESP_LOGI(kTag, "reload lua carousel interval=%ums", keep_interval);
+  ESP_LOGI(kTag, "reload app carousel interval=%ums", keep_interval);
   Show(g_index);
   g_timer = lv_timer_create(TimerCb, keep_interval, nullptr);
 }

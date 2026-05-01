@@ -71,6 +71,26 @@ def http_put_bytes(url: str, body: bytes, content_type: str = "application/octet
   raise RuntimeError("http_put_bytes failed")
 
 
+def http_post_json(url: str) -> dict:
+  last_err: Exception | None = None
+  for _ in range(4):
+    try:
+      req = urllib.request.Request(url, data=b"{}", method="POST")
+      req.add_header("Content-Type", "application/json")
+      with _OPENER.open(req, timeout=15) as resp:
+        data = resp.read()
+      try:
+        return json.loads(data.decode("utf-8", errors="replace"))
+      except Exception:
+        return {"ok": False, "raw": data.decode("utf-8", errors="replace")}
+    except Exception as e:
+      last_err = e
+      time.sleep(0.25)
+  if last_err:
+    raise last_err
+  raise RuntimeError("http_post_json failed")
+
+
 def parse_ppm_p6(buf: bytes) -> tuple[int, int, bytes]:
   if not buf.startswith(b"P6"):
     raise ValueError("not a P6 PPM")
@@ -279,11 +299,29 @@ def main() -> int:
     return 0
 
   app_id_enc = urllib.parse.quote(app_id, safe="")
+  begin_url = f"http://{host}/api/apps/install/begin?app_id={app_id_enc}"
+  commit_url = f"http://{host}/api/apps/install/commit"
+  abort_url = f"http://{host}/api/apps/install/abort"
   upload_url = f"http://{host}/api/apps/{app_id_enc}/thumbnail.png"
-  put_resp = http_put_bytes(upload_url, local_png.read_bytes(), content_type="image/png")
-  if not bool(put_resp.get("ok")):
-    raise SystemExit(f"[ERROR] upload failed: {put_resp}")
-  print("[INFO] uploaded thumbnail.png to device")
+  committed = False
+  begin_resp = http_post_json(begin_url)
+  if not bool(begin_resp.get("ok")):
+    raise SystemExit(f"[ERROR] install begin failed: {begin_resp}")
+  try:
+    put_resp = http_put_bytes(upload_url, local_png.read_bytes(), content_type="image/png")
+    if not bool(put_resp.get("ok")):
+      raise SystemExit(f"[ERROR] upload failed: {put_resp}")
+    commit_resp = http_post_json(commit_url)
+    if not bool(commit_resp.get("ok")):
+      raise SystemExit(f"[ERROR] install commit failed: {commit_resp}")
+    committed = True
+    print("[INFO] uploaded thumbnail.png to device")
+  finally:
+    if not committed:
+      try:
+        http_post_json(abort_url)
+      except Exception:
+        pass
 
   try:
     ok = verify_thumbnail_flag(host, app_id)

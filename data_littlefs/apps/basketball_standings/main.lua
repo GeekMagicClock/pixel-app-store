@@ -37,7 +37,7 @@ local C_ROW_1 = 0xFFFF
 local C_ROW_2 = 0x87F0
 local C_ROW_3 = 0x07FF
 local C_ROW_4 = 0xFD20
-local BOOT_SPLASH_MS = 1200
+local BOOT_SPLASH_MS = 5000
 
 local SPORT = "basketball"
 local LEAGUE = tostring(data.get("basketball_standings.league") or "nba")
@@ -441,7 +441,7 @@ end
 -- __GLOBAL_BOOT_SPLASH_WRAPPER_V1__
 local __boot_now_ms = now_ms or (sys and sys.now_ms) or function() return 0 end
 local __boot_started_ms = 0
-local __boot_ms = tonumber(data.get("basketball_standings.boot_splash_ms") or data.get("app.boot_splash_ms") or 1200) or 1200
+local __boot_ms = tonumber(data.get("basketball_standings.boot_splash_ms") or data.get("app.boot_splash_ms") or 5000) or 5000
 if __boot_ms < 0 then __boot_ms = 0 end
 local __boot_name = tostring(data.get("basketball_standings.app_name") or "Basketball Standings")
 

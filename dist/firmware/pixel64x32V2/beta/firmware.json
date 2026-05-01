@@ -1,0 +1,10 @@
+{
+  "ok": true,
+  "board": "pixel64x32V2",
+  "channel": "beta",
+  "version": "2.0.8",
+  "url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/firmware/beta/firmware-v2.0.8.bin",
+  "size": 1726816,
+  "sha256": "2dd704b8cdf3c3c181d92fc492171bb87a7a9b4c622771a45c4b0b778ddced7a",
+  "generated_at": 1777458868
+}

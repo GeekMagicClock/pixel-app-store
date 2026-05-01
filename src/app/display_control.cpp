@@ -48,3 +48,34 @@ uint8_t DisplayControlGetBrightness() {
 bool DisplayControlIsReady() {
   return g_display != nullptr;
 }
+
+bool DisplayControlShowSleepCountdown(int seconds_left) {
+  if (!g_display) return false;
+  if (seconds_left < 0) seconds_left = 0;
+
+  bool locked = false;
+  if (g_display_mutex) {
+    locked = xSemaphoreTake(g_display_mutex, pdMS_TO_TICKS(50)) == pdTRUE;
+    if (!locked) {
+      ESP_LOGW(kTag, "draw countdown without display mutex");
+    }
+  }
+
+  const int total = 10;
+  int clamped = seconds_left;
+  if (clamped > total) clamped = total;
+  const int filled = (total - clamped) * 64 / total;
+
+  g_display->clearScreen();
+  g_display->fillRect(0, 0, 64, 4, g_display->color565(30, 30, 30));
+  if (filled > 0) {
+    g_display->fillRect(0, 0, filled, 4, g_display->color565(255, 200, 80));
+  }
+  g_display->fillRect(0, 12, 64, 1, g_display->color565(80, 80, 80));
+  g_display->fillRect(0, 20, 64, 1, g_display->color565(80, 80, 80));
+
+  if (locked) {
+    xSemaphoreGive(g_display_mutex);
+  }
+  return true;
+}

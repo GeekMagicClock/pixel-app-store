@@ -1,11 +1,13 @@
 {
   "app_id": "atelier_analog_clock",
   "name": "Atelier Analog Clock",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "min_fw": "0.0.0",
   "min_api": "1.0",
-  "entry": "main.lua",
+  "entry": "app.bin",
   "layout_id": "framebuffer_rgb565",
-  "capabilities": ["clock"],
+  "capabilities": [
+    "clock"
+  ],
   "category": "time"
 }

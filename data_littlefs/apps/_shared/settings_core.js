@@ -89,7 +89,7 @@
 
   let bindings = [];
   async function load() {
-    const json = await api("GET", "/api/system/lua-data");
+    const json = await api("GET", "/api/system/settings");
     const items = json && typeof json.items === "object" ? json.items : {};
     bindings = buildFields(items);
   }
@@ -100,7 +100,7 @@
     try {
       const t0 = Date.now();
       setStatus("Saving...");
-      await api("POST", "/api/system/lua-data", { items: collect(bindings) });
+      await api("POST", "/api/system/settings", { items: collect(bindings) });
       // Immediate-apply mode: skip reload and restart app directly.
       await api("POST", "/api/apps/switch/" + encodeURIComponent(cfg.appId), {});
       const elapsed = Date.now() - t0;

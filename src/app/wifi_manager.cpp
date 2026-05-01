@@ -11,10 +11,12 @@
 #include "esp_mac.h"
 #include "esp_netif.h"
 #include "esp_netif_ip_addr.h"
+#include "esp_timer.h"
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "nvs_flash.h"
+#include "app/captive_dns.h"
 
 static const char *kTag = "wifi_mgr";
 
@@ -37,6 +39,11 @@ static constexpr const char *kDefaultStaPassword = "2048@@@@";
 // esp_wifi_set_max_tx_power() unit is 0.25 dBm. 80 => 20 dBm actual.
 static constexpr int8_t kWifiMaxTxPower = 80;
 static constexpr bool kDebugStopAfterStaConnected = false;
+static constexpr uint32_t kStaReconnectMinIntervalMs = 1500;
+static constexpr uint32_t kStaReconnectMaxAttempts = 30;
+static bool g_sta_connecting_window = false;
+static uint32_t g_sta_reconnect_attempts = 0;
+static int64_t g_sta_last_reconnect_ms = 0;
 
 static const char* AuthModeName(wifi_auth_mode_t authmode) {
   switch (authmode) {
@@ -84,16 +91,45 @@ static uint8_t RssiToStrengthPercent(int8_t rssi) {
   return static_cast<uint8_t>(((static_cast<int>(rssi) + 90) * 100) / 60);
 }
 
+static const char* MaskSsid(const char* ssid, char out[40]) {
+  if (!out) return "";
+  out[0] = '\0';
+  if (!ssid || !ssid[0]) {
+    snprintf(out, 40, "<empty>");
+    return out;
+  }
+  const size_t n = strnlen(ssid, 32);
+  if (n <= 2) {
+    snprintf(out, 40, "**");
+    return out;
+  }
+  if (n == 3) {
+    snprintf(out, 40, "%c*%c", ssid[0], ssid[2]);
+    return out;
+  }
+  snprintf(out, 40, "%c%c***%c", ssid[0], ssid[1], ssid[n - 1]);
+  return out;
+}
+
 static void WifiEventHandler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
   (void)arg;
   if (event_base != WIFI_EVENT) return;
 
   if (event_id == WIFI_EVENT_STA_CONNECTED) {
     auto *e = reinterpret_cast<wifi_event_sta_connected_t *>(event_data);
-    ESP_LOGI(kTag, "wifi evt: STA_CONNECTED ssid=%.*s channel=%u auth=%u", e ? e->ssid_len : 0,
-             e ? reinterpret_cast<const char *>(e->ssid) : "", e ? static_cast<unsigned>(e->channel) : 0,
+    char masked[40] = {};
+    char ssid_buf[33] = {};
+    if (e && e->ssid_len > 0) {
+      const size_t len = e->ssid_len < sizeof(ssid_buf) - 1 ? e->ssid_len : sizeof(ssid_buf) - 1;
+      memcpy(ssid_buf, e->ssid, len);
+      ssid_buf[len] = '\0';
+    }
+    ESP_LOGI(kTag, "wifi evt: STA_CONNECTED ssid=%s channel=%u auth=%u", MaskSsid(ssid_buf, masked),
+             e ? static_cast<unsigned>(e->channel) : 0,
              e ? static_cast<unsigned>(e->authmode) : 0);
     if (g_evt) xEventGroupSetBits(g_evt, kBitStaConnected);
+    g_sta_reconnect_attempts = 0;
+    g_sta_last_reconnect_ms = 0;
     return;
   }
 
@@ -102,6 +138,22 @@ static void WifiEventHandler(void *arg, esp_event_base_t event_base, int32_t eve
     ESP_LOGW(kTag, "wifi evt: STA_DISCONNECTED reason=%u rssi=%d", e ? static_cast<unsigned>(e->reason) : 0,
              e ? static_cast<int>(e->rssi) : 0);
     if (g_evt) xEventGroupClearBits(g_evt, kBitGotIp | kBitStaConnected);
+    wifi_mode_t mode = WIFI_MODE_NULL;
+    if (esp_wifi_get_mode(&mode) == ESP_OK && mode == WIFI_MODE_STA && g_sta_connecting_window) {
+      const int64_t now_ms = esp_timer_get_time() / 1000;
+      if (g_sta_reconnect_attempts < kStaReconnectMaxAttempts &&
+          (g_sta_last_reconnect_ms == 0 || (now_ms - g_sta_last_reconnect_ms) >= kStaReconnectMinIntervalMs)) {
+        const esp_err_t rc = esp_wifi_connect();
+        if (rc == ESP_OK) {
+          g_sta_reconnect_attempts += 1;
+          g_sta_last_reconnect_ms = now_ms;
+          ESP_LOGW(kTag, "STA reconnect attempt=%u reason=%u", static_cast<unsigned>(g_sta_reconnect_attempts),
+                   e ? static_cast<unsigned>(e->reason) : 0);
+        } else {
+          ESP_LOGW(kTag, "STA reconnect call failed: %s", esp_err_to_name(rc));
+        }
+      }
+    }
     return;
   }
 
@@ -135,12 +187,7 @@ static bool GetIpForNetif(esp_netif_t *netif, char *out_ip, uint32_t out_ip_sz) 
 
 static void MakeSetupSsid(char out[33]) {
   if (!out) return;
-  uint8_t mac[6] = {};
-  if (esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP) != ESP_OK) {
-    snprintf(out, 33, "PIXEL-SETUP");
-    return;
-  }
-  snprintf(out, 33, "PIXEL-SETUP-%02X%02X", mac[4], mac[5]);
+  snprintf(out, 33, "%s", WIFI_SETUP_AP_SSID);
 }
 
 static void ApplyWifiTxPower(const char *phase) {
@@ -253,12 +300,11 @@ bool WifiManagerGetSavedStaSsid(char *out_ssid, uint32_t out_ssid_sz) {
 
   wifi_config_t cfg = {};
   if (!LoadSavedStaConfig(&cfg)) {
-    snprintf(out_ssid, out_ssid_sz, "%s", kDefaultStaSsid);
-    return true;
+    return false;
   }
 
   snprintf(out_ssid, out_ssid_sz, "%s", reinterpret_cast<const char *>(cfg.sta.ssid));
-  return true;
+  return out_ssid[0] != '\0';
 }
 
 bool WifiManagerConnectSta(uint32_t timeout_ms, WifiStaInfo *sta_out) {
@@ -268,16 +314,23 @@ bool WifiManagerConnectSta(uint32_t timeout_ms, WifiStaInfo *sta_out) {
   }
 
   if (!WifiManagerInit()) return false;
+  captive_dns_stop();
 
   wifi_config_t sta_cfg = {};
   if (LoadSavedStaConfig(&sta_cfg)) {
-    ESP_LOGI(kTag, "STA connect using saved ssid=%s", reinterpret_cast<const char*>(sta_cfg.sta.ssid));
+    char masked[40] = {};
+    ESP_LOGI(kTag, "STA connect using saved ssid=%s",
+             MaskSsid(reinterpret_cast<const char*>(sta_cfg.sta.ssid), masked));
   } else {
     LoadFallbackStaConfig(&sta_cfg);
-    ESP_LOGW(kTag, "STA connect using fallback ssid=%s", kDefaultStaSsid);
+    char masked[40] = {};
+    ESP_LOGW(kTag, "STA connect using fallback ssid=%s", MaskSsid(kDefaultStaSsid, masked));
   }
 
   xEventGroupClearBits(g_evt, kBitGotIp | kBitStaConnected);
+  g_sta_connecting_window = true;
+  g_sta_reconnect_attempts = 0;
+  g_sta_last_reconnect_ms = 0;
 
   {
     ESP_LOGI(kTag, "sta: before esp_wifi_stop");
@@ -294,6 +347,8 @@ bool WifiManagerConnectSta(uint32_t timeout_ms, WifiStaInfo *sta_out) {
   ESP_LOGI(kTag, "sta: before esp_wifi_start");
   ESP_ERROR_CHECK(esp_wifi_start());
   ESP_LOGI(kTag, "sta: after esp_wifi_start");
+  ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_NONE));
+  ESP_LOGI(kTag, "sta: power save disabled (WIFI_PS_NONE)");
   ApplyWifiTxPower("sta start");
   ESP_LOGI(kTag, "sta: before esp_wifi_connect");
   ESP_ERROR_CHECK(esp_wifi_connect());
@@ -319,6 +374,7 @@ bool WifiManagerConnectSta(uint32_t timeout_ms, WifiStaInfo *sta_out) {
              static_cast<unsigned>(connected_bits), static_cast<unsigned>(connect_waited * portTICK_PERIOD_MS));
     if ((connected_bits & kBitStaConnected) == 0) {
       ESP_LOGW(kTag, "sta: isolation timeout before STA_CONNECTED");
+      g_sta_connecting_window = false;
       return false;
     }
     if (sta_out) {
@@ -326,6 +382,7 @@ bool WifiManagerConnectSta(uint32_t timeout_ms, WifiStaInfo *sta_out) {
       snprintf(sta_out->ip, sizeof(sta_out->ip), "%s", "SKIPPED");
     }
     ESP_LOGW(kTag, "sta: isolation branch returning before DHCP/GOT_IP");
+    g_sta_connecting_window = false;
     return true;
   }
 
@@ -348,6 +405,7 @@ bool WifiManagerConnectSta(uint32_t timeout_ms, WifiStaInfo *sta_out) {
            static_cast<unsigned>(waited * portTICK_PERIOD_MS));
   if ((bits & kBitGotIp) == 0) {
     ESP_LOGW(kTag, "sta connect timeout");
+    g_sta_connecting_window = false;
     return false;
   }
 
@@ -358,6 +416,7 @@ bool WifiManagerConnectSta(uint32_t timeout_ms, WifiStaInfo *sta_out) {
       snprintf(sta_out->ip, sizeof(sta_out->ip), "--");
     }
   }
+  g_sta_connecting_window = false;
   return true;
 }
 
@@ -388,6 +447,8 @@ bool WifiManagerStartSetupAp(WifiApInfo *ap_out) {
   ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_cfg));
   ESP_ERROR_CHECK(esp_wifi_start());
   ApplyWifiTxPower("ap start");
+  captive_dns_set_ap_netif(g_ap_netif);
+  captive_dns_start();
 
   if (ap_out) {
     snprintf(ap_out->ssid, sizeof(ap_out->ssid), "%s", ap_ssid);
@@ -534,6 +595,10 @@ int WifiManagerScanNetworks(WifiScanResult* out_results, int max_results, uint32
   return written;
 }
 
+void *WifiManagerGetStaNetif() {
+  return g_sta_netif;
+}
+
 bool WifiManagerSaveStaCredentials(const char* ssid, const char* password) {
   if (!ssid || !ssid[0]) return false;
   if (strlen(ssid) >= 33) return false;
@@ -543,7 +608,8 @@ bool WifiManagerSaveStaCredentials(const char* ssid, const char* password) {
   wifi_config_t sta_cfg = {};
   PopulateStaConfig(&sta_cfg, ssid, password ? password : "");
 
-  ESP_LOGI(kTag, "save sta config ssid=%s", ssid);
+  char masked[40] = {};
+  ESP_LOGI(kTag, "save sta config ssid=%s", MaskSsid(ssid, masked));
   ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_FLASH));
   const esp_err_t set_ret = esp_wifi_set_config(WIFI_IF_STA, &sta_cfg);
   ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));

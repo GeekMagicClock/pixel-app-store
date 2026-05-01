@@ -1,8 +1,7 @@
 local app = {}
 
 local FONT_UI = "builtin:silkscreen_regular_8"
-local DEV_PROXY_BASE = "http://192.168.3.156:8787"
-local proxy_base = tostring(data.get("proxy.market_data_base") or data.get("proxy.stock_base") or DEV_PROXY_BASE)
+local proxy_base = tostring(data.get("proxy.market_data_base") or data.get("proxy.stock_base") or "")
 local URL = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
 if proxy_base ~= "" then
   if string.sub(proxy_base, -1) == "/" then
@@ -51,7 +50,30 @@ local state = {
   updated = nil,
   err = nil,
   last_fetch_ms = 0,
+  next_fetch_due_ms = 0,
+  block_backoff_ms = 0,
+  cache_body = nil,
+  cache_at_ms = 0,
 }
+
+local function rand_range(min_v, max_v)
+  if max_v <= min_v then return min_v end
+  return min_v + math.random(0, max_v - min_v)
+end
+
+local function schedule_next(success)
+  local now = sys.now_ms()
+  if success then
+    local base = FETCH_INTERVAL_MS
+    local jitter = math.max(1000, math.floor(base * 0.35))
+    state.next_fetch_due_ms = now + rand_range(base - jitter, base + jitter)
+    state.block_backoff_ms = 0
+    return
+  end
+  local base = RETRY_INTERVAL_MS
+  local jitter = math.max(500, math.floor(base * 0.30))
+  state.next_fetch_due_ms = now + rand_range(base - jitter, base + jitter)
+end
 
 local function rect_safe(fb, x, y, w, h, c)
   if w <= 0 or h <= 0 then return end
@@ -183,14 +205,30 @@ local function parse_body(body)
 end
 
 local function start_fetch()
-  local id, body, age_ms, err = net.cached_get(URL, TTL_MS, 12000, 262144)
-  if err then
-    state.err = err
+  local now = sys.now_ms()
+  if state.cache_body and (now - (state.cache_at_ms or 0) <= TTL_MS) then
+    local ok, perr = parse_body(state.cache_body)
+    if not ok then
+      state.err = perr
+      schedule_next(false)
+    else
+      schedule_next(true)
+    end
     return
   end
-  if body then
-    local ok, perr = parse_body(body)
-    if not ok then state.err = perr end
+  local headers = {
+    ["User-Agent"] = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+    ["Accept"] = "application/json,text/plain,*/*",
+    ["Accept-Language"] = "en-US,en;q=0.9",
+    ["Referer"] = "https://www.cnn.com/markets/fear-and-greed",
+    ["Origin"] = "https://www.cnn.com",
+    ["Cache-Control"] = "no-cache",
+    ["Pragma"] = "no-cache",
+  }
+  local id, err = net.http_get(URL, 12000, 262144, headers)
+  if err then
+    state.err = err
+    schedule_next(false)
     return
   end
   state.req_id = id
@@ -198,22 +236,42 @@ end
 
 local function poll_fetch()
   if not state.req_id then return end
-  local done, status, body = net.cached_poll(state.req_id)
+  local done, status, body = net.http_poll(state.req_id)
   if not done then return end
   state.req_id = nil
   if status ~= 200 then
     state.err = "HTTP " .. tostring(status)
+    if status == 418 or status == 403 then
+      if state.block_backoff_ms <= 0 then
+        state.block_backoff_ms = 5 * 60 * 1000
+      else
+        state.block_backoff_ms = state.block_backoff_ms * 2
+      end
+      if state.block_backoff_ms > 30 * 60 * 1000 then
+        state.block_backoff_ms = 30 * 60 * 1000
+      end
+      local jitter = rand_range(0, 60 * 1000)
+      state.next_fetch_due_ms = sys.now_ms() + state.block_backoff_ms + jitter
+    else
+      schedule_next(false)
+    end
     return
   end
   local ok, perr = parse_body(body)
-  if not ok then state.err = perr end
+  if not ok then
+    state.err = perr
+    schedule_next(false)
+    return
+  end
+  state.cache_body = body
+  state.cache_at_ms = sys.now_ms()
+  schedule_next(true)
 end
 
 local function maybe_fetch()
   if state.req_id then return end
   local now = sys.now_ms()
-  local wait_ms = state.score and FETCH_INTERVAL_MS or RETRY_INTERVAL_MS
-  if now - state.last_fetch_ms < wait_ms then return end
+  if now < (state.next_fetch_due_ms or 0) then return end
   state.last_fetch_ms = now
   start_fetch()
 end
@@ -249,6 +307,11 @@ function app.init(config)
   state.updated = nil
   state.err = nil
   state.last_fetch_ms = 0
+  state.next_fetch_due_ms = 0
+  state.block_backoff_ms = 0
+  state.cache_body = nil
+  state.cache_at_ms = 0
+  math.randomseed(sys.now_ms())
   maybe_fetch()
 end
 
@@ -288,7 +351,7 @@ end
 -- __GLOBAL_BOOT_SPLASH_WRAPPER_V1__
 local __boot_now_ms = now_ms or (sys and sys.now_ms) or function() return 0 end
 local __boot_started_ms = 0
-local __boot_ms = tonumber(data.get("stock_fear_index.boot_splash_ms") or data.get("app.boot_splash_ms") or 1200) or 1200
+local __boot_ms = tonumber(data.get("stock_fear_index.boot_splash_ms") or data.get("app.boot_splash_ms") or 5000) or 5000
 if __boot_ms < 0 then __boot_ms = 0 end
 local __boot_name = tostring(data.get("stock_fear_index.app_name") or "Stock Fear")
 

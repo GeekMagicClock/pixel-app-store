@@ -1,11 +1,13 @@
 {
   "app_id": "media_gallery",
   "name": "Media Gallery",
-  "version": "1.4.9",
+  "version": "1.4.18",
   "min_fw": "0.0.0",
   "min_api": "1.0",
-  "entry": "main.lua",
+  "entry": "app.bin",
   "layout_id": "framebuffer_rgb565",
-  "capabilities": ["media"],
+  "capabilities": [
+    "media"
+  ],
   "category": "media"
 }

@@ -10,7 +10,7 @@ typedef struct _lv_font_t lv_font_t;
 
 // Minimal, sandboxed-ish Lua app runtime for V1 demo:
 // - Each app is a directory under LittleFS: /littlefs/apps/<app_id>/
-// - Needs entry chunk: main.lua, or manifest.json with {"entry":"..."} override
+// - Needs entry chunk: app.bin
 // - Entry chunk should `return app` table with optional functions:
 //     app.init(config_table)
 //     app.tick(ms)

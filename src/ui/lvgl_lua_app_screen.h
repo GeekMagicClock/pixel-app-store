@@ -4,7 +4,7 @@
 #include <cstdint>
 
 // Generic "Lua app" screen (64x32).
-// It loads /littlefs/apps/<app_id>/main.lua and calls app.render() periodically.
+// It loads /littlefs/apps/<app_id>/app.bin and calls app.render() periodically.
 
 void LvglShowLuaWeatherAppScreen();
 void LvglStopLuaWeatherAppScreen();
@@ -24,6 +24,7 @@ void LvglStopLuaOwmWeatherAppScreen();
 // Generic: show any app directory under LittleFS, e.g. "/littlefs/apps/fb_test".
 void LvglShowLuaAppDirScreen(const char* app_dir);
 void LvglStopLuaAppDirScreen();
+void LvglShowAppUpdatingScreen();
 
 // Pre-create the persistent Lua app root screen early, before runtime app switching.
 void LvglLuaAppScreenPrewarm();

@@ -41,6 +41,7 @@ local C_MUTED = 0x9CF3
 local C_WARN = 0xF800
 
 local ASSET_BASE = "S:/littlefs/apps/weather_card_owm/assets/"
+local OPEN_METEO_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
 local state = {
   req_id = nil,
@@ -214,25 +215,20 @@ local function start_open_meteo_request(lat, lon)
     unit_q = "&temperature_unit=fahrenheit"
   end
   local url = string.format(
-    "https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&daily=temperature_2m_max,temperature_2m_min&forecast_days=1&timezone=auto%s",
+    "http://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&daily=temperature_2m_max,temperature_2m_min&forecast_days=1&timezone=GMT%s",
     lat_n, lon_n, unit_q
   )
-
-  local ttl_ms = cfg_refresh_ms()
-  local id, body, age_ms, err = net.cached_get(url, ttl_ms, 5000, 3072)
-  if err then
-    sys.log("weather_card_owm: open-meteo request err " .. tostring(err))
+  local headers = {
+    ["User-Agent"] = OPEN_METEO_UA,
+    ["Accept"] = "application/json,text/plain,*/*",
+    ["Accept-Language"] = "en-US,en;q=0.9",
+  }
+  local id, err = net.http_get(url, 5000, 3072, headers)
+  if not id then
+    sys.log("weather_card_owm: open-meteo request err " .. tostring(err or "http_get failed"))
     return
   end
-  if body then
-    handle_open_meteo_response(200, body)
-    return
-  end
-  if id then
-    state.om_req_id = id
-    return
-  end
-  sys.log("weather_card_owm: open-meteo HTTP GET FAIL")
+  state.om_req_id = id
 end
 
 local function start_request()
@@ -243,7 +239,7 @@ local function start_request()
   end
 
   local url = string.format(
-    "https://api.openweathermap.org/data/2.5/weather?q=%s&units=%s&appid=%s",
+    "http://api.openweathermap.org/data/2.5/weather?q=%s&units=%s&appid=%s",
     url_encode(cfg_city()), cfg_units(), OWM_API_KEY
   )
 
@@ -301,7 +297,7 @@ function app.tick(dt_ms)
   end
 
   if state.om_req_id then
-    local done, status, body = net.cached_poll(state.om_req_id)
+    local done, status, body = net.http_poll(state.om_req_id)
     if done then
       state.om_req_id = nil
       if status == 0 then
@@ -364,7 +360,7 @@ end
 -- __GLOBAL_BOOT_SPLASH_WRAPPER_V1__
 local __boot_now_ms = now_ms or (sys and sys.now_ms) or function() return 0 end
 local __boot_started_ms = 0
-local __boot_ms = tonumber(data.get("weather_card_owm.boot_splash_ms") or data.get("app.boot_splash_ms") or 1200) or 1200
+local __boot_ms = tonumber(data.get("weather_card_owm.boot_splash_ms") or data.get("app.boot_splash_ms") or 5000) or 5000
 if __boot_ms < 0 then __boot_ms = 0 end
 local __boot_name = tostring(data.get("weather_card_owm.app_name") or "Weather Card")
 

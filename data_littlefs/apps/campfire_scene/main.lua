@@ -22,6 +22,15 @@ local C_LOG_HI = 0xAB69
 local C_GROUND = 0x03A0
 local C_GLOW = 0x7B40
 
+local function blend565_safe(a, b, t)
+  if type(blend565) == "function" then
+    return blend565(a, b, t)
+  end
+  if t == nil then return a end
+  if t <= 0.5 then return a end
+  return b
+end
+
 local function set_px_safe(fb, x, y, c)
   if x < 0 or x >= 64 or y < 0 or y >= 32 then return end
   fb:set_px(x, y, c)
@@ -93,10 +102,10 @@ local function draw_shooting_star(fb, start_x, start_y, dx, dy, period_ms, phase
   local bright = math.sin(t * math.pi)
   local x = math.floor(start_x + dx * t)
   local y = math.floor(start_y + dy * t)
-  local head = blend565(C_MOON_HI, C_STAR, bright * 0.75)
-  local tail1 = blend565(C_MOON, C_SKY, 0.25 + (1 - bright) * 0.35)
-  local tail2 = blend565(C_MOON_SHADE, C_SKY, 0.4 + (1 - bright) * 0.35)
-  local tail3 = blend565(C_MOON_EDGE, C_SKY, 0.55 + (1 - bright) * 0.3)
+  local head = blend565_safe(C_MOON_HI, C_STAR, bright * 0.75)
+  local tail1 = blend565_safe(C_MOON, C_SKY, 0.25 + (1 - bright) * 0.35)
+  local tail2 = blend565_safe(C_MOON_SHADE, C_SKY, 0.4 + (1 - bright) * 0.35)
+  local tail3 = blend565_safe(C_MOON_EDGE, C_SKY, 0.55 + (1 - bright) * 0.3)
   set_px_safe(fb, x, y, head)
   set_px_safe(fb, x + 1, y - 1, tail1)
   set_px_safe(fb, x + 2, y - 2, tail2)
@@ -186,7 +195,7 @@ end
 -- __GLOBAL_BOOT_SPLASH_WRAPPER_V1__
 local __boot_now_ms = now_ms or (sys and sys.now_ms) or function() return 0 end
 local __boot_started_ms = 0
-local __boot_ms = tonumber(data.get("campfire_scene.boot_splash_ms") or data.get("app.boot_splash_ms") or 1200) or 1200
+local __boot_ms = tonumber(data.get("campfire_scene.boot_splash_ms") or data.get("app.boot_splash_ms") or 5000) or 5000
 if __boot_ms < 0 then __boot_ms = 0 end
 local __boot_name = tostring(data.get("campfire_scene.app_name") or "Campfire Scene")
 

@@ -1,12 +1,14 @@
 {
   "app_id": "zelda_clock",
   "name": "Zelda HUD Clock",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "min_fw": "0.0.0",
   "min_api": "1.0",
-  "entry": "main.lua",
+  "entry": "app.bin",
   "layout_id": "framebuffer_rgb565",
   "category": "time",
-  "capabilities": ["time"],
+  "capabilities": [
+    "time"
+  ],
   "description": "Adventure HUD clock with hearts, rupees, and dungeon panel styling."
 }

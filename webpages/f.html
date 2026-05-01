@@ -3,23 +3,23 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Pixel Control</title>
+  <title>Magic Pixel</title>
   <style>
     :root {
-      --bg: #f4efe7;
-      --bg-soft: #fffaf3;
-      --panel: #fffdf8;
-      --panel-strong: #f7ecda;
-      --border: #d8c8b0;
-      --text: #1e1c18;
-      --muted: #6a6257;
-      --accent: #b8582f;
-      --accent-strong: #8f401d;
-      --accent-soft: #f3d7c8;
-      --ok: #1f8a52;
-      --warn: #b16b00;
-      --bad: #b0392f;
-      --shadow: 0 16px 40px rgba(73, 41, 24, 0.12);
+      --bg: #070707;
+      --bg-soft: #111111;
+      --panel: #111111;
+      --panel-strong: #141414;
+      --border: #3a3022;
+      --text: #f4ead7;
+      --muted: #b9a98a;
+      --accent: #e0bb72;
+      --accent-strong: #f1d08a;
+      --accent-soft: rgba(224, 187, 114, 0.10);
+      --ok: #b99145;
+      --warn: #8f6b32;
+      --bad: #d66f63;
+      --shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
       --radius: 18px;
       --radius-sm: 12px;
       --font: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
@@ -34,9 +34,11 @@
       margin: 0;
       color: var(--text);
       background:
-        radial-gradient(circle at top left, rgba(184, 88, 47, 0.14), transparent 28%),
-        linear-gradient(180deg, #f8f2e8 0%, #f2ece2 100%);
+        radial-gradient(circle at 15% -10%, rgba(58, 45, 29, 0.92) 0, rgba(58, 45, 29, 0) 34%),
+        radial-gradient(circle at 85% -18%, rgba(42, 34, 23, 0.92) 0, rgba(42, 34, 23, 0) 30%),
+        var(--bg);
       font-family: var(--font);
+      overflow-x: hidden;
     }
 
     button,
@@ -54,8 +56,8 @@
     .hero {
       padding: 18px;
       border: 1px solid var(--border);
-      border-radius: 26px;
-      background: linear-gradient(135deg, rgba(255, 248, 238, 0.98), rgba(247, 236, 218, 0.98));
+      border-radius: 12px;
+      background: var(--panel);
       box-shadow: var(--shadow);
     }
 
@@ -97,10 +99,10 @@
     }
 
     .badge {
-      padding: 8px 12px;
-      border: 1px solid rgba(143, 64, 29, 0.18);
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.72);
+      padding: 2px 6px;
+      border: 1px solid #7a6138;
+      border-radius: 6px;
+      background: rgba(224, 187, 114, .10);
       color: var(--accent-strong);
       font: 600 12px/1.2 var(--font-mono);
     }
@@ -109,16 +111,16 @@
       display: inline-flex;
       gap: 10px;
       margin-top: 18px;
-      padding: 6px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.7);
-      border: 1px solid rgba(143, 64, 29, 0.12);
+      padding: 4px;
+      border-radius: 12px;
+      background: #100e0a;
+      border: 1px solid var(--border);
     }
 
     .tab-btn {
       border: 0;
-      border-radius: 999px;
-      padding: 10px 18px;
+      border-radius: 9px;
+      padding: 8px 14px;
       background: transparent;
       color: var(--muted);
       font-weight: 700;
@@ -127,10 +129,11 @@
     }
 
     .tab-btn.active {
-      background: var(--accent);
-      color: white;
+      background: linear-gradient(180deg, #e7c689 0%, #bf9450 100%);
+      color: #1d160d;
       transform: translateY(-1px);
-      box-shadow: 0 8px 24px rgba(184, 88, 47, 0.25);
+      box-shadow: 0 8px 24px rgba(224, 187, 114, 0.18);
+      border-color: #6b4f2b;
     }
 
     .tab-panel {
@@ -158,13 +161,15 @@
     .panel {
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      background: linear-gradient(180deg, var(--panel), var(--bg-soft));
+      background: linear-gradient(180deg, var(--panel), #0c0c0d);
       box-shadow: var(--shadow);
       overflow: hidden;
     }
 
     .panel-inner {
       padding: 16px;
+      min-width: 0;
+      max-width: 100%;
     }
 
     .panel-head {
@@ -192,6 +197,32 @@
       line-height: 1.5;
     }
 
+    .toast {
+      position: fixed;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-8px);
+      z-index: 1200;
+      min-width: 240px;
+      max-width: min(92vw, 560px);
+      padding: 10px 14px;
+      border-radius: 12px;
+      border: 1px solid #7a453f;
+      background: linear-gradient(180deg, #3a1e1b 0%, #261412 100%);
+      color: #ffd8d3;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
+      font-size: 13px;
+      line-height: 1.4;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
     .kv-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -201,8 +232,8 @@
     .kv {
       padding: 12px;
       border-radius: var(--radius-sm);
-      background: rgba(255, 255, 255, 0.78);
-      border: 1px solid rgba(143, 64, 29, 0.08);
+      background: #0d0d0d;
+      border: 1px solid #2d2418;
     }
 
     .kv-label {
@@ -232,13 +263,47 @@
       color: var(--muted);
     }
 
+    .field-label-row {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .field-label-row .field-label-text {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .field-help-link {
+      flex: 0 0 auto;
+      color: #e8c98e;
+      font: 600 12px/1.2 var(--font-mono);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      text-decoration-color: rgba(232, 201, 142, 0.55);
+      transition: color 0.18s ease, text-decoration-color 0.18s ease;
+    }
+
+    .field-help-link:hover {
+      color: #ffe0a1;
+      text-decoration-color: rgba(255, 224, 161, 0.95);
+    }
+
+    .field-help-link:focus-visible {
+      outline: 2px solid rgba(224, 187, 114, 0.45);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
     .field input,
     .field select {
       width: 100%;
       padding: 12px 14px;
       border-radius: var(--radius-sm);
       border: 1px solid var(--border);
-      background: rgba(255, 255, 255, 0.9);
+      background: #0d0d0d;
       color: var(--text);
       outline: none;
     }
@@ -256,7 +321,60 @@
       padding: 12px 14px;
       border-radius: var(--radius-sm);
       border: 1px solid var(--border);
-      background: rgba(255, 255, 255, 0.9);
+      background: #0d0d0d;
+    }
+
+    .store-toolbar {
+      justify-content: flex-end;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .store-toolbar .switch {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+      user-select: none;
+    }
+
+    .store-toolbar .switch input {
+      display: none;
+    }
+
+    .store-toolbar .slider {
+      width: 40px;
+      height: 22px;
+      border-radius: 999px;
+      background: #3a2f22;
+      border: 1px solid #6a5234;
+      position: relative;
+      transition: background 0.2s ease;
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
+      flex: 0 0 auto;
+    }
+
+    .store-toolbar .slider::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #f6ead7;
+      transition: transform 0.2s ease;
+    }
+
+    .store-toolbar .switch input:checked + .slider {
+      background: linear-gradient(180deg, #d9b275, #b7863f);
+    }
+
+    .store-toolbar .switch input:checked + .slider::after {
+      transform: translateX(18px);
     }
 
     .check {
@@ -267,20 +385,99 @@
       font-size: 13px;
     }
 
+    .switch {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: #e9dbc3;
+      font-size: 13px;
+      user-select: none;
+    }
+
+    .switch input {
+      display: none;
+    }
+
+    .slider {
+      width: 44px;
+      height: 24px;
+      border-radius: 999px;
+      background: #3a2f22;
+      border: 1px solid #6a5234;
+      position: relative;
+      transition: background 0.2s ease;
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
+      flex: 0 0 auto;
+    }
+
+    .slider::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #f6ead7;
+      transition: transform 0.2s ease;
+    }
+
+    .switch input:checked + .slider {
+      background: linear-gradient(180deg, #d9b275, #b7863f);
+    }
+
+    .switch input:checked + .slider::after {
+      transform: translateX(20px);
+    }
+
     button {
-      border: 0;
-      border-radius: var(--radius-sm);
-      padding: 11px 14px;
-      color: white;
-      background: var(--accent);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 8px 14px;
+      color: var(--muted);
+      background: #100e0a;
       cursor: pointer;
       font-weight: 700;
-      transition: transform 0.18s ease, background 0.18s ease, opacity 0.18s ease;
+      font-size: 12px;
+      line-height: 1.2;
+      letter-spacing: 0.01em;
+      transition: transform 0.18s ease, background 0.18s ease, color 0.18s ease, opacity 0.18s ease, border-color 0.18s ease;
     }
 
     button:hover {
       transform: translateY(-1px);
-      background: var(--accent-strong);
+      background: #18130d;
+      color: var(--text);
+      border-color: #7a6138;
+    }
+
+    #scheduleAddBtn,
+    #scheduleApplyBtn,
+    #scheduleRunBtn,
+    #scheduleStopBtn,
+    #scanWifiBtn,
+    #saveWifiBtn,
+    .app-card .toolbar button[data-a="primary"],
+    .app-card .toolbar button[data-a="run"],
+    .app-card .toolbar button[data-a="settings"] {
+      background: linear-gradient(180deg, #e7c689 0%, #bf9450 100%);
+      color: #1d160d;
+      border-color: #6b4f2b;
+      box-shadow: 0 8px 24px rgba(224, 187, 114, 0.18);
+    }
+
+    #scheduleAddBtn:hover,
+    #scheduleApplyBtn:hover,
+    #scheduleRunBtn:hover,
+    #scheduleStopBtn:hover,
+    #scanWifiBtn:hover,
+    #saveWifiBtn:hover,
+    .app-card .toolbar button[data-a="primary"]:hover,
+    .app-card .toolbar button[data-a="run"]:hover,
+    .app-card .toolbar button[data-a="settings"]:hover {
+      background: linear-gradient(180deg, #f0d69f 0%, #cc9d58 100%);
+      color: #140f08;
+      border-color: #8b6735;
     }
 
     button:disabled {
@@ -289,30 +486,6 @@
       transform: none;
     }
 
-    button.secondary {
-      background: #54453a;
-    }
-
-    button.secondary:hover {
-      background: #403329;
-    }
-
-    button.ghost {
-      background: rgba(84, 69, 58, 0.12);
-      color: var(--text);
-    }
-
-    button.ghost:hover {
-      background: rgba(84, 69, 58, 0.2);
-    }
-
-    button.bad {
-      background: #ab3b33;
-    }
-
-    button.bad:hover {
-      background: #8c2d27;
-    }
 
     .range-wrap {
       display: grid;
@@ -333,25 +506,100 @@
       accent-color: var(--accent);
     }
 
-    .wifi-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-      gap: 12px;
+    .wifi-list {
+      position: relative;
+      margin: 8px 0 0;
+      max-height: 180px;
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+      scrollbar-color: #c89a55 #1a140d;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #120f0b;
+      padding: 6px;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), inset 0 -1px 0 rgba(0, 0, 0, 0.45);
+      background-image:
+        linear-gradient(to bottom, rgba(224, 187, 114, .18), rgba(224, 187, 114, 0)),
+        linear-gradient(to top, rgba(224, 187, 114, .16), rgba(224, 187, 114, 0));
+      background-repeat: no-repeat;
+      background-size: 100% 14px, 100% 14px;
+      background-position: top, bottom;
+    }
+
+    .wifi-list::-webkit-scrollbar {
+      width: 10px;
+    }
+
+    .wifi-list::-webkit-scrollbar-track {
+      background: #1a140d;
+      border-radius: 999px;
+    }
+
+    .wifi-list::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, #e0bb72 0%, #a97836 100%);
+      border-radius: 999px;
+      border: 2px solid #1a140d;
+    }
+
+    .wifi-list::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(180deg, #efcb85 0%, #ba8440 100%);
     }
 
     .card-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
       gap: 8px;
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .installed-list-wrap {
+      max-height: 68vh;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .installed-list-sentinel {
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+      padding: 10px 0 4px;
     }
 
     .wifi-item {
-      display: grid;
-      gap: 10px;
-      padding: 14px;
-      border-radius: 16px;
-      border: 1px solid rgba(143, 64, 29, 0.12);
-      background: rgba(255, 255, 255, 0.78);
+      width: 100%;
+      text-align: left;
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid #4b3b25;
+      background: #1a140d;
+      color: var(--text);
+      margin: 0 0 6px;
+      cursor: pointer;
+    }
+
+    .wifi-item small {
+      display: block;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .wifi-list::after {
+      content: "Scroll up/down to view more Wi-Fi networks";
+      position: sticky;
+      bottom: 0;
+      display: block;
+      width: 100%;
+      margin-top: 4px;
+      padding: 5px 8px 3px;
+      font-size: 11px;
+      text-align: center;
+      color: rgba(244, 234, 215, .72);
+      background: linear-gradient(180deg, rgba(18, 15, 11, 0) 0%, rgba(18, 15, 11, .92) 55%, rgba(18, 15, 11, .98) 100%);
+      pointer-events: none;
+      letter-spacing: .2px;
     }
 
     .app-card {
@@ -359,8 +607,23 @@
       gap: 6px;
       padding: 8px;
       border-radius: 12px;
-      border: 1px solid rgba(143, 64, 29, 0.12);
-      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid #3a3022;
+      background: #111111;
+      align-content: start;
+      min-width: 0;
+      width: 100%;
+      max-width: 100%;
+      overflow: hidden;
+      justify-self: stretch;
+    }
+
+    .app-card.uninstall-selected {
+      border-color: #a0844d;
+      box-shadow: 0 0 0 1px rgba(224, 187, 114, 0.18) inset;
+    }
+
+    .app-card.uninstall-selected .thumb {
+      box-shadow: 0 0 0 1px rgba(224, 187, 114, 0.18) inset;
     }
 
     .wifi-top,
@@ -376,13 +639,17 @@
       margin: 0;
       font-size: 14px;
       line-height: 1.15;
-      font-weight: 800;
+      font-weight: 700;
       letter-spacing: -0.02em;
+      font-family: "SF Pro Display", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
       word-break: break-word;
     }
 
     .app-name-wrap {
       min-width: 0;
+      min-height: 34px;
     }
 
     .app-version {
@@ -437,6 +704,7 @@
       min-height: 0;
       display: -webkit-box;
       -webkit-line-clamp: 1;
+      line-clamp: 1;
       -webkit-box-orient: vertical;
       overflow: hidden;
     }
@@ -457,6 +725,10 @@
       font-size: 11px;
     }
 
+    .app-card .toolbar button:disabled {
+      opacity: 0.62;
+    }
+
     .app-card.compact-actions .toolbar {
       justify-content: flex-start;
       gap: 6px;
@@ -474,8 +746,8 @@
       gap: 10px;
       padding: 14px;
       border-radius: 16px;
-      border: 1px solid rgba(143, 64, 29, 0.1);
-      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid #3a3022;
+      background: #111111;
     }
 
     .storage-head {
@@ -507,15 +779,15 @@
       height: 12px;
       border-radius: 999px;
       overflow: hidden;
-      background: rgba(84, 69, 58, 0.12);
-      border: 1px solid rgba(143, 64, 29, 0.1);
+      background: #120f0b;
+      border: 1px solid #3a3022;
     }
 
     .capacity-bar {
       height: 100%;
       width: 0%;
       border-radius: 999px;
-      background: linear-gradient(90deg, #b8582f, #e08a45);
+      background: linear-gradient(90deg, #d0a95f, #ac8442);
       transition: width 0.18s ease;
     }
 
@@ -544,6 +816,9 @@
     .store-sections {
       display: grid;
       gap: 18px;
+      min-width: 0;
+      max-width: 100%;
+      overflow-x: clip;
     }
 
     .apps-tabs {
@@ -551,16 +826,16 @@
       gap: 8px;
       margin-bottom: 12px;
       padding: 4px;
-      border-radius: 999px;
-      border: 1px solid rgba(143, 64, 29, 0.14);
-      background: rgba(255, 255, 255, 0.66);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #100e0a;
     }
 
     .apps-tab-btn {
-      border: 0;
-      border-radius: 999px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
       padding: 8px 13px;
-      background: transparent;
+      background: #100e0a;
       color: var(--muted);
       font-weight: 700;
       cursor: pointer;
@@ -568,30 +843,535 @@
     }
 
     .apps-tab-btn.active {
-      background: var(--accent);
-      color: #fff;
+      background: linear-gradient(180deg, #e7c689 0%, #bf9450 100%);
+      color: #1d160d;
+      border-color: #6b4f2b;
     }
 
     .apps-subpanel {
       display: none;
+      min-width: 0;
+      max-width: 100%;
     }
 
     .apps-subpanel.active {
       display: block;
     }
 
+    .schedule-box {
+      margin-top: 16px;
+      border: 1px solid #5d4930;
+      border-radius: 18px;
+      padding: 16px;
+      background:
+        radial-gradient(circle at 98% -18%, rgba(224, 187, 114, 0.18), rgba(224, 187, 114, 0) 42%),
+        radial-gradient(circle at -8% 120%, rgba(145, 116, 72, 0.16), rgba(145, 116, 72, 0) 44%),
+        linear-gradient(180deg, #15120e 0%, #0d0b08 100%);
+      box-shadow: 0 20px 44px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+
+    .schedule-kicker {
+      margin: 0 0 4px;
+      color: #ccb389;
+      font: 700 11px/1.2 var(--font-mono);
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+    }
+
+    .schedule-title {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: -0.02em;
+    }
+
+    .schedule-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(224, 187, 114, 0.18);
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .schedule-grid {
+      margin-top: 10px;
+      display: grid;
+      gap: 10px;
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .schedule-mode-panels {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .schedule-mode-card {
+      border: 1px solid #4a3a27;
+      border-radius: 12px;
+      padding: 12px;
+      background: linear-gradient(180deg, #15120f 0%, #100d0a 100%);
+      opacity: 0.72;
+      transition: opacity 0.2s ease, border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .schedule-mode-card.active {
+      opacity: 1;
+      border-color: #b0894f;
+      transform: translateY(-1px);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28), inset 0 0 0 1px rgba(224, 187, 114, 0.22);
+    }
+
+    .schedule-mode-card h4 {
+      margin: 0 0 4px;
+      font-size: 13px;
+    }
+
+    .schedule-mode-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .schedule-preview {
+      margin-top: 10px;
+      border: 1px dashed #5c4830;
+      border-radius: 10px;
+      padding: 10px;
+      background: rgba(224, 187, 114, 0.04);
+    }
+
+    .power-saver {
+      margin-top: 12px;
+      border: 1px solid #4a3a27;
+      border-radius: 12px;
+      padding: 12px;
+      background: linear-gradient(180deg, #13100d 0%, #0f0d0a 100%);
+    }
+
+    .schedule-fallback {
+      margin-top: 10px;
+      margin-bottom: 8px;
+      border: 1px solid #4a3a27;
+      border-radius: 10px;
+      padding: 10px;
+      background: linear-gradient(180deg, #14110d 0%, #100d0a 100%);
+    }
+
+    .schedule-fallback label {
+      display: block;
+      margin: 0 0 6px;
+      color: #d8c19b;
+      font: 600 11px/1.2 var(--font-mono);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .power-saver .panel-head {
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .power-saver .panel-title {
+      font-size: 15px;
+      margin: 0;
+    }
+
+    .power-saver-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .schedule-preview-title {
+      margin: 0 0 6px;
+      color: #ccb389;
+      font: 700 11px/1.2 var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .schedule-cols {
+      display: grid;
+      grid-template-columns: 84px 84px minmax(180px, 1fr) minmax(180px, 1fr) 90px;
+      gap: 8px;
+      padding: 0 4px;
+      color: #d8c19b;
+      font: 600 11px/1.2 var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .schedule-row {
+      display: grid;
+      gap: 8px;
+      align-items: center;
+      padding: 10px;
+      border: 1px solid #493a28;
+      border-radius: 12px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.005));
+      backdrop-filter: blur(2px);
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .schedule-row.time-row {
+      grid-template-columns: 84px 84px minmax(180px, 1fr) minmax(180px, 1fr) auto;
+    }
+
+    .schedule-row.loop-row {
+      grid-template-columns: 120px minmax(180px, 1fr) 56px auto;
+    }
+
+    .m-field-label {
+      display: none;
+      margin: 0 0 4px;
+      color: #d8c19b;
+      font: 600 11px/1.2 var(--font-mono);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .schedule-row .btn-delete {
+      white-space: nowrap;
+      width: auto;
+      min-width: 78px;
+      justify-self: end;
+    }
+
+    .schedule-row:hover {
+      border-color: #ab834a;
+      background: linear-gradient(180deg, rgba(224, 187, 114, 0.09), rgba(224, 187, 114, 0.03));
+    }
+
+    .schedule-grid .schedule-row:nth-child(odd) {
+      background: #15110d !important;
+      border-left: 3px solid #6f5632;
+    }
+
+    .schedule-grid .schedule-row:nth-child(even) {
+      background: #1b1510 !important;
+      border-left: 3px solid #b7863f;
+    }
+
+    .schedule-status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      border: 1px solid #87663b;
+      color: #e6c98f;
+      font: 700 11px/1.1 var(--font-mono);
+      background: linear-gradient(180deg, rgba(224, 187, 114, 0.18), rgba(224, 187, 114, 0.08));
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    }
+
+    .schedule-box input,
+    .schedule-box select {
+      display: block;
+      inline-size: 100%;
+      border-radius: 9px;
+      border-color: #5a462f;
+      background: #120f0b;
+      color: #f6ead7;
+      min-inline-size: 0;
+      max-inline-size: 100%;
+    }
+
+    .schedule-box,
+    .schedule-box * {
+      box-sizing: border-box;
+      max-width: 100%;
+    }
+
+    .schedule-box input[type="time"]::-webkit-calendar-picker-indicator {
+      filter: invert(93%) sepia(22%) saturate(560%) hue-rotate(344deg) brightness(116%) contrast(104%);
+      opacity: 1;
+      -webkit-filter: invert(93%) sepia(22%) saturate(560%) hue-rotate(344deg) brightness(116%) contrast(104%);
+      border-radius: 50%;
+      box-shadow: 0 0 0 1px rgba(224, 187, 114, 0.3);
+      cursor: pointer;
+    }
+
+    .schedule-box input[type="time"] {
+      appearance: auto;
+      -webkit-appearance: auto;
+    }
+
+    .schedule-box input::placeholder {
+      color: #c7b18d;
+    }
+
+    .schedule-box select option {
+      background: #120f0b;
+      color: #f6ead7;
+    }
+
+    .schedule-box .switch {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: #e9dbc3;
+      font-size: 13px;
+      user-select: none;
+    }
+
+    .schedule-box .switch input {
+      display: none;
+    }
+
+    .schedule-box .slider {
+      width: 44px;
+      height: 24px;
+      border-radius: 999px;
+      background: #3a2f22;
+      border: 1px solid #6a5234;
+      position: relative;
+      transition: background 0.2s ease;
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
+    }
+
+    .schedule-box .slider::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #f6ead7;
+      transition: transform 0.2s ease;
+    }
+
+    .schedule-box .switch input:checked + .slider {
+      background: linear-gradient(180deg, #d9b275, #b7863f);
+    }
+
+    .schedule-box .switch input:checked + .slider::after {
+      transform: translateX(20px);
+    }
+
+    .schedule-row input,
+    .schedule-row select,
+    .schedule-row button {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+    }
+
+
+    @media (max-width: 780px) {
+      .panel {
+        overflow: hidden;
+      }
+
+      .panel-inner {
+        overflow-x: hidden;
+      }
+
+      .schedule-box {
+        overflow: hidden;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+      }
+
+      .schedule-grid {
+        overflow: hidden;
+      }
+
+      .schedule-mode-panels {
+        grid-template-columns: 1fr;
+      }
+
+      .schedule-cols {
+        display: none;
+      }
+
+      .schedule-row {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 10px;
+        padding: 12px;
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+      }
+
+      .schedule-row.time-row,
+      .schedule-row.loop-row {
+        grid-template-columns: minmax(0, 1fr) !important;
+      }
+
+      .m-field-label {
+        display: block;
+      }
+
+      .schedule-row > * {
+        min-width: 0;
+        max-width: 100%;
+        width: 100%;
+      }
+
+      .schedule-row div {
+        min-width: 0;
+        width: 100%;
+      }
+
+      .schedule-row input[type="time"],
+      .schedule-row input[type="number"],
+      .schedule-row select,
+      .schedule-row button {
+        display: block;
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+      }
+
+      .schedule-head {
+        gap: 12px;
+      }
+
+      .schedule-head .toolbar {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .schedule-head .toolbar button {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        white-space: nowrap;
+      }
+
+      #scheduleAddBtn {
+        grid-column: 1 / -1;
+      }
+
+      .schedule-box .toolbar {
+        flex-wrap: wrap;
+        min-width: 0;
+        max-width: 100%;
+      }
+
+      .schedule-box .switch {
+        margin-top: 0 !important;
+      }
+
+      .apps-subpanel[data-apps-panel="store"] .card-grid {
+        grid-template-columns: minmax(0, 1fr);
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+      }
+
+      .apps-subpanel[data-apps-panel="store"] .app-card,
+      .apps-subpanel[data-apps-panel="store"] .app-card * {
+        min-width: 0;
+        max-width: 100%;
+      }
+
+    }
+
+    @media (max-width: 390px) {
+      .shell {
+        padding: 8px;
+      }
+
+      .stack,
+      .apps-subpanel,
+      .panel,
+      .panel-inner,
+      .schedule-box,
+      .schedule-head,
+      .schedule-head .toolbar,
+      .schedule-grid,
+      .schedule-row {
+        inline-size: 100%;
+        max-inline-size: 100%;
+        min-inline-size: 0;
+        overflow-x: clip;
+      }
+
+      .schedule-head .toolbar {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .schedule-head .toolbar button,
+      #scheduleAddBtn {
+        grid-column: auto;
+        width: 100%;
+      }
+
+      .schedule-cols {
+        display: none !important;
+      }
+
+      .tabs,
+      .apps-tabs {
+        display: flex;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .tab-btn,
+      .apps-tab-btn {
+        flex: 1 1 calc(50% - 6px);
+        min-width: 0;
+        padding: 7px 10px;
+      }
+
+      .store-toolbar {
+        justify-content: flex-start;
+      }
+
+      .store-toolbar .switch {
+        width: 100%;
+      }
+
+      .apps-subpanel[data-apps-panel="store"] .card-grid {
+        grid-template-columns: minmax(0, 1fr);
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+      }
+
+      .power-saver-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
     .store-group {
       display: grid;
       gap: 12px;
+      min-width: 0;
+      max-width: 100%;
+      overflow-x: clip;
     }
 
     .group-title {
       margin: 0;
-      font-size: 13px;
-      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+      color: #e6d5b3;
       text-transform: uppercase;
-      letter-spacing: 0.08em;
-      font-family: var(--font-mono);
+      letter-spacing: 0.04em;
+      font-family: var(--font);
     }
 
     .log-panel {
@@ -615,8 +1395,8 @@
       max-height: 280px;
       overflow: auto;
       padding: 14px;
-      border-top: 1px solid rgba(143, 64, 29, 0.12);
-      background: rgba(255, 255, 255, 0.68);
+      border-top: 1px solid #3a3022;
+      background: #0b0b0b;
       font: 12px/1.2 var(--font-mono);
     }
 
@@ -625,9 +1405,9 @@
     }
 
     .log-device {
-      background: rgba(27, 31, 38, 0.94);
+      background: #0b0b0b;
       color: #dbe7f5;
-      border-top-color: rgba(255, 255, 255, 0.08);
+      border-top-color: #3a3022;
     }
 
     .log-device .log-line.runtime-app {
@@ -675,10 +1455,10 @@
       width: min(560px, 100%);
       margin-top: 8px;
       padding: 18px;
-      border: 1px solid rgba(143, 64, 29, 0.2);
-      border-radius: 22px;
-      background: linear-gradient(135deg, rgba(255, 251, 244, 0.98), rgba(247, 236, 218, 0.98));
-      box-shadow: 0 20px 48px rgba(43, 26, 16, 0.24);
+      border: 1px solid #3a3022;
+      border-radius: 12px;
+      background: linear-gradient(180deg, #17120d 0%, #0c0b09 100%);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, .35);
     }
 
     .ota-title {
@@ -699,15 +1479,15 @@
       height: 14px;
       border-radius: 999px;
       overflow: hidden;
-      background: rgba(84, 69, 58, 0.14);
-      border: 1px solid rgba(143, 64, 29, 0.12);
+      background: #1a140d;
+      border: 1px solid #3a3022;
     }
 
     .ota-progress-bar {
       height: 100%;
       width: 0%;
       border-radius: 999px;
-      background: linear-gradient(90deg, #b8582f, #e08a45);
+      background: linear-gradient(90deg, #d0a95f, #ac8442);
       transition: width 0.18s ease;
     }
 
@@ -735,16 +1515,45 @@
     }
 
     .settings-card {
+      position: relative;
       width: min(1120px, calc(100vw - 20px));
-      border: 1px solid rgba(143, 64, 29, 0.2);
-      border-radius: 20px;
-      background: linear-gradient(135deg, rgba(255, 251, 244, 0.98), rgba(247, 236, 218, 0.98));
-      box-shadow: 0 20px 48px rgba(43, 26, 16, 0.24);
+      border: 1px solid #3a3022;
+      border-radius: 12px;
+      background: linear-gradient(180deg, #17120d 0%, #0c0b09 100%);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, .35);
       padding: 18px 18px 16px;
       margin: 4px 0;
       max-height: calc(100vh - 20px);
       overflow: auto;
       animation: fade-up 0.18s ease;
+    }
+
+    .settings-close-x {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 38px;
+      height: 38px;
+      padding: 0;
+      border-radius: 10px;
+      border: 1px solid #7a6138;
+      background: #100e0a;
+      color: var(--accent-strong);
+      font-size: 24px;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+      z-index: 2;
+    }
+
+    .settings-close-x:hover {
+      background: #1c1610;
+      color: #ffe39b;
+      border-color: #a0844d;
+      transform: translateY(-1px);
     }
 
     .settings-actions {
@@ -764,10 +1573,10 @@
 
     .settings-page-host {
       margin-top: 12px;
-      border: 1px solid rgba(143, 64, 29, 0.2);
+      border: 1px solid #3a3022;
       border-radius: 12px;
       overflow: hidden;
-      background: #fffdfa;
+      background: #0b0b0b;
       min-height: clamp(420px, 62vh, 760px);
     }
 
@@ -776,7 +1585,7 @@
       height: clamp(420px, 62vh, 760px);
       border: 0;
       display: block;
-      background: #fffdfa;
+      background: #0b0b0b;
     }
 
     @media (max-width: 860px) {
@@ -802,7 +1611,7 @@
     }
 
     .uninstall-mode-on {
-      background: #ab3b33 !important;
+      background: #8f4a40 !important;
       color: #fff;
     }
 
@@ -847,6 +1656,7 @@
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
 <body>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <div class="ota-overlay hidden" id="otaOverlay" aria-live="polite">
     <div class="ota-card">
       <p class="eyebrow">System Update</p>
@@ -864,6 +1674,7 @@
 
   <div class="settings-overlay hidden" id="appSettingsOverlay" aria-live="polite">
     <div class="settings-card">
+      <button class="settings-close-x" id="appSettingsCloseX" type="button" aria-label="Close app settings">×</button>
       <p class="eyebrow">App Settings</p>
       <h2 class="ota-title" id="appSettingsTitle">App Settings</h2>
       <p class="ota-detail" id="appSettingsDesc">Adjust options and save.</p>
@@ -871,8 +1682,8 @@
       <div class="settings-page-host hidden" id="appSettingsPageHost"></div>
       <p class="settings-note" id="appSettingsHint">Changes take effect after reopening the app.</p>
       <div class="settings-actions">
-        <button class="ghost" id="appSettingsCloseBtn" type="button">Close</button>
-        <button class="secondary" id="appSettingsRunBtn" type="button">Save & Run</button>
+        <button id="appSettingsCloseBtn" type="button">Close</button>
+        <button id="appSettingsRunBtn" type="button">Save & Run</button>
         <button id="appSettingsSaveBtn" type="button">Save</button>
       </div>
     </div>
@@ -882,20 +1693,12 @@
     <header class="hero">
       <div class="hero-top">
         <div>
-          <p class="eyebrow">Pixel Control Surface</p>
-          <h1 class="title">Control Center</h1>
-          <p class="subtitle">Manage Wi-Fi, brightness, updates, and installed apps from one page.</p>
-        </div>
-        <div class="hero-badges">
-          <span class="badge" id="badgeVersion">Version --</span>
-          <span class="badge" id="badgeMode">Wi-Fi --</span>
-          <span class="badge" id="badgeBrightness">Brightness --</span>
+          <h1 class="title">GeekMagic Pixel</h1>
         </div>
       </div>
       <nav class="tabs" aria-label="Primary tabs">
         <button class="tab-btn active" data-tab="system" type="button">System</button>
         <button class="tab-btn" data-tab="apps" type="button">Apps</button>
-        <button class="tab-btn" data-tab="logs" type="button">Logs</button>
       </nav>
     </header>
 
@@ -905,118 +1708,72 @@
           <article class="panel">
             <div class="panel-inner">
               <div class="panel-head">
-                <h2 class="panel-title">Network</h2>
-                <button class="ghost" id="scanWifiBtn" type="button">Scan Nearby</button>
+                <h2 class="panel-title">NETWORK</h2>
               </div>
-              <div class="kv-grid">
-                <div class="kv">
-                  <p class="kv-label">Mode</p>
-                  <p class="kv-value" id="wifiMode">--</p>
-                </div>
-                <div class="kv">
-                  <p class="kv-label">Saved SSID</p>
-                  <p class="kv-value" id="savedSsid">--</p>
-                </div>
-                <div class="kv">
-                  <p class="kv-label">Connected SSID</p>
-                  <p class="kv-value" id="connectedSsid">--</p>
-                </div>
-                <div class="kv">
-                  <p class="kv-label">Station IP</p>
-                  <p class="kv-value" id="staIp">--</p>
-                </div>
-                <div class="kv">
-                  <p class="kv-label">Setup AP</p>
-                  <p class="kv-value" id="apSsid">--</p>
-                </div>
-                <div class="kv">
-                  <p class="kv-label">AP IP</p>
-                  <p class="kv-value" id="apIp">--</p>
-                </div>
+              <div class="toolbar" style="margin-top: 4px;">
+                <button id="scanWifiBtn" type="button">Scan</button>
+                <button id="saveWifiBtn" type="button">Save & Reboot</button>
               </div>
-              <p class="panel-note">Scan results show signal strength as a percentage. Pick one to fill the SSID field, then save credentials.</p>
-              <div class="form-grid" style="margin-top: 14px;">
+              <div class="form-grid" style="margin-top: 12px;">
                 <label class="field">
-                  SSID
-                  <input id="wifiSsid" type="text" autocomplete="off" />
+                  SSID (manual input supported, 2.4G only)
+                  <input id="wifiSsid" type="text" autocomplete="off" placeholder="e.g. MyWiFi-2.4G" />
                 </label>
                 <label class="field">
                   Password
-                  <input id="wifiPassword" type="password" autocomplete="current-password" />
+                  <input id="wifiPassword" type="password" autocomplete="current-password" placeholder="At least 8 chars or leave empty" />
                 </label>
               </div>
-              <div class="toolbar" style="margin-top: 14px;">
-                <button id="saveWifiBtn" type="button">Save Wi-Fi</button>
-                <button class="secondary" id="saveWifiRebootBtn" type="button">Save and Reboot</button>
-              </div>
-              <div class="wifi-grid" id="wifiScanGrid" style="margin-top: 14px;"></div>
+              <p class="panel-note" id="wifiScanStatus">Click "Scan" to load available networks (or enter SSID manually if scan is unavailable).</p>
+              <div class="wifi-list" id="wifiScanList"></div>
             </div>
           </article>
 
           <article class="panel">
             <div class="panel-inner">
               <div class="panel-head">
-                <h2 class="panel-title">Display</h2>
-                <span class="code-note">Takes effect now</span>
+                <h2 class="panel-title">DISPLAY</h2>
               </div>
               <div class="range-wrap">
                 <div class="range-head">
                   <span>Panel brightness</span>
-                  <strong id="brightnessValue">64</strong>
+                  <strong id="brightnessValue">25</strong>
                 </div>
-                <input id="brightnessSlider" type="range" min="0" max="255" step="1" value="64" />
+                <input id="brightnessSlider" type="range" min="0" max="100" step="1" value="25" />
                 <div class="toolbar">
                   <button id="applyBrightnessBtn" type="button">Apply Brightness</button>
                 </div>
               </div>
-            </div>
-          </article>
-        </div>
-
-        <div class="stack">
-          <article class="panel">
-            <div class="panel-inner">
-              <div class="panel-head">
-                <h2 class="panel-title">Update</h2>
-                <span class="code-note">System package</span>
-              </div>
-              <div class="kv-grid">
-                <div class="kv">
-                  <p class="kv-label">Project</p>
-                  <p class="kv-value" id="fwProject">--</p>
+              <section class="power-saver" style="margin-top: 14px;">
+                <div class="panel-head">
+                  <h3 class="panel-title">POWER SAVER</h3>
+                  <label class="switch" title="Enable power saver">
+                    <input id="powerSaverEnabledInput" type="checkbox" />
+                    <span class="slider"></span>
+                  </label>
                 </div>
-                <div class="kv">
-                  <p class="kv-label">Version</p>
-                  <p class="kv-value" id="fwVersion">--</p>
+                <div class="power-saver-grid">
+                  <label class="field">
+                    Screen Off Start
+                    <input id="screenOffStartInput" type="time" value="23:00" />
+                  </label>
+                  <label class="field">
+                    Screen On Start
+                    <input id="screenOnStartInput" type="time" value="07:00" />
+                  </label>
                 </div>
-                <div class="kv">
-                  <p class="kv-label">Partition</p>
-                  <p class="kv-value" id="fwPartition">--</p>
+                <div class="toolbar" style="margin-top: 12px;">
+                  <button id="savePowerSaverBtn" type="button">Save Power Saver</button>
                 </div>
-                <div class="kv">
-                  <p class="kv-label">Reboot</p>
-                  <p class="kv-value" id="rebootHint">Use the reboot button below</p>
-                </div>
-              </div>
-              <div class="form-grid" style="margin-top: 14px;">
-                <label class="field">
-                  Update file (.bin)
-                  <input id="firmwareFile" type="file" accept=".bin,application/octet-stream" />
-                </label>
-              </div>
-              <div class="toolbar" style="margin-top: 14px;">
-                <button id="uploadFirmwareBtn" type="button">Upload Update</button>
-                <button class="bad" id="rebootBtn" type="button">Reboot Device</button>
-              </div>
-              <p class="panel-note">After upload succeeds, the device will reboot automatically.</p>
+                <p class="panel-note">During this window, panel brightness is forced to 0 for energy saving (effective 1 minute after boot; a 10s on-screen notice is shown before sleep).</p>
+              </section>
             </div>
           </article>
 
           <article class="panel">
             <div class="panel-inner">
               <div class="panel-head">
-                <h2 class="panel-title">Device Info</h2>
-                <span class="code-note">Control page</span>
+                <h2 class="panel-title">STORAGE</h2>
               </div>
               <div class="storage-card" style="margin-bottom: 12px;">
                 <div class="storage-head">
@@ -1028,35 +1785,155 @@
                 </div>
                 <p class="capacity-meta" id="storageMeta">Storage usage is unavailable.</p>
               </div>
-              <p class="panel-note">This page shows current device state and storage usage.</p>
-              <div class="kv-grid" style="margin-top: 12px;">
-                <div class="kv">
-                  <p class="kv-label">Status</p>
-                  <p class="kv-value">Available</p>
-                </div>
-                <div class="kv">
-                  <p class="kv-label">Wi-Fi Scan</p>
-                  <p class="kv-value">Available</p>
-                </div>
-                <div class="kv">
-                  <p class="kv-label">Wi-Fi Save</p>
-                  <p class="kv-value">Available</p>
-                </div>
-                <div class="kv">
-                  <p class="kv-label">Brightness</p>
-                  <p class="kv-value">Available</p>
-                </div>
+              <p class="panel-note">Current device state and storage usage.</p>
+            </div>
+          </article>
+
+        </div>
+
+        <div class="stack">
+          <article class="panel">
+            <div class="panel-inner">
+              <div class="panel-head">
+                <h2 class="panel-title">TIMEZONE & CITY</h2>
+                <span class="code-note">Optional</span>
               </div>
+              <div class="form-grid">
+                <label class="field">
+                  Timezone (UTC offset)
+                  <select id="timezoneSelect">
+                    <option value="UTC-12:00">UTC-12:00</option>
+                    <option value="UTC-11:00">UTC-11:00</option>
+                    <option value="UTC-10:00">UTC-10:00</option>
+                    <option value="UTC-09:30">UTC-09:30</option>
+                    <option value="UTC-09:00">UTC-09:00</option>
+                    <option value="UTC-08:00">UTC-08:00</option>
+                    <option value="UTC-07:00">UTC-07:00</option>
+                    <option value="UTC-06:00">UTC-06:00</option>
+                    <option value="UTC-05:00">UTC-05:00</option>
+                    <option value="UTC-04:00">UTC-04:00</option>
+                    <option value="UTC-03:30">UTC-03:30</option>
+                    <option value="UTC-03:00">UTC-03:00</option>
+                    <option value="UTC-02:00">UTC-02:00</option>
+                    <option value="UTC-01:00">UTC-01:00</option>
+                    <option value="UTC+00:00">UTC+00:00</option>
+                    <option value="UTC+01:00">UTC+01:00</option>
+                    <option value="UTC+02:00">UTC+02:00</option>
+                    <option value="UTC+03:00">UTC+03:00</option>
+                    <option value="UTC+03:30">UTC+03:30</option>
+                    <option value="UTC+04:00">UTC+04:00</option>
+                    <option value="UTC+04:30">UTC+04:30</option>
+                    <option value="UTC+05:00">UTC+05:00</option>
+                    <option value="UTC+05:30">UTC+05:30</option>
+                    <option value="UTC+05:45">UTC+05:45</option>
+                    <option value="UTC+06:00">UTC+06:00</option>
+                    <option value="UTC+06:30">UTC+06:30</option>
+                    <option value="UTC+07:00">UTC+07:00</option>
+                    <option value="UTC+08:00" selected>UTC+08:00</option>
+                    <option value="UTC+08:45">UTC+08:45</option>
+                    <option value="UTC+09:00">UTC+09:00</option>
+                    <option value="UTC+09:30">UTC+09:30</option>
+                    <option value="UTC+10:00">UTC+10:00</option>
+                    <option value="UTC+10:30">UTC+10:30</option>
+                    <option value="UTC+11:00">UTC+11:00</option>
+                    <option value="UTC+12:00">UTC+12:00</option>
+                    <option value="UTC+12:45">UTC+12:45</option>
+                    <option value="UTC+13:00">UTC+13:00</option>
+                    <option value="UTC+14:00">UTC+14:00</option>
+                  </select>
+                </label>
+                <label class="field">
+                  City Name (OpenWeatherMap)
+                  <input id="cityNameInput" type="text" autocomplete="off" placeholder="e.g. shenzhen,cn" />
+                </label>
+                <label class="field">
+                  <span class="field-label-row">
+                    <span class="field-label-text">City ID (OpenWeatherMap, optional)</span>
+                    <a class="field-help-link" href="https://github.com/GeekMagicClock/smalltv-ultra/issues/176" target="_blank" rel="noopener noreferrer">Help?</a>
+                  </span>
+                  <input id="cityIdInput" type="text" autocomplete="off" placeholder="e.g. 1795565" />
+                </label>
+              </div>
+              <div class="toolbar" style="margin-top: 14px;">
+                <button id="saveLocaleBtn" type="button">Save Locale</button>
+              </div>
+              <p class="panel-note">City is used to sync weather info etc.(optional).</p>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-inner">
+              <div class="panel-head">
+                <h2 class="panel-title">DEFAULT APP</h2>
+                <span class="code-note">Startup</span>
+              </div>
+              <div class="form-grid" style="margin-top: 14px;">
+                <label class="field">
+                  App to launch on boot
+                  <select id="startupAppSelect">
+                    <option value="">-- First available --</option>
+                  </select>
+                </label>
+              </div>
+              <div class="toolbar" style="margin-top: 14px;">
+                <button id="saveDefaultAppBtn" type="button">Save Default</button>
+              </div>
+              <p class="panel-note">Starts only when device boots. If Scheduler is ON, tapping Run or pressing the button keeps that app for 10 minutes, then Scheduler takes over again.</p>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-inner">
+              <div class="panel-head">
+                <h2 class="panel-title">UPDATE</h2>
+                <span class="code-note" id="fwVersionTag">Version --</span>
+              </div>
+              <div class="form-grid" style="margin-top: 14px;">
+                <label class="field">
+                  Update file (.bin)
+                  <input id="firmwareFile" type="file" accept=".bin,application/octet-stream" />
+                </label>
+              </div>
+              <div class="toolbar" style="margin-top: 14px;">
+                <button id="uploadFirmwareBtn" type="button">Manual Update</button>
+                <label class="switch" title="Auto-check OTA at boot after Wi-Fi is connected">
+                  <input id="firmwareAutoOtaInput" type="checkbox" />
+                  <span class="slider"></span>
+                  <span>Auto OTA (after Wi-Fi connected at boot)</span>
+                </label>
+              </div>
+              <p class="panel-note">After upload succeeds, the device will reboot automatically.</p>
             </div>
           </article>
         </div>
       </div>
+      <article class="panel" style="margin-top: 14px;">
+        <div class="panel-inner">
+          <div class="panel-head">
+            <h2 class="panel-title">PRIVACY & TRUST</h2>
+          </div>
+          <p class="panel-note">
+            We never collect, upload, or share any of your personal information or usage data unless you explicitly send it to us.
+          </p>
+          <p class="panel-note">
+            Core device functions run locally. The only online service we provide is <code>ota.geekmagic.cc</code> for OTA firmware and app updates.
+          </p>
+          <p class="panel-note">
+            Most apps rely on relatively stable third-party websites or APIs. We cannot guarantee they will remain continuously available.
+          </p>
+          <p class="panel-note">
+            Any market or financial information shown on the device is for reference only and does not constitute investment advice.
+          </p>
+          <p class="panel-note">— GeekMagic Team</p>
+        </div>
+      </article>
     </section>
 
     <section class="tab-panel" data-panel="apps">
       <div class="stack">
         <div class="apps-tabs" role="tablist" aria-label="Apps sections">
           <button class="apps-tab-btn active" data-apps-tab="installed" type="button">Installed Apps</button>
+          <button class="apps-tab-btn" data-apps-tab="automation" type="button">Schedule</button>
           <button class="apps-tab-btn" data-apps-tab="store" type="button">Apps Store</button>
         </div>
 
@@ -1064,32 +1941,77 @@
           <article class="panel">
             <div class="panel-inner">
               <div class="panel-head">
-                <h2 class="panel-title">Installed Apps</h2>
                 <div class="toolbar">
-                  <button class="ghost" id="refreshInstalledBtn" type="button">Refresh Installed</button>
-                  <button class="secondary" id="reloadAppsBtn" type="button">Reload Apps</button>
-                  <button class="bad" id="uninstallModeBtn" type="button">Uninstall Mode: Off</button>
+                  <button id="refreshInstalledBtn" type="button">Refresh</button>
+                  <button id="uninstallModeBtn" type="button">Uninstall</button>
+                  <button class="hidden" id="deleteSelectedBtn" type="button">Delete Selected</button>
                 </div>
               </div>
-              <div class="card-grid" id="installedAppsGrid"></div>
+              <div class="installed-list-wrap" id="installedAppsWrap">
+                <div class="card-grid" id="installedAppsGrid"></div>
+                <div class="installed-list-sentinel" id="installedAppsSentinel"></div>
+              </div>
             </div>
           </article>
+        </section>
+
+        <section class="apps-subpanel" data-apps-panel="automation">
+            <div class="schedule-box">
+              <div class="schedule-head">
+                <div>
+                  <h3 class="schedule-title">APP SCHEDULE</h3>
+                </div>
+                <div class="toolbar">
+                  <button id="scheduleAddBtn" type="button">Add Rule</button>
+                  <button id="scheduleApplyBtn" type="button">Apply</button>
+                  <button id="scheduleRunBtn" type="button">Run</button>
+                  <button id="scheduleStopBtn" type="button">Stop</button>
+                </div>
+              </div>
+              <div class="schedule-mode-panels">
+                <article class="schedule-mode-card" id="scheduleTimeCard">
+                  <h4>MODE 1: Scheduled Time Slots</h4>
+                  <p>Run specific apps in exact clock ranges. Best for fixed daily routines.</p>
+                </article>
+                <article class="schedule-mode-card" id="scheduleLoopCard">
+                  <h4>MODE 2: Playlist Rotation</h4>
+                  <p>Rotate apps in order, each with its own duration.</p>
+                </article>
+              </div>
+              <p class="panel-note" id="scheduleHint">Scheduled Time Slots: set start, end, app, and repeat. Cross-midnight ranges are supported (e.g. 22:00-06:00).</p>
+              <div class="schedule-fallback">
+                <label for="scheduleFallbackAppInput">Fallback App (outside all time slots)</label>
+                <select id="scheduleFallbackAppInput"></select>
+              </div>
+              <div class="schedule-cols" id="scheduleCols">
+                <span>Start</span>
+                <span>End</span>
+                <span>App</span>
+                <span>Repeat</span>
+                <span>Action</span>
+              </div>
+              <div class="schedule-grid" id="scheduleRows"></div>
+              <section class="schedule-preview">
+                <p class="schedule-preview-title">Today Preview</p>
+                <p class="panel-note" id="schedulePreview">No schedule yet.</p>
+              </section>
+              <p class="panel-note" id="scheduleStatus"><span class="schedule-status-pill">Idle</span></p>
+            </div>
         </section>
 
         <section class="apps-subpanel" data-apps-panel="store">
           <article class="panel">
             <div class="panel-inner">
-              <div class="panel-head">
-                <h2 class="panel-title">Install and Update</h2>
-                <span class="code-note">Catalog source</span>
+              <div class="toolbar store-toolbar">
+                <input id="indexUrl" type="hidden" placeholder="Store index URL" />
+                <button id="loadStoreBtn" type="button">RELOAD</button>
+                <button id="askNewAppBtn" type="button">Suggest an App?</button>
+                <label class="switch" title="Run app immediately after install or update">
+                  <input id="switchAfter" type="checkbox" checked />
+                  <span class="slider"></span>
+                  <span>Run after install</span>
+                </label>
               </div>
-              <div class="toolbar">
-                <input id="indexUrl" type="text" placeholder="Store index URL" />
-                <button id="loadStoreBtn" type="button">Load Catalog</button>
-                <label class="check"><input id="switchAfter" type="checkbox" checked /> Run after install</label>
-              </div>
-              <p class="panel-note">Install from the catalog and run when ready.</p>
-              <p class="panel-note muted" id="storeMeta">No catalog loaded.</p>
               <div class="store-sections" id="storeApps"></div>
             </div>
           </article>
@@ -1102,8 +2024,8 @@
         <article class="panel log-panel">
           <div class="panel-inner">
             <div class="panel-head">
-              <h2 class="panel-title">Activity Log</h2>
-              <button class="ghost" id="clearLogBtn" type="button">Clear</button>
+              <h2 class="panel-title">ACTIVITY LOG</h2>
+              <button id="clearLogBtn" type="button">Clear</button>
             </div>
           </div>
           <div class="log" id="log"></div>
@@ -1112,15 +2034,15 @@
         <article class="panel log-panel">
           <div class="panel-inner">
             <div class="panel-head">
-              <h2 class="panel-title">Device Log</h2>
+              <h2 class="panel-title">DEVICE LOG</h2>
               <div class="toolbar">
                 <select id="deviceLogScope">
                   <option value="all">All Logs</option>
                   <option value="app">App Only</option>
                 </select>
-                <label class="check"><input id="deviceLogAuto" type="checkbox" checked /> Auto Refresh</label>
-                <button class="ghost" id="refreshRuntimeLogBtn" type="button">Refresh</button>
-                <button class="ghost" id="clearRuntimeLogBtn" type="button">Clear View</button>
+                <label class="check"><input id="deviceLogAuto" type="checkbox" /> Auto Refresh</label>
+                <button id="refreshRuntimeLogBtn" type="button">Refresh</button>
+                <button id="clearRuntimeLogBtn" type="button">Clear View</button>
               </div>
             </div>
             <p class="panel-note">Live logs from device. <code>App Only</code> shows messages from the current app.</p>
@@ -1152,36 +2074,59 @@
       inflightStore: null,
       thumbObserver: null,
       uninstallMode: false,
+      uninstallSelected: new Set(),
       settingsAppId: "",
       settingsAppSchema: null,
       settingsBindings: [],
       settingsPageMode: false,
+      schedule: { enabled: false, mode: "time", timeItems: [], loopItems: [], powerSaverEnabled: false, fallbackAppId: "", screenOffStart: "23:00", screenOnStart: "07:00" },
+      scheduleTimer: null,
+      scheduleRunning: false,
+      scheduleLastAppId: "",
+      scheduleLoopIndex: 0,
+      scheduleLoopNextAt: 0,
+      installedLazyItems: [],
+      installedLazyIndex: 0,
+      installedLazyLoading: false,
+      installedLazyObserver: null,
+      wifiScannedMap: new Map(),
     };
 
     const LS_KEY = "pixel_store_index_url";
+    const LS_APPS_TAB_KEY = "pixel_apps_subtab_v1";
+    const LS_MAIN_TAB_KEY = "pixel_main_tab_v1";
     const CACHE_SCHEMA = 2;
     const STORE_CACHE_PREFIX = "pixel_store_index_cache:";
+    const SCHEDULE_LS_KEY = "pixel_app_schedule_v1";
     const STORE_CACHE_TTL_MS = 30 * 60 * 1000;
+    const STORE_THUMB_CACHE_NAME = "pixel_store_thumb_cache_v1";
+    const STORE_THUMB_META_KEY = "pixel_store_thumb_meta_v1";
+    const STORE_THUMB_TTL_MS = 24 * 60 * 60 * 1000;
     const INSTALLED_RENDER_BATCH = 12;
     const STORE_RENDER_BATCH = 10;
-    const FORCED_STORE_INDEX_URL = "http://ota.geekmagic.cc:8001/fw/pixel64x32V2/apps/apps-index.json";
+    const FALLBACK_STORE_INDEX_URL = "https://ota.geekmagic.cc/apps/pixel64x32V2/stable/apps-index.json";
     const logEl = document.getElementById("log");
-    const badgeVersionEl = document.getElementById("badgeVersion");
-    const badgeModeEl = document.getElementById("badgeMode");
-    const badgeBrightnessEl = document.getElementById("badgeBrightness");
-    const wifiScanGridEl = document.getElementById("wifiScanGrid");
+    const wifiScanListEl = document.getElementById("wifiScanList");
+    const wifiScanStatusEl = document.getElementById("wifiScanStatus");
+    const fwVersionTagEl = document.getElementById("fwVersionTag");
     const installedAppsGridEl = document.getElementById("installedAppsGrid");
+    const installedAppsWrapEl = document.getElementById("installedAppsWrap");
+    const installedAppsSentinelEl = document.getElementById("installedAppsSentinel");
     const storeAppsEl = document.getElementById("storeApps");
     const storeMetaEl = document.getElementById("storeMeta");
     const brightnessSliderEl = document.getElementById("brightnessSlider");
     const brightnessValueEl = document.getElementById("brightnessValue");
+    const timezoneSelectEl = document.getElementById("timezoneSelect");
+    const cityNameInputEl = document.getElementById("cityNameInput");
+    const cityIdInputEl = document.getElementById("cityIdInput");
+    const startupAppSelectEl = document.getElementById("startupAppSelect");
     const indexUrlEl = document.getElementById("indexUrl");
     const switchAfterEl = document.getElementById("switchAfter");
     const wifiSsidEl = document.getElementById("wifiSsid");
     const wifiPasswordEl = document.getElementById("wifiPassword");
     const firmwareFileEl = document.getElementById("firmwareFile");
     const uploadFirmwareBtnEl = document.getElementById("uploadFirmwareBtn");
-    const rebootBtnEl = document.getElementById("rebootBtn");
+    const firmwareAutoOtaInputEl = document.getElementById("firmwareAutoOtaInput");
     const runtimeLogEl = document.getElementById("runtimeLog");
     const deviceLogScopeEl = document.getElementById("deviceLogScope");
     const deviceLogAutoEl = document.getElementById("deviceLogAuto");
@@ -1192,7 +2137,9 @@
     const otaPercentEl = document.getElementById("otaPercent");
     const otaBytesEl = document.getElementById("otaBytes");
     const uninstallModeBtnEl = document.getElementById("uninstallModeBtn");
+    const deleteSelectedBtnEl = document.getElementById("deleteSelectedBtn");
     const appSettingsOverlayEl = document.getElementById("appSettingsOverlay");
+    const appSettingsCloseXEl = document.getElementById("appSettingsCloseX");
     const appSettingsTitleEl = document.getElementById("appSettingsTitle");
     const appSettingsDescEl = document.getElementById("appSettingsDesc");
     const appSettingsFieldsEl = document.getElementById("appSettingsFields");
@@ -1201,10 +2148,23 @@
     const appSettingsCloseBtnEl = document.getElementById("appSettingsCloseBtn");
     const appSettingsRunBtnEl = document.getElementById("appSettingsRunBtn");
     const appSettingsSaveBtnEl = document.getElementById("appSettingsSaveBtn");
+    let storeThumbMeta = null;
     const storageUsageEl = document.getElementById("storageUsage");
     const storagePercentEl = document.getElementById("storagePercent");
     const storageBarEl = document.getElementById("storageBar");
     const storageMetaEl = document.getElementById("storageMeta");
+    const scheduleRowsEl = document.getElementById("scheduleRows");
+    const scheduleHintEl = document.getElementById("scheduleHint");
+    const scheduleStatusEl = document.getElementById("scheduleStatus");
+    const scheduleColsEl = document.getElementById("scheduleCols");
+    const scheduleTimeCardEl = document.getElementById("scheduleTimeCard");
+    const scheduleLoopCardEl = document.getElementById("scheduleLoopCard");
+    const schedulePreviewEl = document.getElementById("schedulePreview");
+    const toastEl = document.getElementById("toast");
+    const scheduleFallbackAppInputEl = document.getElementById("scheduleFallbackAppInput");
+    const powerSaverEnabledInputEl = document.getElementById("powerSaverEnabledInput");
+    const screenOffStartInputEl = document.getElementById("screenOffStartInput");
+    const screenOnStartInputEl = document.getElementById("screenOnStartInput");
 
     function esc(value) {
       return String(value ?? "")
@@ -1212,6 +2172,19 @@
         .replaceAll("<", "&lt;")
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;");
+    }
+
+    async function fetchDeviceStoreIndexConfig() {
+      try {
+        const json = await apiJson("GET", "/api/store/index");
+        const url = String(json?.default_index_url || "").trim() || FALLBACK_STORE_INDEX_URL;
+        const channel = String(json?.channel || "stable").trim().toLowerCase() === "beta" ? "beta" : "stable";
+        state.storeChannel = channel;
+        localStorage.setItem("pixel_store_channel", channel);
+        return { url, channel };
+      } catch (error) {
+        return { url: FALLBACK_STORE_INDEX_URL, channel: "stable" };
+      }
     }
 
     function log(message, cls) {
@@ -1222,6 +2195,28 @@
       }
       line.textContent = "[" + new Date().toLocaleTimeString() + "] " + message;
       logEl.prepend(line);
+    }
+
+    let toastTimer = null;
+    function showToast(message) {
+      if (!toastEl) return;
+      toastEl.textContent = String(message || "");
+      toastEl.classList.add("show");
+      if (toastTimer) {
+        clearTimeout(toastTimer);
+      }
+      toastTimer = setTimeout(() => {
+        toastEl.classList.remove("show");
+      }, 3000);
+    }
+
+    function maybeShowGithubHint(message) {
+      const text = String(message || "");
+      const lower = text.toLowerCase();
+      if (lower.includes("github") || lower.includes("raw.githubusercontent.com") ||
+          lower.includes("failed to fetch") || lower.includes("networkerror")) {
+        showToast("Install failed: phone network cannot reach GitHub resources. Check network or VPN.");
+      }
     }
 
     function scheduleChunk(fn) {
@@ -1253,6 +2248,423 @@
           data,
         }));
       } catch (error) {
+      }
+    }
+
+    function parseHmToMinutes(hm) {
+      const m = String(hm || "").match(/^(\d{2}):(\d{2})$/);
+      if (!m) return -1;
+      const h = Number(m[1]);
+      const mm = Number(m[2]);
+      if (h < 0 || h > 23 || mm < 0 || mm > 59) return -1;
+      return h * 60 + mm;
+    }
+
+    const WEEKDAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+    function todayKey() {
+      const d = new Date().getDay();
+      return WEEKDAY_KEYS[(d + 6) % 7];
+    }
+    function normalizeRepeat(item) {
+      const repeat = String(item?.repeat || "everyday");
+      if (repeat === "weekdays" || repeat === "weekends") return repeat;
+      return "everyday";
+    }
+    function normalizeDurationSeconds(v) {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return 60;
+      return Math.max(1, Math.min(3600, Math.round(n)));
+    }
+    function sanitizeTimeItem(it) {
+      const item = it && typeof it === "object" ? { ...it } : {};
+      item.start = String(item.start || "08:00");
+      item.end = String(item.end || "09:00");
+      item.appId = String(item.appId || "").trim();
+      item.repeat = normalizeRepeat(item);
+      return item;
+    }
+    function sanitizeLoopItem(it) {
+      const item = it && typeof it === "object" ? { ...it } : {};
+      item.appId = String(item.appId || "").trim();
+      item.duration = normalizeDurationSeconds(item.duration);
+      return item;
+    }
+    function addMinutesToHm(hm, delta) {
+      const base = parseHmToMinutes(hm);
+      if (base < 0) return "09:00";
+      let v = (base + Number(delta || 0)) % 1440;
+      if (v < 0) v += 1440;
+      const h = Math.floor(v / 60);
+      const m = v % 60;
+      return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
+    }
+    function matchesDay(item, key) {
+      const r = normalizeRepeat(item);
+      if (r === "everyday") return true;
+      if (r === "weekdays") return ["mon", "tue", "wed", "thu", "fri"].includes(key);
+      if (r === "weekends") return ["sat", "sun"].includes(key);
+      return false;
+    }
+
+    function scheduleStatus(text, bad) {
+      scheduleStatusEl.innerHTML = '<span class="schedule-status-pill">' + esc(text) + '</span>';
+      scheduleStatusEl.style.color = bad ? "var(--bad)" : "var(--muted)";
+      if (bad && text) showToast(text);
+    }
+
+    function loadScheduleConfig() {
+      try {
+        const raw = localStorage.getItem(SCHEDULE_LS_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object") return;
+        const mode = parsed.mode === "loop" ? "loop" : "time";
+        const timeItems = (Array.isArray(parsed.timeItems)
+          ? parsed.timeItems.slice(0, 40)
+          : (Array.isArray(parsed.items) ? parsed.items.slice(0, 40) : [])).map(sanitizeTimeItem);
+        const loopItems = (Array.isArray(parsed.loopItems) ? parsed.loopItems.slice(0, 40) : []).map(sanitizeLoopItem);
+        state.schedule = { enabled: !!parsed.enabled, mode, timeItems, loopItems, powerSaverEnabled: !!parsed.powerSaverEnabled, fallbackAppId: String(parsed.fallbackAppId || "") };
+        state.schedule.screenOffStart = String(parsed.screenOffStart || "23:00");
+        state.schedule.screenOnStart = String(parsed.screenOnStart || "07:00");
+      } catch (error) {
+      }
+    }
+
+    function saveScheduleConfig() {
+      localStorage.setItem(SCHEDULE_LS_KEY, JSON.stringify(state.schedule));
+    }
+
+    async function loadScheduleConfigFromServer() {
+      try {
+        const json = await apiJson("GET", "/api/scheduler/config");
+        if (!json || typeof json !== "object") return false;
+        const mode = json.mode === "loop" ? "loop" : "time";
+        state.schedule = {
+          enabled: !!json.enabled,
+          mode,
+          timeItems: Array.isArray(json.timeItems) ? json.timeItems.map(sanitizeTimeItem) : [],
+          loopItems: Array.isArray(json.loopItems) ? json.loopItems.map(sanitizeLoopItem) : [],
+          powerSaverEnabled: !!json.powerSaverEnabled,
+          fallbackAppId: String(json.fallbackAppId || ""),
+          screenOffStart: String(json.screenOffStart || "23:00"),
+          screenOnStart: String(json.screenOnStart || "07:00"),
+        };
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+
+    async function saveScheduleConfigToServer() {
+      await apiJson("PUT", "/api/scheduler/config", {
+        enabled: !!state.schedule.enabled,
+        mode: state.schedule.mode === "loop" ? "loop" : "time",
+        timeItems: (state.schedule.timeItems || []).map(sanitizeTimeItem),
+        loopItems: (state.schedule.loopItems || []).map(sanitizeLoopItem),
+        powerSaverEnabled: !!state.schedule.powerSaverEnabled,
+        fallbackAppId: String(state.schedule.fallbackAppId || ""),
+        screenOffStart: String(state.schedule.screenOffStart || "23:00"),
+        screenOnStart: String(state.schedule.screenOnStart || "07:00"),
+      });
+    }
+
+    async function loadSchedulerStatusFromServer() {
+      try {
+        const json = await apiJson("GET", "/api/scheduler/status");
+        if (!json || typeof json !== "object") return null;
+        return json;
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function scheduleAppOptions(selectedId) {
+      const opts = state.installedApps.slice().sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+      return opts.map((app) => {
+        const id = String(app.id || app.app_id || "").trim();
+        const name = String(app.name || id);
+        return `<option value="${esc(id)}" ${id === selectedId ? "selected" : ""}>${esc(name)}</option>`;
+      }).join("");
+    }
+
+    function renderScheduleBuilder() {
+      scheduleRowsEl.innerHTML = "";
+      scheduleHintEl.textContent = state.schedule.mode === "time"
+        ? "Scheduled Time Slots: set start, end, app, and repeat. Cross-midnight ranges are supported (e.g. 22:00-06:00)."
+        : "Loop mode: app + duration(sec), scheduler rotates continuously by duration.";
+      scheduleColsEl.style.display = state.schedule.mode === "time" ? "grid" : "none";
+      scheduleTimeCardEl.classList.toggle("active", state.schedule.mode === "time");
+      scheduleLoopCardEl.classList.toggle("active", state.schedule.mode === "loop");
+      const items = state.schedule.mode === "time"
+        ? (Array.isArray(state.schedule.timeItems) ? state.schedule.timeItems : [])
+        : (Array.isArray(state.schedule.loopItems) ? state.schedule.loopItems : []);
+      const fallbackOptions = ['<option value="">No fallback</option>']
+        .concat(state.installedApps.slice()
+          .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+          .map((app) => {
+            const id = String(app.id || app.app_id || "").trim();
+            const name = String(app.name || id);
+            const selected = id === String(state.schedule.fallbackAppId || "").trim() ? "selected" : "";
+            return `<option value="${esc(id)}" ${selected}>${esc(name)}</option>`;
+          }));
+      scheduleFallbackAppInputEl.innerHTML = fallbackOptions.join("");
+      powerSaverEnabledInputEl.checked = !!state.schedule.powerSaverEnabled;
+      screenOffStartInputEl.value = String(state.schedule.screenOffStart || "23:00");
+      screenOnStartInputEl.value = String(state.schedule.screenOnStart || "07:00");
+      scheduleColsEl.style.display = (state.schedule.mode === "time" && items.length) ? "grid" : "none";
+      if (!items.length) {
+        scheduleRowsEl.innerHTML = '<div class="muted">No rules yet. Click Add Rule to begin.</div>';
+        renderSchedulePreview();
+        return;
+      }
+      items.forEach((item, idx) => {
+        const row = document.createElement("div");
+        if (state.schedule.mode === "time") {
+          row.className = "schedule-row time-row";
+          const repeat = normalizeRepeat(item);
+          row.innerHTML = `
+            <div><p class="m-field-label">Start</p><input type="time" data-k="start" data-i="${idx}" value="${esc(item.start || "08:00")}" /></div>
+            <div><p class="m-field-label">End</p><input type="time" data-k="end" data-i="${idx}" value="${esc(item.end || "09:00")}" /></div>
+            <div><p class="m-field-label">App</p><select data-k="appId" data-i="${idx}">${scheduleAppOptions(String(item.appId || ""))}</select></div>
+            <div>
+              <p class="m-field-label">Repeat</p>
+              <select data-k="repeat" data-i="${idx}">
+                <option value="everyday" ${repeat === "everyday" ? "selected" : ""}>Every day</option>
+                <option value="weekdays" ${repeat === "weekdays" ? "selected" : ""}>Weekdays</option>
+                <option value="weekends" ${repeat === "weekends" ? "selected" : ""}>Weekends</option>
+              </select>
+            </div>
+            <div><p class="m-field-label">Action</p><button class="btn-delete" type="button" data-k="del" data-i="${idx}">Delete</button></div>
+          `;
+        } else {
+          row.className = "schedule-row loop-row";
+          row.innerHTML = `
+            <input type="number" min="1" max="3600" data-k="duration" data-i="${idx}" value="${Number(item.duration || 60)}" />
+            <select data-k="appId" data-i="${idx}">${scheduleAppOptions(String(item.appId || ""))}</select>
+            <span class="muted">sec</span>
+            <button class="btn-delete" type="button" data-k="del" data-i="${idx}">Delete</button>
+          `;
+        }
+        scheduleRowsEl.appendChild(row);
+      });
+      renderSchedulePreview();
+    }
+
+    function renderSchedulePreview() {
+      const items = state.schedule.mode === "time"
+        ? (Array.isArray(state.schedule.timeItems) ? state.schedule.timeItems : [])
+        : (Array.isArray(state.schedule.loopItems) ? state.schedule.loopItems : []);
+      if (!items.length) {
+        schedulePreviewEl.textContent = "No schedule yet.";
+        return;
+      }
+      if (state.schedule.mode === "time") {
+        const text = items.slice(0, 6).map((it) => {
+          const appId = String(it.appId || "");
+          const app = state.installedById[appId];
+          const name = String(app?.name || it?.name || appId || "Unknown");
+          return String(it.start || "--:--") + "-" + String(it.end || "--:--") + " " + name;
+        }).join(" | ");
+        schedulePreviewEl.textContent = text + (items.length > 6 ? " ..." : "");
+      } else {
+        const total = items.reduce((sum, it) => sum + Math.max(1, Number(it.duration || 0)), 0);
+        const text = items.slice(0, 6).map((it) => {
+          const appId = String(it.appId || "");
+          const app = state.installedById[appId];
+          const name = String(app?.name || it?.name || appId || "Unknown");
+          return name + " " + Math.max(1, Number(it.duration || 0)) + "s";
+        }).join(" -> ");
+        schedulePreviewEl.textContent = "Cycle " + total + "s: " + text + (items.length > 6 ? " ..." : "");
+      }
+    }
+
+    function readScheduleBuilderToState() {
+      const mode = state.schedule.mode === "loop" ? "loop" : "time";
+      const enabled = !!state.schedule.enabled;
+      const base = mode === "time"
+        ? (Array.isArray(state.schedule.timeItems) ? state.schedule.timeItems : [])
+        : (Array.isArray(state.schedule.loopItems) ? state.schedule.loopItems : []);
+      const current = base.map((x) => ({ ...x }));
+      for (const el of scheduleRowsEl.querySelectorAll("[data-k][data-i]")) {
+        const idx = Number(el.dataset.i);
+        const key = String(el.dataset.k || "");
+        if (!current[idx]) current[idx] = {};
+        if (key === "del") continue;
+        current[idx][key] = el.value;
+      }
+      for (const item of current) {
+        item.repeat = normalizeRepeat(item);
+        item.appId = String(item.appId || "").trim();
+      }
+      if (mode === "time") {
+        state.schedule = {
+          ...state.schedule,
+          enabled,
+          mode,
+          powerSaverEnabled: !!powerSaverEnabledInputEl.checked,
+          fallbackAppId: String(scheduleFallbackAppInputEl.value || "").trim(),
+          screenOffStart: String(screenOffStartInputEl.value || "23:00"),
+          screenOnStart: String(screenOnStartInputEl.value || "07:00"),
+          timeItems: current.filter(Boolean).map(sanitizeTimeItem),
+        };
+      } else {
+        state.schedule = {
+          ...state.schedule,
+          enabled,
+          mode,
+          powerSaverEnabled: !!powerSaverEnabledInputEl.checked,
+          fallbackAppId: String(scheduleFallbackAppInputEl.value || "").trim(),
+          screenOffStart: String(screenOffStartInputEl.value || "23:00"),
+          screenOnStart: String(screenOnStartInputEl.value || "07:00"),
+          loopItems: current.filter(Boolean).map(sanitizeLoopItem),
+        };
+      }
+    }
+
+    function readPowerSaverToState() {
+      state.schedule = {
+        ...state.schedule,
+        powerSaverEnabled: !!powerSaverEnabledInputEl.checked,
+        screenOffStart: String(screenOffStartInputEl.value || "23:00"),
+        screenOnStart: String(screenOnStartInputEl.value || "07:00"),
+      };
+    }
+
+    function validatePowerSaverConfig(config) {
+      if (!config.powerSaverEnabled) return "";
+      const off = parseHmToMinutes(config.screenOffStart);
+      const on = parseHmToMinutes(config.screenOnStart);
+      if (off < 0 || on < 0) return "Invalid power saver time.";
+      if (off === on) return "Power saver off/on time cannot be the same.";
+      return "";
+    }
+
+    function validateSchedule(config) {
+      const items = config.mode === "time"
+        ? (Array.isArray(config.timeItems) ? config.timeItems : [])
+        : (Array.isArray(config.loopItems) ? config.loopItems : []);
+      if (!items.length) return "No schedule rules.";
+      const validIds = new Set(state.installedApps.map((a) => String(a.id || a.app_id || "").trim()));
+      if (config.mode === "time" && items.length > 32) return "Too many time rules (max 32).";
+      if (config.mode === "loop" && items.length > 32) return "Too many loop rules (max 32).";
+      if (config.mode === "time") {
+        const fb = String(config.fallbackAppId || "").trim();
+        if (fb && !validIds.has(fb)) return "Fallback app is not installed.";
+      }
+      for (const it of items) {
+        const appId = String(it.appId || "").trim();
+        if (!appId || !validIds.has(appId)) return "Schedule includes uninstalled app.";
+        if (config.mode === "time") {
+          if (parseHmToMinutes(it.start) < 0 || parseHmToMinutes(it.end) < 0) return "Invalid start/end time.";
+        } else {
+          const d = Number(it.duration || 0);
+          if (!Number.isFinite(d) || d < 1 || d > 3600) return "Duration must be 1-3600 sec.";
+        }
+      }
+      const psErr = validatePowerSaverConfig(config);
+      if (psErr) return psErr;
+      if (config.mode === "time") {
+        const buckets = {
+          mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [],
+        };
+        for (const it of items) {
+          const s = parseHmToMinutes(it.start);
+          const e = parseHmToMinutes(it.end);
+          const repeat = normalizeRepeat(it);
+          const days = repeat === "everyday"
+            ? WEEKDAY_KEYS
+            : repeat === "weekdays"
+              ? ["mon", "tue", "wed", "thu", "fri"]
+              : ["sat", "sun"];
+          const ranges = s <= e ? [[s, e]] : [[s, 1440], [0, e]];
+          for (const d of days) {
+            for (const r of ranges) {
+              buckets[d].push(r);
+            }
+          }
+        }
+        for (const d of WEEKDAY_KEYS) {
+          const arr = buckets[d].slice().sort((a, b) => a[0] - b[0]);
+          for (let i = 1; i < arr.length; i++) {
+            if (arr[i][0] < arr[i - 1][1]) {
+              return "Overlapping time rules on " + d.toUpperCase() + ".";
+            }
+          }
+        }
+      }
+      return "";
+    }
+
+    async function scheduleSwitchTo(appId, reason) {
+      if (!appId || appId === state.scheduleLastAppId) return;
+      await runApp(appId);
+      state.scheduleLastAppId = appId;
+      scheduleStatus("Scheduler switched to " + appId + " (" + reason + ")", false);
+    }
+
+    async function tickScheduler() {
+      if (!state.scheduleRunning || !state.schedule.enabled) return;
+      const cfg = state.schedule;
+      if (cfg.mode === "time") {
+        const timeItems = Array.isArray(cfg.timeItems) ? cfg.timeItems : [];
+        const day = todayKey();
+        const now = new Date();
+        const m = now.getHours() * 60 + now.getMinutes();
+        let chosen = null;
+        for (const it of timeItems) {
+          if (!matchesDay(it, day)) continue;
+          const s = parseHmToMinutes(it.start);
+          const e = parseHmToMinutes(it.end);
+          const cross = s > e;
+          const inRange = cross ? (m >= s || m < e) : (m >= s && m < e);
+          if (inRange) { chosen = it; break; }
+        }
+        if (chosen) {
+          await scheduleSwitchTo(String(chosen.appId || ""), "time window");
+        }
+      } else {
+        const loopItems = Array.isArray(cfg.loopItems) ? cfg.loopItems : [];
+        const now = Date.now();
+        if (!loopItems.length) return;
+        if (!state.scheduleLoopNextAt || now >= state.scheduleLoopNextAt) {
+          const i = state.scheduleLoopIndex % loopItems.length;
+          const item = loopItems[i];
+          const dur = Math.max(1, Number(item.duration || 60));
+          await scheduleSwitchTo(String(item.appId || ""), "loop #" + (i + 1));
+          state.scheduleLoopIndex = (i + 1) % loopItems.length;
+          state.scheduleLoopNextAt = now + dur * 1000;
+        }
+      }
+    }
+
+    function stopScheduler() {
+      if (state.scheduleTimer) {
+        clearInterval(state.scheduleTimer);
+        state.scheduleTimer = null;
+      }
+      state.scheduleRunning = false;
+      state.scheduleLastAppId = "";
+      state.scheduleLoopNextAt = 0;
+      state.scheduleLoopIndex = 0;
+      scheduleStatus("Scheduler stopped.", false);
+    }
+
+    async function startScheduler() {
+      readScheduleBuilderToState();
+      const err = validateSchedule(state.schedule);
+      if (err) {
+        scheduleStatus(err, true);
+        return;
+      }
+      try {
+        await saveScheduleConfigToServer();
+        await apiJson("POST", "/api/scheduler/start", {});
+        state.schedule.enabled = true;
+        state.scheduleRunning = true;
+        saveScheduleConfig();
+        scheduleStatus("Scheduler running (device).", false);
+      } catch (error) {
+        scheduleStatus("Scheduler start failed: " + String(error.message || error), true);
       }
     }
 
@@ -1288,6 +2700,102 @@
           img.src = img.dataset.src;
           img.removeAttribute("data-src");
         }
+      }
+    }
+
+    function loadStoreThumbMeta() {
+      if (storeThumbMeta) return storeThumbMeta;
+      try {
+        const raw = localStorage.getItem(STORE_THUMB_META_KEY);
+        storeThumbMeta = raw ? JSON.parse(raw) : {};
+      } catch (_error) {
+        storeThumbMeta = {};
+      }
+      return storeThumbMeta;
+    }
+
+    function saveStoreThumbMeta(meta) {
+      storeThumbMeta = meta || {};
+      try {
+        localStorage.setItem(STORE_THUMB_META_KEY, JSON.stringify(storeThumbMeta));
+      } catch (_error) {}
+    }
+
+    function pruneStoreThumbMeta(meta, nowTs) {
+      const out = meta || {};
+      const now = Number(nowTs || Date.now());
+      let changed = false;
+      for (const [url, ts] of Object.entries(out)) {
+        if (!Number.isFinite(Number(ts)) || now - Number(ts) > STORE_THUMB_TTL_MS * 3) {
+          delete out[url];
+          changed = true;
+        }
+      }
+      if (changed) saveStoreThumbMeta(out);
+      return out;
+    }
+
+    async function resolveStoreThumbSrc(originalUrl) {
+      const src = String(originalUrl || "").trim();
+      if (!src) return "";
+      if (/^(data:|blob:)/i.test(src)) return src;
+      if (!("caches" in window)) return src;
+
+      const now = Date.now();
+      const meta = pruneStoreThumbMeta(loadStoreThumbMeta(), now);
+      let key = src;
+      try {
+        key = new URL(src, window.location.href).href;
+      } catch (_error) {
+        key = src;
+      }
+      const lastTs = Number(meta[key] || 0);
+      const cache = await caches.open(STORE_THUMB_CACHE_NAME);
+
+      try {
+        const cached = await cache.match(key);
+        if (cached && Number.isFinite(lastTs) && now - lastTs <= STORE_THUMB_TTL_MS) {
+          const blob = await cached.blob();
+          return URL.createObjectURL(blob);
+        }
+      } catch (_error) {}
+
+      try {
+        const res = await fetch(src, { cache: "no-store" });
+        if (!res.ok) return src;
+        await cache.put(key, res.clone());
+        meta[key] = now;
+        saveStoreThumbMeta(meta);
+        const blob = await res.blob();
+        return URL.createObjectURL(blob);
+      } catch (_error) {
+        return src;
+      }
+    }
+
+    function hydrateStoreThumbCache(root) {
+      const scope = root || document;
+      const imgs = scope.querySelectorAll('img[data-store-thumb="1"][data-src]');
+      for (const img of imgs) {
+        if (img.dataset.thumbCacheReady === "1") continue;
+        img.dataset.thumbCacheReady = "1";
+        const originalSrc = String(img.dataset.src || "").trim();
+        if (!originalSrc) continue;
+        resolveStoreThumbSrc(originalSrc)
+          .then((resolvedSrc) => {
+            if (!resolvedSrc || !img.isConnected) return;
+            img.dataset.src = resolvedSrc;
+            if (img.src && /^blob:/i.test(img.src)) {
+              try { URL.revokeObjectURL(img.src); } catch (_error) {}
+            }
+            if (!img.src) {
+              img.src = resolvedSrc;
+              img.removeAttribute("data-src");
+            } else if (img.src !== resolvedSrc) {
+              img.src = resolvedSrc;
+            }
+          })
+          .catch(() => {});
       }
     }
 
@@ -1368,6 +2876,41 @@
       return Math.max(0, Math.min(100, Math.round(pct)));
     }
 
+    function brightnessRawToUi(raw) {
+      const n = Number(raw);
+      if (!Number.isFinite(n)) return 25;
+      return Math.max(0, Math.min(100, Math.round((n * 100) / 255)));
+    }
+
+    function brightnessUiToRaw(ui) {
+      const n = Number(ui);
+      if (!Number.isFinite(n)) return 64;
+      return Math.max(0, Math.min(255, Math.round((n * 255) / 100)));
+    }
+
+    function utcOffsetTextToHours(value) {
+      const s = String(value || "").trim();
+      const m = /^UTC([+-])(\d{1,2}):(\d{2})$/.exec(s);
+      if (!m) return null;
+      const sign = m[1] === "-" ? -1 : 1;
+      const hour = Number(m[2]);
+      const minute = Number(m[3]);
+      if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+      return sign * (hour + minute / 60);
+    }
+
+    function utcOffsetHoursToText(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return "";
+      const sign = n < 0 ? "-" : "+";
+      const abs = Math.abs(n);
+      const hour = Math.floor(abs);
+      const minute = Math.round((abs - hour) * 60);
+      const hh = String(hour).padStart(2, "0");
+      const mm = String(minute).padStart(2, "0");
+      return "UTC" + sign + hh + ":" + mm;
+    }
+
     function setOtaOverlay({ visible, title, detail, loaded, total }) {
       otaOverlayEl.classList.toggle("hidden", !visible);
       document.body.style.overflow = visible ? "hidden" : "";
@@ -1392,10 +2935,10 @@
       return new Promise((resolve) => window.setTimeout(resolve, ms));
     }
 
-    function uploadBinaryWithProgress(path, file, onProgress) {
+    function uploadBinaryWithProgress(path, file, onProgress, method = "POST") {
       return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open("POST", path, true);
+        xhr.open(method, path, true);
         xhr.timeout = 180000;
         xhr.setRequestHeader("Content-Type", "application/octet-stream");
         xhr.upload.onprogress = (event) => {
@@ -1421,6 +2964,38 @@
       });
     }
 
+    async function downloadArrayBufferWithProgress(url, onProgress) {
+      const response = await fetch(url, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error("Download failed (" + response.status + ")");
+      }
+      const total = Number(response.headers.get("content-length") || 0);
+      if (!response.body || typeof response.body.getReader !== "function") {
+        const buffer = await response.arrayBuffer();
+        if (onProgress) onProgress(buffer.byteLength || 0, total || buffer.byteLength || 0);
+        return buffer;
+      }
+      const reader = response.body.getReader();
+      const chunks = [];
+      let loaded = 0;
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        if (value && value.byteLength) {
+          chunks.push(value);
+          loaded += value.byteLength;
+          if (onProgress) onProgress(loaded, total || loaded);
+        }
+      }
+      const merged = new Uint8Array(loaded);
+      let offset = 0;
+      for (const chunk of chunks) {
+        merged.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      return merged.buffer;
+    }
+
     async function waitForDeviceBackOnline() {
       for (let attempt = 0; attempt < 45; attempt += 1) {
         try {
@@ -1434,23 +3009,26 @@
     }
 
     function setTab(tab) {
+      const target = tab === "apps" || tab === "logs" ? tab : "system";
       for (const btn of document.querySelectorAll(".tab-btn")) {
-        btn.classList.toggle("active", btn.dataset.tab === tab);
+        btn.classList.toggle("active", btn.dataset.tab === target);
       }
       for (const panel of document.querySelectorAll(".tab-panel")) {
-        panel.classList.toggle("active", panel.dataset.panel === tab);
+        panel.classList.toggle("active", panel.dataset.panel === target);
       }
-      history.replaceState(null, "", "#" + tab);
+      history.replaceState(null, "", "#" + target);
+      try { localStorage.setItem(LS_MAIN_TAB_KEY, target); } catch (_) {}
     }
 
     function setAppsTab(tab) {
-      const target = tab === "store" ? "store" : "installed";
+      const target = tab === "store" ? "store" : (tab === "automation" ? "automation" : "installed");
       for (const btn of document.querySelectorAll(".apps-tab-btn")) {
         btn.classList.toggle("active", btn.dataset.appsTab === target);
       }
       for (const panel of document.querySelectorAll(".apps-subpanel")) {
         panel.classList.toggle("active", panel.dataset.appsPanel === target);
       }
+      try { localStorage.setItem(LS_APPS_TAB_KEY, target); } catch (_) {}
     }
 
     async function api(method, path, body, contentType) {
@@ -1606,9 +3184,22 @@
 
     function setUninstallMode(enabled) {
       state.uninstallMode = !!enabled;
-      uninstallModeBtnEl.textContent = state.uninstallMode ? "Uninstall Mode: On" : "Uninstall Mode: Off";
+      if (!state.uninstallMode) {
+        state.uninstallSelected.clear();
+      }
+      uninstallModeBtnEl.textContent = state.uninstallMode ? "Done" : "Uninstall";
       uninstallModeBtnEl.classList.toggle("uninstall-mode-on", state.uninstallMode);
+      deleteSelectedBtnEl.classList.toggle("hidden", !state.uninstallMode);
+      deleteSelectedBtnEl.disabled = !state.uninstallSelected.size;
+      deleteSelectedBtnEl.textContent = "Delete Selected" + (state.uninstallSelected.size ? " (" + state.uninstallSelected.size + ")" : "");
       renderInstalledApps();
+    }
+
+    function syncDeleteSelectedButton() {
+      if (!deleteSelectedBtnEl) return;
+      deleteSelectedBtnEl.classList.toggle("hidden", !state.uninstallMode);
+      deleteSelectedBtnEl.disabled = !state.uninstallSelected.size;
+      deleteSelectedBtnEl.textContent = "Delete Selected" + (state.uninstallSelected.size ? " (" + state.uninstallSelected.size + ")" : "");
     }
 
     function closeAppSettings() {
@@ -1703,7 +3294,7 @@
       appSettingsSaveBtnEl.disabled = true;
       appSettingsRunBtnEl.disabled = true;
       try {
-        await apiJson("POST", "/api/system/lua-data", { items });
+        await apiJson("POST", "/api/system/settings", { items });
         log("saved settings for " + appId, "status-ok");
         if (runAfterSave) {
           await runApp(appId);
@@ -1754,7 +3345,7 @@
     function toInstalledMap(items) {
       const map = {};
       for (const item of items || []) {
-        const id = String(item.id || "").trim();
+        const id = String(item.id || item.app_id || "").trim();
         if (!id) continue;
         map[id] = {
           id,
@@ -1845,27 +3436,127 @@
       return '<span class="status-ok">Installed</span> ' + esc(local.version);
     }
 
-    function renderHero(status) {
-      badgeVersionEl.textContent = "Version " + (status?.firmware?.version || "--");
-      badgeModeEl.textContent = "Wi-Fi " + (status?.wifi?.mode || "--");
-      badgeBrightnessEl.textContent = "Brightness " + (status?.display?.brightness ?? "--");
+    function normalizeCrc32(raw) {
+      const text = String(raw || "").trim().toLowerCase();
+      if (!text) return "";
+      if (text.startsWith("crc32:")) return text.slice(6).trim();
+      return text;
+    }
+
+    function normalizeRelPath(path) {
+      const raw = String(path || "").replace(/\\/g, "/").trim();
+      if (!raw) return "";
+      const out = [];
+      for (const part of raw.split("/")) {
+        if (!part || part === "." || part === "..") continue;
+        out.push(part);
+      }
+      return out.join("/");
+    }
+
+    function globToRegExp(glob) {
+      const src = String(glob || "").trim();
+      if (!src) return null;
+      let re = "^";
+      for (let i = 0; i < src.length; i += 1) {
+        const ch = src[i];
+        if (ch === "*") {
+          if (src[i + 1] === "*") {
+            re += ".*";
+            i += 1;
+          } else {
+            re += "[^/]*";
+          }
+          continue;
+        }
+        if (ch === "?") {
+          re += ".";
+          continue;
+        }
+        if ("\\^$+?.()|{}[]".includes(ch)) re += "\\";
+        re += ch;
+      }
+      re += "$";
+      try {
+        return new RegExp(re, "i");
+      } catch (_error) {
+        return null;
+      }
+    }
+
+    function buildPreserveRulesOnUpdate(manifestObj) {
+      const defaults = [
+        "settings.json",
+        "config.json",
+        "state.json",
+        "user.json",
+        "prefs.json",
+        "data/*.json",
+        "data/*.db",
+        "data/*.sqlite",
+        "*.db",
+        "*.sqlite",
+        "*.cache"
+      ];
+      const fromManifest = Array.isArray(manifestObj?.preserve_on_update) ? manifestObj.preserve_on_update : [];
+      const merged = [...defaults, ...fromManifest]
+        .map((rule) => normalizeRelPath(rule))
+        .filter((rule) => !!rule);
+      const exact = new Set();
+      const globs = [];
+      for (const rule of merged) {
+        if (rule.includes("*") || rule.includes("?")) {
+          const reg = globToRegExp(rule);
+          if (reg) globs.push(reg);
+        } else {
+          exact.add(rule.toLowerCase());
+        }
+      }
+      return { exact, globs };
+    }
+
+    function shouldPreserveOnUpdate(relPath, rules) {
+      const p = normalizeRelPath(relPath).toLowerCase();
+      if (!p) return false;
+      if (rules.exact.has(p)) return true;
+      for (const reg of rules.globs) {
+        if (reg.test(p)) return true;
+      }
+      return false;
+    }
+
+    function crc32Hex(arrayBuffer) {
+      const table = crc32Hex.table || (crc32Hex.table = (() => {
+        const t = new Uint32Array(256);
+        for (let n = 0; n < 256; n++) {
+          let c = n;
+          for (let k = 0; k < 8; k++) {
+            c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+          }
+          t[n] = c >>> 0;
+        }
+        return t;
+      })());
+      const bytes = new Uint8Array(arrayBuffer);
+      let crc = 0 ^ -1;
+      for (let i = 0; i < bytes.length; i++) {
+        crc = table[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+      }
+      crc = (crc ^ -1) >>> 0;
+      return crc.toString(16).padStart(8, "0");
     }
 
     function renderSystem(status) {
-      renderHero(status);
-      document.getElementById("wifiMode").textContent = status?.wifi?.mode || "--";
-      document.getElementById("savedSsid").textContent = status?.wifi?.saved_ssid || "--";
-      document.getElementById("connectedSsid").textContent = status?.wifi?.sta_ssid || "--";
-      document.getElementById("staIp").textContent = status?.wifi?.sta_ip || "--";
-      document.getElementById("apSsid").textContent = status?.wifi?.ap_ssid || "--";
-      document.getElementById("apIp").textContent = status?.wifi?.ap_ip || "--";
-      document.getElementById("fwProject").textContent = status?.firmware?.project || "--";
-      document.getElementById("fwVersion").textContent = status?.firmware?.version || "--";
-      document.getElementById("fwPartition").textContent = status?.firmware?.partition || "--";
-
-      const brightness = Number(status?.display?.brightness ?? 64);
-      brightnessSliderEl.value = String(brightness);
-      brightnessValueEl.textContent = String(brightness);
+      if (fwVersionTagEl) {
+        const fwVersion = String(status?.firmware?.version || "").trim();
+        fwVersionTagEl.textContent = "Version " + (fwVersion ? fwVersion : "--");
+      }
+      const brightnessUi = brightnessRawToUi(status?.display?.brightness ?? 64);
+      brightnessSliderEl.value = String(brightnessUi);
+      brightnessValueEl.textContent = String(brightnessUi);
+      if (firmwareAutoOtaInputEl) {
+        firmwareAutoOtaInputEl.checked = !!status?.firmware?.auto_ota_enabled;
+      }
 
       const totalBytes = Number(status?.storage?.total_bytes || 0);
       const usedBytes = Number(status?.storage?.used_bytes || 0);
@@ -1880,35 +3571,63 @@
       if (!wifiSsidEl.value && status?.wifi?.saved_ssid) {
         wifiSsidEl.value = status.wifi.saved_ssid;
       }
+      if (wifiScanStatusEl) {
+        wifiScanStatusEl.textContent = 'Click "Scan" to load available networks (or enter SSID manually if scan is unavailable).';
+      }
+    }
+
+    function wifiSignalPercent(rssi) {
+      if (!Number.isFinite(rssi)) return null;
+      const pct = Math.round((rssi + 100) * 2);
+      return Math.max(0, Math.min(100, pct));
+    }
+
+    function wifiRowHtml(ap) {
+      const ssid = String(ap.ssid || "").trim();
+      const rssiNum = Number(ap.rssi);
+      const pct = Number.isFinite(ap.strength) ? Math.max(0, Math.min(100, Math.round(ap.strength))) : wifiSignalPercent(rssiNum);
+      const secure = ap.auth ? String(ap.auth) : "Open/Unknown";
+      const signal = pct == null ? "Signal unknown" : "Signal " + pct + "%";
+      return `<strong>${esc(ssid || "(Hidden SSID)")}</strong><small>${esc(signal)} · ${esc(secure)}</small>`;
     }
 
     function renderWifiScan(aps) {
-      wifiScanGridEl.innerHTML = "";
+      wifiScanListEl.innerHTML = "";
+      state.wifiScannedMap.clear();
       if (!aps || !aps.length) {
-        wifiScanGridEl.innerHTML = '<div class="muted">No nearby APs returned.</div>';
+        wifiScanStatusEl.textContent = "No scan list returned. Enter Wi-Fi details manually.";
         return;
       }
-      for (const ap of aps) {
-        const item = document.createElement("div");
+      const list = aps
+        .map((ap) => ({
+          ssid: ap && ap.ssid ? String(ap.ssid) : "",
+          rssi: Number(ap && ap.rssi),
+          auth: ap && (ap.auth || ap.secure || ap.encrypted) ? String(ap.auth || ap.secure || ap.encrypted) : "",
+          strength: ap && ap.strength != null ? Number(ap.strength) : undefined,
+        }))
+        .filter((ap) => ap.ssid);
+      for (const ap of list) {
+        const auth = String(ap.auth || "UNKNOWN").toUpperCase();
+        const secure = auth !== "OPEN";
+        state.wifiScannedMap.set(String(ap.ssid || ""), { secure, auth });
+      }
+      list.sort((a, b) => (Number.isFinite(b.rssi) ? b.rssi : -999) - (Number.isFinite(a.rssi) ? a.rssi : -999));
+      if (!list.length) {
+        wifiScanStatusEl.textContent = "Scan complete, but no visible SSID found. Enter one manually.";
+        return;
+      }
+      wifiScanStatusEl.textContent = "Found " + list.length + " networks. Click one to fill SSID.";
+      for (const ap of list.slice(0, 24)) {
+        const item = document.createElement("button");
         item.className = "wifi-item";
-        item.innerHTML = `
-          <div class="wifi-top">
-            <div>
-              <p class="ssid">${esc(ap.ssid || "--")}</p>
-              <p class="meta">${esc(ap.auth || "UNKNOWN")} · RSSI ${esc(ap.rssi ?? "--")}</p>
-            </div>
-            <div class="strength">${esc(ap.strength ?? 0)}%</div>
-          </div>
-          <div class="toolbar">
-            <button type="button" data-a="use">Use This</button>
-          </div>
-        `;
-        item.querySelector('[data-a="use"]').onclick = () => {
+        item.type = "button";
+        item.innerHTML = wifiRowHtml(ap);
+        item.onclick = () => {
           wifiSsidEl.value = String(ap.ssid || "");
           wifiPasswordEl.focus();
-          log("selected SSID " + String(ap.ssid || ""), "ok");
+          log("selected SSID " + String(ap.ssid || ""), "status-ok");
         };
-        wifiScanGridEl.appendChild(item);
+        wifiScanListEl.appendChild(item);
       }
     }
 
@@ -1919,15 +3638,19 @@
       const thumb = pickThumbUrl(item, id);
       const versionText = version ? "v" + version : "--";
       const showSettings = supportsAppSettings(item);
+      const selected = state.uninstallSelected.has(id);
       const card = document.createElement("div");
       card.className = "app-card compact-actions";
+      if (state.uninstallMode && selected) {
+        card.classList.add("uninstall-selected");
+      }
       const actionRow = state.uninstallMode
         ? `<div class="toolbar">
-             <button class="bad" type="button" data-a="uninstall">Uninstall</button>
+             <label class="check"><input type="checkbox" data-a="pick" ${selected ? "checked" : ""} /> Select</label>
            </div>`
         : `<div class="toolbar">
              <button type="button" data-a="run">Run</button>
-             ${showSettings ? '<button class="ghost" type="button" data-a="settings">Settings</button>' : ""}
+             ${showSettings ? '<button type="button" data-a="settings">Settings</button>' : ""}
            </div>`;
       card.innerHTML = `
         <div class="thumb">${thumbMarkup(title, title[0] || id[0], thumb)}</div>
@@ -1939,7 +3662,7 @@
         </div>
         ${actionRow}
       `;
-      const uninstallBtn = card.querySelector('[data-a="uninstall"]');
+      const pickEl = card.querySelector('[data-a="pick"]');
       const runBtn = card.querySelector('[data-a="run"]');
       const settingsBtn = card.querySelector('[data-a="settings"]');
       if (runBtn) {
@@ -1954,24 +3677,24 @@
           }
         };
       }
+      if (pickEl) {
+        pickEl.onchange = () => {
+        if (pickEl.checked) {
+          state.uninstallSelected.add(id);
+          card.classList.add("uninstall-selected");
+        } else {
+          state.uninstallSelected.delete(id);
+          card.classList.remove("uninstall-selected");
+        }
+        syncDeleteSelectedButton();
+      };
+      }
       if (settingsBtn && showSettings) {
         settingsBtn.onclick = async () => {
           try {
             await openAppSettings(item);
           } catch (error) {
             log(String(error.message || error), "status-bad");
-          }
-        };
-      }
-      if (uninstallBtn) {
-        uninstallBtn.onclick = async () => {
-          uninstallBtn.disabled = true;
-          try {
-            await uninstallApp(id);
-          } catch (error) {
-            log(String(error.message || error), "status-bad");
-          } finally {
-            uninstallBtn.disabled = false;
           }
         };
       }
@@ -1983,8 +3706,6 @@
       const titleText = String(item.name || id || "Unknown");
       const version = String(item.version || "");
       const thumb = pickThumbUrl(item, id);
-      const local = state.installedById[id];
-      const actionLabel = local ? "Run" : "Install";
       const versionText = version ? "v" + version : "--";
 
       const card = document.createElement("div");
@@ -1998,55 +3719,109 @@
           <p class="app-version">${esc(versionText)}</p>
         </div>
         <div class="toolbar">
-          <button type="button" data-a="primary">${esc(actionLabel)}</button>
+          <button type="button" data-a="primary">Install</button>
         </div>
       `;
+      const thumbImg = card.querySelector(".thumb img[data-src]");
+      if (thumbImg) thumbImg.setAttribute("data-store-thumb", "1");
 
       const primaryBtn = card.querySelector('[data-a="primary"]');
+      const resolvePrimaryAction = () => {
+        const local = state.installedById[id];
+        if (!local) return "install";
+        const localVersion = String(local.version || "").trim();
+        const storeVersion = String(item.version || "").trim();
+        if (storeVersion && localVersion && semverCmp(storeVersion, localVersion) > 0) return "update";
+        return "run";
+      };
+      const syncPrimaryButton = () => {
+        const action = resolvePrimaryAction();
+        if (action === "install") {
+          primaryBtn.textContent = "Install";
+          return;
+        }
+        if (action === "update") {
+          primaryBtn.textContent = "Update";
+          return;
+        }
+        primaryBtn.textContent = "Run";
+      };
+      const setCardAction = (text, disabled) => {
+        if (!primaryBtn) return;
+        primaryBtn.textContent = text;
+        primaryBtn.disabled = !!disabled;
+      };
+      syncPrimaryButton();
       primaryBtn.onclick = async () => {
-        primaryBtn.disabled = true;
+        const action = resolvePrimaryAction();
+        const initialAction = action === "run" ? "Run" : (action === "update" ? "Update" : "Install");
+        setCardAction(initialAction, true);
         try {
-          if (local) {
+          if (action === "run") {
             await runApp(id);
           } else {
-            await installApp(item);
+            await installApp(item, {
+              setAction: setCardAction,
+              onInstalled: () => syncPrimaryButton(),
+            });
           }
         } catch (error) {
-          log(String(error.message || error), "status-bad");
+          const msg = String(error.message || error);
+          log(msg, "status-bad");
+          maybeShowGithubHint(msg);
         } finally {
+          syncPrimaryButton();
           primaryBtn.disabled = false;
         }
       };
       return card;
     }
 
+    function appendInstalledAppsBatch(token) {
+      if (token !== state.renderTokenInstalled || state.installedLazyLoading) return;
+      state.installedLazyLoading = true;
+      const frag = document.createDocumentFragment();
+      let count = 0;
+      while (state.installedLazyIndex < state.installedLazyItems.length && count < INSTALLED_RENDER_BATCH) {
+        frag.appendChild(createInstalledCard(state.installedLazyItems[state.installedLazyIndex++]));
+        count += 1;
+      }
+      installedAppsGridEl.appendChild(frag);
+      hydrateLazyThumbs(installedAppsGridEl);
+      const left = state.installedLazyItems.length - state.installedLazyIndex;
+      installedAppsSentinelEl.textContent = left > 0 ? ("Scroll to load more (" + left + " left)") : "All apps loaded";
+      state.installedLazyLoading = false;
+    }
+
     function renderInstalledApps() {
       const token = ++state.renderTokenInstalled;
       installedAppsGridEl.innerHTML = "";
-      const items = state.installedApps.slice().sort((a, b) =>
+      installedAppsSentinelEl.textContent = "";
+      state.installedLazyItems = state.installedApps.slice().sort((a, b) =>
         String(a.name || a.id || "").localeCompare(String(b.name || b.id || ""))
       );
-      if (!items.length) {
-        installedAppsGridEl.innerHTML = '<div class="muted">No installed apps</div>';
+      state.installedLazyIndex = 0;
+      state.installedLazyLoading = false;
+      if (state.installedLazyObserver) {
+        state.installedLazyObserver.disconnect();
+        state.installedLazyObserver = null;
+      }
+      if (!state.installedLazyItems.length) {
+        installedAppsGridEl.innerHTML = '<div class="muted">No installed apps. Install one from Apps Store to start playback.</div>';
         return;
       }
 
-      let index = 0;
-      const pump = () => {
-        if (token !== state.renderTokenInstalled) return;
-        const frag = document.createDocumentFragment();
-        let count = 0;
-        while (index < items.length && count < INSTALLED_RENDER_BATCH) {
-          frag.appendChild(createInstalledCard(items[index++]));
-          count += 1;
+      appendInstalledAppsBatch(token);
+      state.installedLazyObserver = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          if (token !== state.renderTokenInstalled) return;
+          if (state.installedLazyIndex >= state.installedLazyItems.length) return;
+          appendInstalledAppsBatch(token);
         }
-        installedAppsGridEl.appendChild(frag);
-        hydrateLazyThumbs(installedAppsGridEl);
-        if (index < items.length) {
-          scheduleChunk(pump);
-        }
-      };
-      pump();
+      }, { root: installedAppsWrapEl, rootMargin: "120px 0px" });
+      state.installedLazyObserver.observe(installedAppsSentinelEl);
+      renderScheduleBuilder();
     }
 
     function buildStoreGroups() {
@@ -2101,6 +3876,7 @@
           count += 1;
         }
         grid.appendChild(frag);
+        hydrateStoreThumbCache(grid);
         hydrateLazyThumbs(grid);
         if (index < group.items.length) {
           scheduleChunk(pump);
@@ -2153,6 +3929,30 @@
       }
     }
 
+    function removeInstalledAppsLocal(ids) {
+      const set = new Set(Array.from(ids || []).map((id) => String(id || "").trim()).filter(Boolean));
+      if (!set.size) return;
+      state.installedApps = state.installedApps.filter((item) => !set.has(String(item.id || item.app_id || "").trim()));
+      state.installedById = toInstalledMap(state.installedApps);
+      for (const id of set) {
+        state.uninstallSelected.delete(id);
+      }
+      renderInstalledApps();
+      renderStoreApps();
+      syncDeleteSelectedButton();
+    }
+
+    function upsertInstalledAppLocal(item) {
+      const id = String(item?.id || item?.app_id || "").trim();
+      if (!id) return;
+      const normalized = normalizeApps([{ ...item, id }])[0];
+      const next = state.installedApps.filter((entry) => String(entry.id || entry.app_id || "").trim() !== id);
+      next.push(normalized || { ...item, id });
+      next.sort((a, b) => String(a.name || a.id || "").localeCompare(String(b.name || b.id || "")));
+      state.installedApps = next;
+      state.installedById = toInstalledMap(state.installedApps);
+    }
+
     async function refreshInstalledApps() {
       if (state.inflightInstalled) return state.inflightInstalled;
       state.inflightInstalled = (async () => {
@@ -2170,7 +3970,6 @@
       state.categoryOrder = Array.isArray(json?.category_order) ? json.category_order.slice() : [];
       state.categoryLabels = json?.category_labels && typeof json.category_labels === "object" ? json.category_labels : {};
       state.storeAppsLoaded = true;
-      storeMetaEl.textContent = "Loaded " + state.storeApps.length + " app(s) from " + url;
       renderStoreApps();
       if (source === "network") {
         log("catalog loaded: " + state.storeApps.length + " apps", "status-ok");
@@ -2186,13 +3985,13 @@
 
     async function loadStoreIndex(options) {
       const opts = options || {};
-      const url = FORCED_STORE_INDEX_URL;
+      const cfg = await fetchDeviceStoreIndexConfig();
+      const url = String(cfg?.url || "").trim() || FALLBACK_STORE_INDEX_URL;
       if (indexUrlEl.value !== url) {
         indexUrlEl.value = url;
       }
       if (!url) {
         state.storeApps = [];
-        storeMetaEl.textContent = "No catalog loaded.";
         renderStoreApps();
         return;
       }
@@ -2232,6 +4031,10 @@
       if (!ssid) {
         throw new Error("SSID is required");
       }
+      const scanned = state.wifiScannedMap.get(ssid);
+      if (scanned && scanned.secure && String(password || "").length < 8) {
+        throw new Error("Secured Wi-Fi (" + scanned.auth + ") requires password with at least 8 characters");
+      }
       const result = await apiJson("POST", "/api/system/wifi/config", {
         ssid,
         password,
@@ -2244,21 +4047,106 @@
       return result;
     }
 
+    async function loadLocaleSettings() {
+      const json = await apiJson("GET", "/api/system/settings");
+      const items = json && json.items ? json.items : {};
+
+      const tzText = String(items["weather.timezone"] || "").trim();
+      let tzValue = tzText;
+      if (!tzValue) {
+        tzValue = utcOffsetHoursToText(items["clock.utc_offset_hours"]) || "UTC+08:00";
+      }
+      if (!Array.from(timezoneSelectEl.options).some((opt) => opt.value === tzValue)) {
+        tzValue = "UTC+08:00";
+      }
+      timezoneSelectEl.value = tzValue;
+
+      const cityName = items["owm.city"];
+      const cityId = items["owm.city_id"];
+      cityNameInputEl.value = cityName == null ? "" : String(cityName);
+      cityIdInputEl.value = cityId == null ? "" : String(cityId);
+    }
+
+    async function saveLocaleSettings() {
+      const timezone = String(timezoneSelectEl.value || "UTC+08:00").trim();
+      const offsetHours = utcOffsetTextToHours(timezone);
+      const cityName = String(cityNameInputEl.value || "").trim();
+      const cityIdRaw = String(cityIdInputEl.value || "").trim();
+
+      if (cityIdRaw && !/^\d+$/.test(cityIdRaw)) {
+        throw new Error("City ID must be numeric");
+      }
+
+      const items = {
+        "weather.timezone": timezone,
+        "clock.utc_offset_hours": offsetHours == null ? 8 : offsetHours,
+        "owm.city": cityName || null,
+        "owm.city_id": cityIdRaw || null,
+      };
+      await apiJson("POST", "/api/system/settings", { items });
+      log("saved timezone/city settings", "status-ok");
+    }
+
+    async function loadDefaultAppSetting() {
+      startupAppSelectEl.innerHTML = '<option value="">-- Loading... --</option>';
+
+      let apps = [];
+      try {
+        const json = await apiJson("GET", "/api/apps/list");
+        apps = Array.isArray(json && json.apps) ? json.apps : [];
+      } catch (_) { /* use empty list on failure */ }
+
+      const options = apps.map((app) => {
+        const id = String(app.id || "");
+        const name = String(app.name || id);
+        return { id, name };
+      });
+      options.sort((a, b) => a.name.localeCompare(b.name));
+
+      startupAppSelectEl.innerHTML = '<option value="">-- First available --</option>';
+      for (const opt of options) {
+        const sel = document.createElement("option");
+        sel.value = opt.id;
+        sel.textContent = opt.name;
+        startupAppSelectEl.appendChild(sel);
+      }
+
+      try {
+        const json = await apiJson("GET", "/api/system/settings?key=startup.app_id");
+        const items = json && json.items ? json.items : {};
+        const val = String(items["startup.app_id"] || "").trim();
+        if (val && Array.from(startupAppSelectEl.options).some((o) => o.value === val)) {
+          startupAppSelectEl.value = val;
+        }
+      } catch (_) { /* ignore if setting doesn't exist yet */ }
+    }
+
+    async function saveDefaultAppSetting() {
+      const appId = String(startupAppSelectEl.value || "").trim();
+      await apiJson("POST", "/api/system/settings", {
+        key: "startup.app_id",
+        value: appId || null,
+      });
+      log(appId ? "default app set to " + appId : "default app cleared", "status-ok");
+    }
+
     async function applyBrightness() {
-      const brightness = Number(brightnessSliderEl.value);
+      const brightnessUi = Math.max(0, Math.min(100, Math.round(Number(brightnessSliderEl.value) || 0)));
+      const brightness = brightnessUiToRaw(brightnessUi);
       await apiJson("POST", "/api/system/display/brightness", { brightness });
-      brightnessValueEl.textContent = String(brightness);
-      log("brightness set to " + brightness, "status-ok");
+      brightnessValueEl.textContent = String(brightnessUi);
+      log("brightness set to " + brightnessUi + "%", "status-ok");
       await loadSystemStatus();
     }
 
     async function uploadFirmware() {
       const file = firmwareFileEl.files[0];
       if (!file) {
-        throw new Error("Select an update .bin file first");
+        const msg = "Please select a firmware .bin file first";
+        showToast(msg);
+        throw new Error(msg);
       }
       uploadFirmwareBtnEl.disabled = true;
-      rebootBtnEl.disabled = true;
       setOtaOverlay({
         visible: true,
         title: "Updating Device",
@@ -2317,13 +4205,17 @@
         throw error;
       } finally {
         uploadFirmwareBtnEl.disabled = false;
-        rebootBtnEl.disabled = false;
       }
     }
 
-    async function rebootSystem() {
-      await apiJson("POST", "/api/system/reboot", {});
-      log("reboot requested", "status-ok");
+    async function saveFirmwareAutoOta(enabled) {
+      await apiJson("POST", "/api/system/settings", {
+        items: {
+          "firmware.auto_ota": !!enabled,
+        },
+      });
+      log("auto ota " + (enabled ? "enabled" : "disabled"), "status-ok");
+      await loadSystemStatus();
     }
 
     async function runApp(id) {
@@ -2334,28 +4226,60 @@
     async function uninstallApp(id) {
       if (!confirm("Uninstall " + id + "?")) return;
       await api("DELETE", "/api/apps/" + encodeURIComponent(id));
-      await apiJson("POST", "/api/apps/reload", {});
       log("uninstalled app " + id, "status-ok");
-      await refreshInstalledApps();
+      removeInstalledAppsLocal([id]);
     }
 
-    async function installApp(item) {
+    async function uninstallSelectedApps(ids) {
+      const list = Array.from(ids).filter(Boolean);
+      if (!list.length) return;
+      if (!confirm("Uninstall " + list.length + " selected app(s)?")) return;
+      await Promise.all(list.map((id) => api("DELETE", "/api/apps/" + encodeURIComponent(id))));
+      log("uninstalled selected apps: " + list.join(", "), "status-ok");
+      removeInstalledAppsLocal(list);
+      setUninstallMode(false);
+    }
+
+    async function installApp(item, ui = {}) {
       if (!window.JSZip) {
         throw new Error("JSZip failed to load; store install is unavailable");
       }
       const id = String(item.id || item.app_id || "").trim();
+      const isUpdate = !!state.installedById[id];
       const zipUrl = String(item.zip_url || item.url || "").trim();
+      const expectedSize = Number(item.size || 0);
+      const expectedCrc32 = normalizeCrc32(item.crc32);
       if (!id || !zipUrl) {
         throw new Error("invalid store item: missing id or zip_url");
       }
+      if (!expectedCrc32) {
+        throw new Error("checksum validation failed: missing crc32");
+      }
 
       const fetchUrl = zipUrl + (zipUrl.includes("?") ? "&" : "?") + "_ts=" + Date.now();
-      log("installing " + id + " from " + fetchUrl);
-      const response = await fetch(fetchUrl, { cache: "no-store" });
-      if (!response.ok) {
-        throw new Error("Download failed (" + response.status + ")");
+      const setStatus = typeof ui.setStatus === "function" ? ui.setStatus : null;
+      const setAction = typeof ui.setAction === "function" ? ui.setAction : null;
+      const onInstalled = typeof ui.onInstalled === "function" ? ui.onInstalled : null;
+      if (setAction) setAction("Downloading...", true);
+      if (setStatus) setStatus("Download 0%");
+      const zipBuffer = await downloadArrayBufferWithProgress(fetchUrl, (loaded, total) => {
+        if (setStatus) {
+          const pct = total > 0 ? Math.round((loaded * 100) / total) : 0;
+          setStatus("Download " + pct + "%");
+        }
+      });
+      const actualSize = Number(zipBuffer.byteLength || 0);
+      if (expectedSize > 0 && actualSize !== expectedSize) {
+        throw new Error("size mismatch: expected " + expectedSize + ", got " + actualSize);
       }
-      const zipBuffer = await response.arrayBuffer();
+      if (setAction) setAction("Validating...", true);
+      if (setStatus) setStatus("Validate 100%");
+      const actualCrc32 = crc32Hex(zipBuffer);
+      if (actualCrc32 !== expectedCrc32) {
+        throw new Error("crc32 mismatch for " + id);
+      }
+      if (setAction) setAction("Unpacking...", true);
+      if (setStatus) setStatus("Unpack 0%");
       const zip = await JSZip.loadAsync(zipBuffer);
       const entries = Object.values(zip.files).filter((entry) => !entry.dir && !entry.name.startsWith("__MACOSX/"));
       if (!entries.length) {
@@ -2364,26 +4288,91 @@
 
       const rawPaths = entries.map((entry) => entry.name);
       const strip = detectStripPrefix(rawPaths);
+      let manifestObj = null;
       for (const entry of entries) {
         let rel = entry.name;
-        if (strip && rel.startsWith(strip)) {
-          rel = rel.substring(strip.length);
+        if (strip && rel.startsWith(strip)) rel = rel.substring(strip.length);
+        rel = normalizeRelPath(rel);
+        if (rel !== "manifest.json") continue;
+        try {
+          manifestObj = JSON.parse(await entry.async("string"));
+        } catch (_error) {
+          manifestObj = null;
         }
+        break;
+      }
+      const preserveRules = buildPreserveRulesOnUpdate(manifestObj);
+      const uploadEntries = [];
+      let skippedSettingsCount = 0;
+      for (const entry of entries) {
+        let rel = entry.name;
+        if (strip && rel.startsWith(strip)) rel = rel.substring(strip.length);
+        rel = normalizeRelPath(rel);
         if (!rel || rel.endsWith("/")) continue;
-        const bytes = await entry.async("uint8array");
-        await api("PUT", "/api/apps/" + encodeURIComponent(id) + "/" + encPath(rel), bytes);
-        log("uploaded " + id + "/" + rel);
+        if (isUpdate && shouldPreserveOnUpdate(rel, preserveRules)) {
+          skippedSettingsCount += 1;
+          continue;
+        }
+        uploadEntries.push({ entry, rel });
       }
+      if (!uploadEntries.length) {
+        throw new Error(isUpdate ? "update contains only preserved settings files" : "zip has no usable files");
+      }
+      let uploadedBytes = 0;
+      const totalUploadBytes = uploadEntries.reduce((sum, itemRef) => sum + (Number(itemRef.entry?._data?.uncompressedSize || 0) || 0), 0);
+      let uploadIndex = 0;
+      let committed = false;
+      await apiJson("POST", "/api/apps/install/begin?app_id=" + encodeURIComponent(id), null);
+      try {
+        for (const uploadItem of uploadEntries) {
+          const { entry, rel } = uploadItem;
+          const bytes = await entry.async("uint8array");
+          uploadIndex += 1;
+          if (setAction) setAction("Uploading " + uploadIndex + "/" + uploadEntries.length + "...", true);
+          if (setStatus) {
+            const pct = totalUploadBytes > 0 ? Math.round((uploadedBytes * 100) / totalUploadBytes) : 0;
+            setStatus("Upload " + pct + "%");
+          }
+          await uploadBinaryWithProgress(
+            "/api/apps/" + encodeURIComponent(id) + "/" + encPath(rel),
+            new Blob([bytes]),
+            (loaded, total) => {
+              const totalBytes = totalUploadBytes > 0 ? totalUploadBytes : bytes.byteLength;
+              const currentUploaded = uploadedBytes + loaded;
+              if (setStatus) {
+                const pct = totalBytes > 0 ? Math.round((currentUploaded * 100) / totalBytes) : 0;
+                setStatus("Upload " + pct + "%");
+              }
+            },
+            "PUT"
+          );
+          uploadedBytes += bytes.byteLength;
+        }
 
-      const version = String(item.version || "").trim();
-      if (version) {
-        await api("PUT", "/api/apps/" + encodeURIComponent(id) + "/.store_version", new TextEncoder().encode(version));
+        const version = String(item.version || "").trim();
+        if (version) {
+          await api("PUT", "/api/apps/" + encodeURIComponent(id) + "/.store_version", new TextEncoder().encode(version));
+        }
+        await apiJson("POST", "/api/apps/install/commit", null);
+        committed = true;
+      } finally {
+        if (!committed) {
+          try { await apiJson("POST", "/api/apps/install/abort", null); } catch (_) {}
+        }
       }
-      await apiJson("POST", "/api/apps/reload", {});
+      if (setAction) setAction("Finalizing...", true);
+      if (setStatus) setStatus("Finish 100%");
       if (switchAfterEl.checked) {
+        if (setStatus) setStatus("Run 100%");
         await runApp(id);
       }
-      await refreshInstalledApps();
+      if (setAction) setAction("Run", false);
+      if (setStatus) setStatus("Done. Ready to run.");
+      upsertInstalledAppLocal(item);
+      if (onInstalled) onInstalled();
+      if (isUpdate && skippedSettingsCount > 0) {
+        log("update kept " + skippedSettingsCount + " local setting file(s): " + id, "status-ok");
+      }
       log("install done: " + id, "status-ok");
     }
 
@@ -2400,24 +4389,41 @@
       });
 
       document.getElementById("scanWifiBtn").onclick = async () => {
+        const btn = document.getElementById("scanWifiBtn");
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = "Scanning...";
         try {
           await loadWifiScan();
         } catch (error) {
           log(String(error.message || error), "status-bad");
+        } finally {
+          btn.disabled = false;
+          btn.textContent = originalText || "Scan";
         }
       };
 
       document.getElementById("saveWifiBtn").onclick = async () => {
         try {
-          await saveWifi(false);
+          await saveWifi(true);
+        } catch (error) {
+          const msg = String(error.message || error);
+          showToast(msg);
+          log(msg, "status-bad");
+        }
+      };
+
+      document.getElementById("saveDefaultAppBtn").onclick = async () => {
+        try {
+          await saveDefaultAppSetting();
         } catch (error) {
           log(String(error.message || error), "status-bad");
         }
       };
 
-      document.getElementById("saveWifiRebootBtn").onclick = async () => {
+      document.getElementById("saveLocaleBtn").onclick = async () => {
         try {
-          await saveWifi(true);
+          await saveLocaleSettings();
         } catch (error) {
           log(String(error.message || error), "status-bad");
         }
@@ -2439,26 +4445,24 @@
         }
       };
 
-      rebootBtnEl.onclick = async () => {
-        try {
-          await rebootSystem();
-        } catch (error) {
-          log(String(error.message || error), "status-bad");
-        }
-      };
+      if (firmwareAutoOtaInputEl) {
+        firmwareAutoOtaInputEl.onchange = async () => {
+          const next = !!firmwareAutoOtaInputEl.checked;
+          firmwareAutoOtaInputEl.disabled = true;
+          try {
+            await saveFirmwareAutoOta(next);
+          } catch (error) {
+            log(String(error.message || error), "status-bad");
+            firmwareAutoOtaInputEl.checked = !next;
+          } finally {
+            firmwareAutoOtaInputEl.disabled = false;
+          }
+        };
+      }
+
 
       document.getElementById("refreshInstalledBtn").onclick = async () => {
         try {
-          await refreshInstalledApps();
-        } catch (error) {
-          log(String(error.message || error), "status-bad");
-        }
-      };
-
-      document.getElementById("reloadAppsBtn").onclick = async () => {
-        try {
-          await apiJson("POST", "/api/apps/reload", {});
-          log("reloaded app list", "status-ok");
           await refreshInstalledApps();
         } catch (error) {
           log(String(error.message || error), "status-bad");
@@ -2469,11 +4473,51 @@
         setUninstallMode(!state.uninstallMode);
       };
 
+      deleteSelectedBtnEl.onclick = async () => {
+        try {
+          await uninstallSelectedApps(state.uninstallSelected);
+        } catch (error) {
+          log(String(error.message || error), "status-bad");
+        }
+      };
+
       document.getElementById("loadStoreBtn").onclick = async () => {
         try {
           await loadStoreIndex({ force: true });
         } catch (error) {
           log(String(error.message || error), "status-bad");
+        }
+      };
+      document.getElementById("askNewAppBtn").onclick = () => {
+        const subjectText = "Ask for New App";
+        const bodyText =
+          "Hi GeekMagic team,\n\n" +
+          "I would like to request a new app for Pixel.\n\n" +
+          "Use case:\n" +
+          "Expected features:\n" +
+          "Data source/API:\n" +
+          "How often to refresh:\n" +
+          "Preferred display style:\n" +
+          "Other notes:\n";
+        const subject = encodeURIComponent(subjectText);
+        const body = encodeURIComponent(bodyText);
+        const mailto = "mailto:geekmagic@163.com?subject=" + subject + "&body=" + body;
+        const tip = "If your email app did not open, please send to:\n\n" +
+                    "geekmagic@163.com\n\n" +
+                    "Subject: " + subjectText + "\n\n" +
+                    bodyText;
+        try {
+          const win = window.open(mailto, "_self");
+          if (!win) {
+            window.prompt("Mail client not detected. Copy and send this:", tip);
+          } else {
+            window.setTimeout(() => {
+              showToast("If email app did not open, please copy fallback text from next popup.");
+              window.prompt("Mail fallback (copy):", tip);
+            }, 600);
+          }
+        } catch (_error) {
+          window.prompt("Mail fallback (copy):", tip);
         }
       };
 
@@ -2492,6 +4536,134 @@
       document.getElementById("clearRuntimeLogBtn").onclick = () => {
         runtimeLogPlaceholder("Log view cleared.");
       };
+
+      document.getElementById("scheduleAddBtn").onclick = () => {
+        readScheduleBuilderToState();
+        const mode = state.schedule.mode === "loop" ? "loop" : "time";
+        state.schedule.mode = mode;
+        if (mode === "time") {
+          const next = Array.isArray(state.schedule.timeItems) ? state.schedule.timeItems.slice() : [];
+          const prev = next.length ? next[next.length - 1] : null;
+          const start = String(prev?.end || "08:00");
+          const end = addMinutesToHm(start, 60);
+          next.push({ start, end, appId: "", repeat: "everyday", duration: 60 });
+          state.schedule.timeItems = next;
+        } else {
+          const next = Array.isArray(state.schedule.loopItems) ? state.schedule.loopItems.slice() : [];
+          next.push({ appId: "", duration: 60 });
+          state.schedule.loopItems = next;
+        }
+        renderScheduleBuilder();
+      };
+
+      document.getElementById("scheduleApplyBtn").onclick = () => {
+        (async () => {
+          readScheduleBuilderToState();
+          try {
+            const err = validateSchedule(state.schedule);
+            if (err) {
+              scheduleStatus(err, true);
+              return;
+            }
+            await saveScheduleConfigToServer();
+            scheduleStatus("Configuration applied.", false);
+          } catch (error) {
+            saveScheduleConfig();
+            scheduleStatus("Apply failed: " + String(error.message || error), true);
+            return;
+          }
+          saveScheduleConfig();
+        })();
+      };
+      document.getElementById("savePowerSaverBtn").onclick = async () => {
+        try {
+          readPowerSaverToState();
+          const err = validatePowerSaverConfig(state.schedule);
+          if (err) {
+            log(err, "status-bad");
+            return;
+          }
+          await saveScheduleConfigToServer();
+          saveScheduleConfig();
+          log("Power saver saved.", "status-ok");
+        } catch (error) {
+          log("Power saver save failed: " + String(error.message || error), "status-bad");
+        }
+      };
+      document.getElementById("scheduleRunBtn").onclick = async () => {
+        readScheduleBuilderToState();
+        const err = validateSchedule(state.schedule);
+        if (err) {
+          scheduleStatus(err, true);
+          return;
+        }
+        try {
+          state.schedule.enabled = true;
+          await saveScheduleConfigToServer();
+          await apiJson("POST", "/api/scheduler/start", {});
+          state.scheduleRunning = true;
+          scheduleStatus("Scheduler running (device).", false);
+          saveScheduleConfig();
+        } catch (error) {
+          scheduleStatus("Run failed: " + String(error.message || error), true);
+        }
+      };
+      document.getElementById("scheduleStopBtn").onclick = async () => {
+        try {
+          await apiJson("POST", "/api/scheduler/stop", {});
+        } catch (error) {
+        }
+        state.schedule.enabled = false;
+        try {
+          await saveScheduleConfigToServer();
+        } catch (error) {
+        }
+        stopScheduler();
+      };
+
+      scheduleTimeCardEl.onclick = () => {
+        readScheduleBuilderToState();
+        state.schedule.mode = "time";
+        renderScheduleBuilder();
+      };
+
+      scheduleLoopCardEl.onclick = () => {
+        readScheduleBuilderToState();
+        state.schedule.mode = "loop";
+        renderScheduleBuilder();
+      };
+
+      scheduleRowsEl.addEventListener("click", (event) => {
+        const btn = event.target.closest("button[data-k='del']");
+        if (!btn) return;
+        const idx = Number(btn.dataset.i);
+        readScheduleBuilderToState();
+        if (state.schedule.mode === "time") {
+          state.schedule.timeItems.splice(idx, 1);
+        } else {
+          state.schedule.loopItems.splice(idx, 1);
+        }
+        renderScheduleBuilder();
+      });
+
+      scheduleRowsEl.addEventListener("change", (event) => {
+        const el = event.target;
+        if (!(el instanceof HTMLElement)) return;
+        if (!el.getAttribute("data-k")) return;
+        readScheduleBuilderToState();
+        renderSchedulePreview();
+        if (el instanceof HTMLInputElement && el.type === "time") {
+          window.setTimeout(() => el.blur(), 0);
+        }
+      });
+
+      scheduleRowsEl.addEventListener("input", (event) => {
+        const el = event.target;
+        if (!(el instanceof HTMLElement)) return;
+        if (!el.getAttribute("data-k")) return;
+        readScheduleBuilderToState();
+        renderSchedulePreview();
+      });
 
       deviceLogScopeEl.onchange = async () => {
         state.runtimeLogSeq = 0;
@@ -2528,18 +4700,35 @@
           closeAppSettings();
         }
       });
+      appSettingsCloseXEl.addEventListener("click", closeAppSettings);
     }
 
     async function init() {
       bindEvents();
       const initialTab = String(location.hash || "").replace("#", "");
-      setTab(initialTab === "apps" || initialTab === "logs" ? initialTab : "system");
-      setAppsTab("installed");
+      let savedMainTab = "";
+      try { savedMainTab = String(localStorage.getItem(LS_MAIN_TAB_KEY) || "").trim(); } catch (_) {}
+      setTab(initialTab || savedMainTab || "system");
+      let savedAppsTab = "";
+      try { savedAppsTab = String(localStorage.getItem(LS_APPS_TAB_KEY) || "").trim(); } catch (_) {}
+      setAppsTab(savedAppsTab || "installed");
       setUninstallMode(false);
+      const loadedServerSchedule = await loadScheduleConfigFromServer();
+      if (!loadedServerSchedule) loadScheduleConfig();
+      renderScheduleBuilder();
+      const schedStatus = await loadSchedulerStatusFromServer();
+      if (schedStatus) {
+        state.scheduleRunning = !!schedStatus.running;
+        state.schedule.enabled = !!schedStatus.enabled;
+        scheduleStatus(state.scheduleRunning ? "Scheduler running (device)." : "Scheduler idle (device).", false);
+      } else if (state.schedule.enabled) {
+        await startScheduler();
+      }
 
       try {
-        localStorage.setItem(LS_KEY, FORCED_STORE_INDEX_URL);
-        indexUrlEl.value = FORCED_STORE_INDEX_URL;
+        const cfg = await fetchDeviceStoreIndexConfig();
+        localStorage.setItem(LS_KEY, cfg.url);
+        indexUrlEl.value = cfg.url;
       } catch (error) {
         log("failed to apply forced store index: " + String(error.message || error), "status-bad");
       }
@@ -2549,8 +4738,10 @@
 
       const startupTasks = [
         loadSystemStatus(),
+        loadLocaleSettings(),
         refreshInstalledApps(),
         loadRuntimeLogs({ reset: true }),
+        loadDefaultAppSetting(),
       ];
       if (indexUrlEl.value) {
         startupTasks.push(loadStoreIndex({ silent: hadStoreCache }));
@@ -2563,10 +4754,14 @@
         }
       }
 
-      window.setInterval(() => {
-        if (!deviceLogAutoEl.checked) return;
-        void loadRuntimeLogs({ reset: false });
-      }, 2000);
+      // Disable background log polling to avoid continuous /api/system/logs requests.
+
+      window.setInterval(async () => {
+        const s = await loadSchedulerStatusFromServer();
+        if (!s) return;
+        state.scheduleRunning = !!s.running;
+        state.schedule.enabled = !!s.enabled;
+      }, 5000);
     }
 
     init();

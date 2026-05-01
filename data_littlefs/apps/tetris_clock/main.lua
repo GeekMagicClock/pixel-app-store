@@ -2,7 +2,7 @@ local app = {}
 
 -- Port of the falling-block timing/layout from witnessmenow/WiFi-Tetris-Clock
 -- and the underlying TetrisAnimation instruction tables, adapted to this repo's
--- Lua framebuffer app runtime.
+-- Framebuffer app runtime.
 
 local FONT_UI = "builtin:silkscreen_regular_8"
 
@@ -537,7 +537,7 @@ end
 -- __GLOBAL_BOOT_SPLASH_WRAPPER_V1__
 local __boot_now_ms = now_ms or (sys and sys.now_ms) or function() return 0 end
 local __boot_started_ms = 0
-local __boot_ms = tonumber(data.get("tetris_clock.boot_splash_ms") or data.get("app.boot_splash_ms") or 1200) or 1200
+local __boot_ms = tonumber(data.get("tetris_clock.boot_splash_ms") or data.get("app.boot_splash_ms") or 5000) or 5000
 if __boot_ms < 0 then __boot_ms = 0 end
 local __boot_name = tostring(data.get("tetris_clock.app_name") or "Tetris Clock")
 

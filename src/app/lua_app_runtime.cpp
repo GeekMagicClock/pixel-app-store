@@ -57,7 +57,7 @@ extern "C" {
 #include "third_party/animatedgif/AnimatedGIF.h"
 #include "ui/lvgl_mem_utils.h"
 
-static const char* kTag = "lua_app";
+static const char* kTag = "app_runtime";
 
 LV_FONT_DECLARE(lv_font_silkscreen_regular_8);
 LV_FONT_DECLARE(lv_font_pressstart2p_regular_8);
@@ -67,7 +67,7 @@ namespace {
 static constexpr const char* kRegistryAppKey = "__app";
 static constexpr const char* kRegistryRenderKey = "__render";
 static constexpr const char* kLuaDataDir = "/littlefs/.sys";
-static constexpr const char* kLuaDataPath = "/littlefs/.sys/lua_data.json";
+static constexpr const char* kAppDataPath = "/littlefs/.sys/app_data.json";
 // Allow larger ESPN payloads (scoreboard/standings/schedule) while still capping
 // request memory to a safe bound for this device class.
 static constexpr int kLuaHttpMaxBodyBytes = 1024 * 1024;
@@ -100,6 +100,16 @@ static std::string SanitizeHttpUrl(const std::string& url) {
     }
   }
   return out;
+}
+
+static bool IsHttpsUrl(const std::string& url) {
+  if (url.size() < 8) return false;
+  const char* s = url.c_str();
+  return (s[0] == 'h' || s[0] == 'H') &&
+         (s[1] == 't' || s[1] == 'T') &&
+         (s[2] == 't' || s[2] == 'T') &&
+         (s[3] == 'p' || s[3] == 'P') &&
+         (s[4] == 's' || s[4] == 'S') && s[5] == ':' && s[6] == '/' && s[7] == '/';
 }
 
 static bool ParseGzipHeader(const uint8_t* src, size_t src_len, size_t* out_payload_off) {
@@ -149,7 +159,7 @@ static bool TryGunzipToBuffer(const uint8_t* src,
   const size_t deflate_len = src_len - payload_off - 8;
   const uint8_t* in_ptr = src + payload_off;
 
-  // Keep decompressor state off task stack; lua_http task stack is only 8KB.
+  // Keep decompressor state off task stack; app_http task stack is only 8KB.
   tinfl_decompressor* inflator =
       static_cast<tinfl_decompressor*>(LvglAllocPreferPsram(sizeof(tinfl_decompressor)));
   if (!inflator) return false;
@@ -282,7 +292,7 @@ static bool WriteStringToFile(const char* path, const std::string& text, std::st
 
 static cJSON* LoadLuaDataRoot() {
   std::string text;
-  if (!ReadFileToString(kLuaDataPath, &text) || text.empty()) {
+  if (!ReadFileToString(kAppDataPath, &text) || text.empty()) {
     return cJSON_CreateObject();
   }
 
@@ -308,7 +318,7 @@ static bool SaveLuaDataRoot(cJSON* root, std::string* out_err) {
   }
   const std::string text(rendered);
   cJSON_free(rendered);
-  return WriteStringToFile(kLuaDataPath, text, out_err);
+  return WriteStringToFile(kAppDataPath, text, out_err);
 }
 
 static LuaAppRuntime* RuntimeFromLuaState(lua_State* L) {
@@ -462,6 +472,15 @@ class HttpClientMgr {
       return 0;
     }
 
+    Lock();
+    ReapDoneLocked(NowMs());
+    const size_t pending = PendingCountLocked();
+    if (pending >= kMaxPendingRequests) {
+      Unlock();
+      if (out_err) *out_err = "http busy";
+      ESP_LOGW(kTag, "http reject: too many pending requests (%u)", static_cast<unsigned>(pending));
+      return 0;
+    }
     HttpReq* req = new HttpReq();
     req->id = ++next_id_;
     req->owner = owner;
@@ -469,14 +488,11 @@ class HttpClientMgr {
     req->timeout_ms = timeout_ms;
     req->max_body_bytes = max_body_bytes;
     req->headers = headers;
-
-    Lock();
-    ReapDoneLocked(NowMs());
     reqs_[req->id] = req;
     Unlock();
 
     BaseType_t ok = xTaskCreateWithCaps(&HttpTaskTrampoline,
-                                        "lua_http",
+                                        "app_http",
                                         8192,
                                         req,
                                         tskIDLE_PRIORITY + 1,
@@ -485,7 +501,7 @@ class HttpClientMgr {
     if (ok != pdPASS) {
       ESP_LOGW(kTag, "http task create failed (stack=8192 caps=SPIRAM|8BIT), retrying smaller stack");
       ok = xTaskCreateWithCaps(&HttpTaskTrampoline,
-                               "lua_http",
+                               "app_http",
                                6144,
                                req,
                                tskIDLE_PRIORITY + 1,
@@ -495,7 +511,7 @@ class HttpClientMgr {
     if (ok != pdPASS) {
       ESP_LOGW(kTag, "http task create failed (stack=6144 caps=SPIRAM|8BIT), retrying 8BIT only");
       ok = xTaskCreateWithCaps(&HttpTaskTrampoline,
-                               "lua_http",
+                               "app_http",
                                6144,
                                req,
                                tskIDLE_PRIORITY + 1,
@@ -505,7 +521,7 @@ class HttpClientMgr {
     if (ok != pdPASS) {
       ESP_LOGW(kTag, "http task create failed (stack=6144 caps=8BIT), retrying plain xTaskCreate");
       ok = xTaskCreate(&HttpTaskTrampoline,
-                       "lua_http",
+                       "app_http",
                        6144,
                        req,
                        tskIDLE_PRIORITY + 1,
@@ -637,6 +653,16 @@ class HttpClientMgr {
   void Lock() { (void)xSemaphoreTake(mu_, portMAX_DELAY); }
   void Unlock() { (void)xSemaphoreGive(mu_); }
 
+  size_t PendingCountLocked() const {
+    size_t n = 0;
+    for (const auto& kv : reqs_) {
+      const HttpReq* req = kv.second;
+      if (!req) continue;
+      if (!req->done && !req->abandoned) n++;
+    }
+    return n;
+  }
+
   bool TakeRunSlot(HttpReq* req, int64_t* out_wait_ms) {
     if (out_wait_ms) *out_wait_ms = 0;
     if (!run_mu_) return true;
@@ -690,6 +716,16 @@ class HttpClientMgr {
       delete req;
       it = reqs_.erase(it);
     }
+  }
+
+  static bool HasEnoughInternalMemForTls() {
+    static constexpr uint32_t kMinFreeInternal = 24 * 1024;
+    static constexpr uint32_t kMinLargestInternal = 12 * 1024;
+    const uint32_t free_internal =
+        static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+    const uint32_t largest_internal =
+        static_cast<uint32_t>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+    return free_internal >= kMinFreeInternal && largest_internal >= kMinLargestInternal;
   }
 
   static void HttpTaskTrampoline(void* arg) {
@@ -766,6 +802,19 @@ class HttpClientMgr {
              max_body_bytes,
              static_cast<long long>(queue_wait_ms),
              request_url.c_str());
+    const bool is_https = IsHttpsUrl(request_url);
+    if (is_https) {
+      if (!HasEnoughInternalMemForTls()) {
+        // Give allocator/other tasks a short chance to release internal blocks.
+        vTaskDelay(pdMS_TO_TICKS(120));
+      }
+      if (!HasEnoughInternalMemForTls()) {
+        ESP_LOGW(kTag, "http skip id=%d: low internal heap for TLS", req_id);
+        mem_snapshot();
+        HttpMgr().FinishById(req_id, 0, "low internal heap");
+        return;
+      }
+    }
     // Avoid an extra resolver round-trip here; under FD pressure this can make
     // connect failures happen earlier and adds little value for normal flow.
 
@@ -794,7 +843,9 @@ class HttpClientMgr {
     cfg.url = request_url.c_str();
     cfg.timeout_ms = timeout_ms;
     cfg.method = HTTP_METHOD_GET;
-    cfg.crt_bundle_attach = esp_crt_bundle_attach;
+    if (is_https) {
+      cfg.crt_bundle_attach = esp_crt_bundle_attach;
+    }
     cfg.disable_auto_redirect = false;
     cfg.user_agent = "esp32-pixel/1.0";
     cfg.keep_alive_enable = false;
@@ -1010,6 +1061,7 @@ class HttpClientMgr {
   SemaphoreHandle_t mu_ = nullptr;
   SemaphoreHandle_t run_mu_ = nullptr;
   int next_id_ = 0;
+  static constexpr size_t kMaxPendingRequests = 4;
   std::unordered_map<int, HttpReq*> reqs_;
 };
 
@@ -1232,23 +1284,6 @@ static CachedHttpMgr& CachedMgr() {
   return g;
 }
 
-static bool ReadSmallTextFile(const std::string& path, std::string* out) {
-  if (out) out->clear();
-  if (!out) return false;
-  FILE* f = fopen(path.c_str(), "rb");
-  if (!f) return false;
-  std::string s;
-  char buf[256];
-  while (true) {
-    const size_t n = fread(buf, 1, sizeof(buf), f);
-    if (n > 0) s.append(buf, n);
-    if (n < sizeof(buf)) break;
-  }
-  fclose(f);
-  *out = std::move(s);
-  return true;
-}
-
 static std::string HexBytes(const uint8_t* p, size_t n) {
   static const char* kHex = "0123456789abcdef";
   if (!p || n == 0) return {};
@@ -1302,55 +1337,16 @@ static void LogChunkHeader(const std::string& path, const uint8_t* head, size_t 
            static_cast<unsigned>(sizeof(lua_Number)));
 }
 
-static bool IsSafeEntryFilename(const std::string& s) {
-  if (s.empty() || s.size() > 96) return false;
-  if (s.find("..") != std::string::npos) return false;
-  if (s.front() == '/' || s.back() == '/') return false;
-  for (char ch : s) {
-    const bool ok = (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') ||
-                    ch == '_' || ch == '-' || ch == '.' || ch == '/';
-    if (!ok) return false;
-  }
-  return true;
-}
-
 static std::string ResolveAppEntryFile(const std::string& app_dir) {
-  // Default legacy entry.
-  std::string entry = "main.lua";
-
-  // Optional override from manifest.json: { "entry": "app.bin" }
-  std::string manifest_txt;
-  if (ReadSmallTextFile(app_dir + "/manifest.json", &manifest_txt)) {
-    cJSON* root = cJSON_ParseWithLength(manifest_txt.c_str(), manifest_txt.size());
-    if (root) {
-      cJSON* e = cJSON_GetObjectItem(root, "entry");
-      if (cJSON_IsString(e) && e->valuestring && e->valuestring[0]) {
-        std::string v = e->valuestring;
-        if (IsSafeEntryFilename(v)) {
-          entry = v;
-        }
-      }
-      cJSON_Delete(root);
-    }
-  }
-
-  // If configured entry is missing, keep backward compatibility with main.lua.
-  const std::string configured = app_dir + "/" + entry;
-  FILE* f = fopen(configured.c_str(), "rb");
+  const std::string entry_path = app_dir + "/app.bin";
+  FILE* f = fopen(entry_path.c_str(), "rb");
   if (f) {
     fclose(f);
-    ESP_LOGI(kTag, "app entry resolved: %s", configured.c_str());
-    return configured;
+    ESP_LOGI(kTag, "app entry resolved: %s", entry_path.c_str());
+    return entry_path;
   }
-  const std::string fallback = app_dir + "/main.lua";
-  f = fopen(fallback.c_str(), "rb");
-  if (f) {
-    fclose(f);
-    ESP_LOGW(kTag, "app entry fallback to main.lua: configured missing (%s)", configured.c_str());
-    return fallback;
-  }
-  ESP_LOGW(kTag, "app entry configured but missing: %s", configured.c_str());
-  return configured;
+  ESP_LOGW(kTag, "app entry missing: %s", entry_path.c_str());
+  return entry_path;
 }
 
 static void ReleaseNetResourcesForState(lua_State* L) {
@@ -1990,7 +1986,7 @@ bool LuaAppRuntime::CreateState() {
 
   L_ = lua_newstate(&LuaAllocPreferPsram, nullptr);
   if (!L_) {
-    last_error_ = "lua_newstate failed";
+    last_error_ = "script state init failed";
     return false;
   }
 
@@ -1998,11 +1994,11 @@ bool LuaAppRuntime::CreateState() {
   if (!logged_abi) {
     logged_abi = true;
     ESP_LOGI(kTag,
-             "lua abi: ver=%s int_bytes=%u num_bytes=%u",
+             "script abi: ver=%s int_bytes=%u num_bytes=%u",
              LUA_RELEASE,
              static_cast<unsigned>(sizeof(lua_Integer)),
              static_cast<unsigned>(sizeof(lua_Number)));
-    ESP_LOGI(kTag, "lua allocator: PSRAM preferred, internal fallback");
+    ESP_LOGI(kTag, "script allocator: PSRAM preferred, internal fallback");
   }
 
   // Store runtime pointer for C callbacks (framebuffer helpers).
@@ -2127,9 +2123,9 @@ bool LuaAppRuntime::LoadMain(const std::string& main_path) {
     return r->buf;
   };
 
-  ESP_LOGI(kTag, "LoadMain: before lua_load (%s)", main_path.c_str());
+  ESP_LOGI(kTag, "LoadMain: before chunk load (%s)", main_path.c_str());
   const int load_ret = lua_load(L_, read_fn, &reader, main_path.c_str(), nullptr);
-  ESP_LOGI(kTag, "LoadMain: after lua_load ret=%d", load_ret);
+  ESP_LOGI(kTag, "LoadMain: after chunk load ret=%d", load_ret);
   fclose(f);
   if (load_ret != LUA_OK) {
     SetErrorFromTop();
@@ -2152,7 +2148,7 @@ bool LuaAppRuntime::LoadMain(const std::string& main_path) {
 
   if (!lua_istable(L_, -1)) {
     lua_pop(L_, 1);
-    last_error_ = "main.lua must return an app table";
+    last_error_ = "entry script must return an app table";
     return false;
   }
 
@@ -3525,7 +3521,7 @@ bool LuaAppRuntime::RenderFrameBufferTo(int w,
 
 void LuaAppRuntime::SetErrorFromTop() {
   const char* msg = lua_tostring(L_, -1);
-  last_error_ = msg ? msg : "unknown lua error";
+  last_error_ = msg ? msg : "unknown script error";
   lua_pop(L_, 1);
 }
 
@@ -3539,7 +3535,7 @@ const char* LuaAppRuntime::InternFrameBufferString(const char* s) {
 
 int LuaAppRuntime::LuaSysLog(lua_State* L) {
   const char* msg = lua_tostring(L, 1);
-  ESP_LOGI(kTag, "[lua] %s", msg ? msg : "");
+  ESP_LOGI(kTag, "[app] %s", msg ? msg : "");
   return 0;
 }
 

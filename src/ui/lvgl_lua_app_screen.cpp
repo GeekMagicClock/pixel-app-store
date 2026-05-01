@@ -29,13 +29,14 @@ LV_FONT_DECLARE(lv_font_silkscreen_regular_8);
 
 #include "app/lua_app_runtime.h"
 
-static const char* kTag = "lua_screen";
+static const char* kTag = "app_screen";
 
 namespace {
 
 static lv_font_t* g_font = nullptr;
 static constexpr uint32_t kTickMsText = 200;
 static constexpr uint32_t kTickMsFb = 33;
+static constexpr uint32_t kAppNameOverlayMs = 2000;
 
 enum class WidgetType {
   kText,
@@ -69,6 +70,8 @@ struct ScreenState {
   lv_obj_t* ota_title = nullptr;
   lv_obj_t* ota_percent = nullptr;
   lv_obj_t* ota_bar = nullptr;
+  lv_obj_t* app_name_overlay = nullptr;
+  uint32_t app_name_overlay_until_ms = 0;
   lv_draw_buf_t* canvas_buf = nullptr;
   lv_timer_t* timer = nullptr;
   TaskHandle_t fb_task = nullptr;
@@ -88,6 +91,7 @@ struct ScreenState {
 
   std::vector<std::string> bind_keys;
   std::vector<std::string> bind_values;
+  std::vector<std::string> prev_bind_values;
   uint8_t* fb_front = nullptr;
   uint8_t* fb_back = nullptr;
   size_t fb_bytes = 0;
@@ -146,6 +150,44 @@ static bool ReadFileToString(const std::string& path, std::string* out) {
   fclose(f);
   *out = std::move(s);
   return true;
+}
+
+static std::string ReadAppDisplayName(const std::string& app_dir) {
+  std::string json;
+  if (!ReadFileToString(app_dir + "/manifest.json", &json) || json.empty()) return {};
+  cJSON* root = cJSON_ParseWithLength(json.c_str(), json.size());
+  if (!root) return {};
+  std::string out;
+  cJSON* name = cJSON_GetObjectItem(root, "name");
+  if (cJSON_IsString(name) && name->valuestring && name->valuestring[0]) out = name->valuestring;
+  cJSON_Delete(root);
+  return out;
+}
+
+static std::string SplitNameForTwoLines(const std::string& name) {
+  if (name.empty()) return name;
+  const size_t n = name.size();
+  if (n <= 10) return name;
+  if (name.find(' ') == std::string::npos) return name;
+  size_t split = n / 2;
+  size_t best = std::string::npos;
+  int best_dist = 1 << 30;
+  for (size_t i = 1; i + 1 < n; i++) {
+    if (name[i] == ' ') {
+      const int dist = std::abs(static_cast<int>(i) - static_cast<int>(split));
+      if (dist < best_dist) {
+        best_dist = dist;
+        best = i;
+      }
+    }
+  }
+  if (best == std::string::npos) return name;
+  std::string left = name.substr(0, best);
+  std::string right = name.substr(best + 1);
+  while (!left.empty() && left.back() == ' ') left.pop_back();
+  while (!right.empty() && right.front() == ' ') right.erase(right.begin());
+  if (left.empty() || right.empty()) return name;
+  return left + "\n" + right;
 }
 
 static void EnsureFontLoaded() {
@@ -247,7 +289,7 @@ static void FbRenderTask(void* arg) {
     if (g_state.fb_mutex) xSemaphoreGive(g_state.fb_mutex);
     const uint32_t render_ms = static_cast<uint32_t>((esp_timer_get_time() - t0_us) / 1000);
     if (render_ms > 100) {
-      ESP_LOGW(kTag, "lua_fb render slow: %lu ms app=%s", static_cast<unsigned long>(render_ms),
+  ESP_LOGW(kTag, "app_fb render slow: %lu ms app=%s", static_cast<unsigned long>(render_ms),
                g_state.app_dir.c_str());
     }
     taskYIELD();
@@ -271,14 +313,14 @@ static bool StartFbTaskIfNeeded() {
   }
   if (g_state.fb_task) return true;
 
-  BaseType_t rc = xTaskCreatePinnedToCore(FbRenderTask, "lua_fb", 8192, nullptr, 4, &g_state.fb_task, kLuaFbTaskCore);
+  BaseType_t rc = xTaskCreatePinnedToCore(FbRenderTask, "app_fb", 8192, nullptr, 4, &g_state.fb_task, kLuaFbTaskCore);
   if (rc != pdPASS) {
     g_state.fb_task = nullptr;
     g_state.fb_faulted = true;
     g_state.fb_error = "fb task create failed";
     return false;
   }
-  ESP_LOGI(kTag, "lua_fb task started on core %ld", static_cast<long>(kLuaFbTaskCore));
+  ESP_LOGI(kTag, "app_fb task started on core %ld", static_cast<long>(kLuaFbTaskCore));
   return true;
 }
 
@@ -317,6 +359,8 @@ static void ClearRootChildren() {
   g_state.ota_title = nullptr;
   g_state.ota_percent = nullptr;
   g_state.ota_bar = nullptr;
+  g_state.app_name_overlay = nullptr;
+  g_state.app_name_overlay_until_ms = 0;
 }
 
 static uint32_t OtaProgressPercent(uint32_t written, uint32_t total) {
@@ -435,6 +479,7 @@ static void StopScreen() {
   g_state.widgets.clear();
   g_state.bind_keys.clear();
   g_state.bind_values.clear();
+  g_state.prev_bind_values.clear();
   SetCurrentAppInfo(nullptr);
   if (g_state.app) {
     g_state.app->FullGcNow();
@@ -538,6 +583,7 @@ static void LoadWidgetsFromUiJson(const std::string& app_dir) {
   g_state.widgets.clear();
   g_state.bind_keys.clear();
   g_state.bind_values.clear();
+  g_state.prev_bind_values.clear();
 
   std::string json;
   const std::string path = app_dir + "/ui.json";
@@ -684,12 +730,29 @@ static void RenderFrame(uint32_t dt_ms) {
   if (!lv_obj_is_valid(g_state.scr) || !lv_obj_is_valid(g_state.canvas)) return;
 
   if (!g_state.app) {
-    g_state.lines = {"Lua error", "runtime missing", "", ""};
+    ESP_LOGE(kTag, "app render failed app=%s reason=runtime missing", g_state.app_dir.c_str());
+    if (g_state.first_frame_drawn) {
+      SyncOtaOverlay();
+      return;
+    }
+    lv_canvas_fill_bg(g_state.canvas, lv_color_black(), LV_OPA_COVER);
+    lv_obj_invalidate(g_state.canvas);
+    SyncOtaOverlay();
+    return;
   } else {
     if (g_state.fb_mode) {
+      g_state.prev_bind_values.clear();
       if (!g_state.canvas_buf->data || g_state.canvas_buf->header.w != 64 || g_state.canvas_buf->header.h != 32 ||
           g_state.canvas_buf->header.cf != LV_COLOR_FORMAT_RGB565 || g_state.canvas_buf->header.stride < 64 * 2) {
-        g_state.lines = {"Lua error", "bad draw buf", "", ""};
+        ESP_LOGE(kTag, "app render failed app=%s reason=bad draw buf", g_state.app_dir.c_str());
+        if (g_state.first_frame_drawn) {
+          SyncOtaOverlay();
+          return;
+        }
+        lv_canvas_fill_bg(g_state.canvas, lv_color_black(), LV_OPA_COVER);
+        lv_obj_invalidate(g_state.canvas);
+        SyncOtaOverlay();
+        return;
       } else {
         // Framebuffer apps may call fb.text()/fb.image(), which require a real LVGL layer.
         // Keep this path on the LVGL task so text and PNG rendering remain valid.
@@ -713,19 +776,57 @@ static void RenderFrame(uint32_t dt_ms) {
           return;
         }
 
-        g_state.lines = {"Lua error", g_state.app->last_error(), "", ""};
+        const char* err = g_state.app->last_error();
+        ESP_LOGE(kTag, "app render failed app=%s err=%s", g_state.app_dir.c_str(), err ? err : "unknown");
+        if (g_state.first_frame_drawn) {
+          SyncOtaOverlay();
+          return;
+        }
+        lv_canvas_fill_bg(g_state.canvas, lv_color_black(), LV_OPA_COVER);
+        lv_obj_invalidate(g_state.canvas);
+        SyncOtaOverlay();
+        return;
       }
     } else if (!g_state.widgets.empty()) {
       g_state.app->Tick(dt_ms);
       g_state.bind_values.clear();
       if (!g_state.app->RenderBinds(g_state.bind_keys, &g_state.bind_values)) {
-        g_state.lines = {"Lua error", g_state.app->last_error(), "", ""};
+        const char* err = g_state.app->last_error();
+        ESP_LOGE(kTag, "app render binds failed app=%s err=%s", g_state.app_dir.c_str(), err ? err : "unknown");
+        g_state.prev_bind_values.clear();
+        if (g_state.first_frame_drawn) {
+          SyncOtaOverlay();
+          return;
+        }
+        lv_canvas_fill_bg(g_state.canvas, lv_color_black(), LV_OPA_COVER);
+        lv_obj_invalidate(g_state.canvas);
+        SyncOtaOverlay();
+        return;
+      } else {
+        const bool binds_changed = !g_state.first_frame_drawn || (g_state.bind_values != g_state.prev_bind_values);
+        if (!binds_changed) {
+          // Keep OTA overlay responsive but skip unchanged widget redraw to avoid
+          // repeated image decode/draw work on every timer tick.
+          SyncOtaOverlay();
+          return;
+        }
+        g_state.prev_bind_values = g_state.bind_values;
       }
     } else {
+      g_state.prev_bind_values.clear();
       g_state.app->Tick(dt_ms);
       g_state.lines.clear();
       if (!g_state.app->Render(&g_state.lines)) {
-        g_state.lines = {"Lua error", g_state.app->last_error(), "", ""};
+        const char* err = g_state.app->last_error();
+        ESP_LOGE(kTag, "app render text failed app=%s err=%s", g_state.app_dir.c_str(), err ? err : "unknown");
+        if (g_state.first_frame_drawn) {
+          SyncOtaOverlay();
+          return;
+        }
+        lv_canvas_fill_bg(g_state.canvas, lv_color_black(), LV_OPA_COVER);
+        lv_obj_invalidate(g_state.canvas);
+        SyncOtaOverlay();
+        return;
       }
     }
   }
@@ -806,6 +907,11 @@ static void TickCb(lv_timer_t* t) {
   g_state.last_ms = now;
 
   RenderFrame(dt);
+  if (g_state.app_name_overlay && lv_obj_is_valid(g_state.app_name_overlay)) {
+    if (static_cast<int32_t>(lv_tick_get() - g_state.app_name_overlay_until_ms) >= 0) {
+      lv_obj_add_flag(g_state.app_name_overlay, LV_OBJ_FLAG_HIDDEN);
+    }
+  }
   SyncOtaOverlay();
   if (g_state.fb_mode) vTaskDelay(pdMS_TO_TICKS(1));
 }
@@ -867,6 +973,34 @@ static void ShowApp(const std::string& app_dir) {
   g_state.timer = lv_timer_create(TickCb, g_state.fb_mode ? kTickMsFb : kTickMsText, nullptr);
   ESP_LOGI(kTag, "ShowApp timer created period=%u", static_cast<unsigned>(g_state.fb_mode ? kTickMsFb : kTickMsText));
 
+  if (g_state.app_name_overlay && lv_obj_is_valid(g_state.app_name_overlay)) {
+    lv_obj_delete(g_state.app_name_overlay);
+    g_state.app_name_overlay = nullptr;
+  }
+  g_state.app_name_overlay = lv_obj_create(g_state.root);
+  lv_obj_remove_style_all(g_state.app_name_overlay);
+  lv_obj_set_size(g_state.app_name_overlay, 64, 32);
+  lv_obj_center(g_state.app_name_overlay);
+  lv_obj_set_style_bg_color(g_state.app_name_overlay, lv_color_black(), 0);
+  lv_obj_set_style_bg_opa(g_state.app_name_overlay, LV_OPA_COVER, 0);
+  lv_obj_set_style_pad_all(g_state.app_name_overlay, 0, 0);
+  lv_obj_set_style_border_width(g_state.app_name_overlay, 0, 0);
+  lv_obj_t* name = lv_label_create(g_state.app_name_overlay);
+  std::string display_name = ReadAppDisplayName(app_dir);
+  if (display_name.empty()) {
+    const char* slash = strrchr(app_dir.c_str(), '/');
+    display_name = (slash && slash[1]) ? (slash + 1) : app_dir;
+  }
+  const std::string multi_line_name = SplitNameForTwoLines(display_name);
+  lv_label_set_text(name, multi_line_name.c_str());
+  lv_obj_set_style_text_color(name, lv_color_hex(0x00FFFF), 0);
+  lv_obj_set_style_text_align(name, LV_TEXT_ALIGN_CENTER, 0);
+  lv_label_set_long_mode(name, LV_LABEL_LONG_WRAP);
+  lv_obj_set_width(name, 62);
+  lv_obj_center(name);
+  lv_obj_move_foreground(g_state.app_name_overlay);
+  g_state.app_name_overlay_until_ms = lv_tick_get() + kAppNameOverlayMs;
+
   LvglHub75SetFlushEnabled(true);
   ESP_LOGI(kTag, "ShowApp flush ungated");
   lv_obj_invalidate(g_state.root);
@@ -902,6 +1036,39 @@ void LvglShowLuaAppDirScreen(const char* app_dir) {
 }
 
 void LvglStopLuaAppDirScreen() { StopScreen(); }
+
+void LvglShowAppUpdatingScreen() {
+  StopScreen();
+  LvglHub75SetFlushEnabled(false);
+  EnsureRootContainer();
+  if (!g_state.scr || !lv_obj_is_valid(g_state.scr) || !g_state.root || !lv_obj_is_valid(g_state.root)) {
+    LvglHub75SetFlushEnabled(true);
+    return;
+  }
+  ClearRootChildren();
+  // Force OTA overlay state to idle so no overlay widget can reappear and overlap text.
+  g_ota_phase.store(static_cast<uint8_t>(OtaOverlayPhase::kIdle), std::memory_order_relaxed);
+  g_ota_total_bytes.store(0, std::memory_order_relaxed);
+  g_ota_written_bytes.store(0, std::memory_order_relaxed);
+  g_state.ota_overlay = nullptr;
+  g_state.ota_title = nullptr;
+  g_state.ota_percent = nullptr;
+  g_state.ota_bar = nullptr;
+  lv_obj_set_style_bg_color(g_state.scr, lv_color_black(), 0);
+  lv_obj_set_style_bg_opa(g_state.scr, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_color(g_state.root, lv_color_black(), 0);
+  lv_obj_set_style_bg_opa(g_state.root, LV_OPA_COVER, 0);
+  lv_obj_set_style_border_width(g_state.root, 0, 0);
+  lv_obj_set_style_pad_all(g_state.root, 0, 0);
+
+  lv_obj_t* label = lv_label_create(g_state.root);
+  lv_label_set_text(label, "APP\nUPDATING");
+  lv_obj_set_style_text_color(label, lv_color_white(), 0);
+  lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_center(label);
+  lv_obj_invalidate(g_state.root);
+  LvglHub75SetFlushEnabled(true);
+}
 
 void LvglLuaAppScreenPrewarm() {
   g_state.scr = lv_screen_active();

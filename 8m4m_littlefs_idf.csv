@@ -1,10 +1,10 @@
 # Name,   Type, SubType, Offset,  Size, Flags
 nvs,      data, nvs,     0x9000,  0x5000,
 otadata,  data, ota,     0xe000,  0x2000,
-# Reduce OTA app slots to free more flash for LittleFS (TTF testing assets).
-app0,     app,  ota_0,   0x10000, 0x1A0000,
-app1,     app,  ota_1,   0x1B0000, 0x1A0000,
+# Use 2MB OTA app slots to raise firmware size limit.
+app0,     app,  ota_0,   0x10000, 0x200000,
+app1,     app,  ota_1,   0x210000,0x200000,
 # NOTE: ESP-IDF v5.1 partition parser (as used by PlatformIO) only recognizes
 # built-in subtype keywords like `spiffs`/`fat`. We still mount this partition
 # with `esp_littlefs` at runtime by its label ("littlefs").
-littlefs, data, spiffs,  0x350000,0x4B0000,
+littlefs, data, spiffs,  0x410000,0x3F0000,

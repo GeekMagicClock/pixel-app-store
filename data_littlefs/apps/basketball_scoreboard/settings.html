@@ -379,7 +379,7 @@ function selectedSportDef() {
       try {
         const items = collectItems();
         setStatus("Saving...");
-        await api("POST", "/api/system/lua-data", { items: items });
+        await api("POST", "/api/system/settings", { items: items });
         await api("POST", "/api/apps/switch/" + encodeURIComponent(APP_ID), {});
         setStatus("Saved and applied.\n" + explain(items), "ok");
       } catch (e) {
@@ -392,7 +392,7 @@ function selectedSportDef() {
     }
 
     async function load() {
-      const json = await api("GET", "/api/system/lua-data");
+      const json = await api("GET", "/api/system/settings");
       const items = json && typeof json.items === "object" ? json.items : {};
 
       const sportOptions = Object.keys(CFG).map(function (k) { return { value: k, label: CFG[k].label }; });

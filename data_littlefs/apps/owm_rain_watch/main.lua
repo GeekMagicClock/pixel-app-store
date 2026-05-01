@@ -316,7 +316,7 @@ local function process_response(kind, status, body)
   if kind == "geo" then
     if parse_geo(status, body) then
       local wx_url = string.format(
-        "https://api.open-meteo.com/v1/forecast?latitude=%s&longitude=%s&hourly=precipitation_probability,precipitation,weather_code&forecast_days=2&timezone=%s",
+        "http://api.open-meteo.com/v1/forecast?latitude=%s&longitude=%s&hourly=precipitation_probability,precipitation,weather_code&forecast_days=2&timezone=%s",
         tostring(state.lat), tostring(state.lon), url_encode(TZ_NAME)
       )
       local id, body2, age_ms, err = net.cached_get(wx_url, cfg_refresh_ms(), 6000, 16384)
@@ -354,7 +354,7 @@ local function start_request()
 
   local city = current_city()
   local geo_url = string.format(
-    "https://api.openweathermap.org/geo/1.0/direct?q=%s&limit=1&appid=%s",
+    "http://api.openweathermap.org/geo/1.0/direct?q=%s&limit=1&appid=%s",
     url_encode(city), OWM_API_KEY
   )
 
@@ -478,7 +478,7 @@ end
 -- __GLOBAL_BOOT_SPLASH_WRAPPER_V1__
 local __boot_now_ms = now_ms or (sys and sys.now_ms) or function() return 0 end
 local __boot_started_ms = 0
-local __boot_ms = tonumber(data.get("owm_rain_watch.boot_splash_ms") or data.get("app.boot_splash_ms") or 1200) or 1200
+local __boot_ms = tonumber(data.get("owm_rain_watch.boot_splash_ms") or data.get("app.boot_splash_ms") or 5000) or 5000
 if __boot_ms < 0 then __boot_ms = 0 end
 local __boot_name = tostring(data.get("owm_rain_watch.app_name") or "Hourly Rain Watch")
 

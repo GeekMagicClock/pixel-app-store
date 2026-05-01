@@ -1,6 +1,7 @@
 #include "app/user_button.h"
 
 #include "app/display_control.h"
+#include "app/app_update_server.h"
 
 #include "esp_log.h"
 #include "esp_system.h"
@@ -17,6 +18,7 @@ static const char *kTag = "app";
 #define USER_BUTTON_GPIO 38
 #endif
 static constexpr int kUserButtonGpio = USER_BUTTON_GPIO; // active-low, INPUT_PULLUP
+static bool g_user_button_gpio_inited = false;
 static uint64_t UserButtonPinMask() {
 #if USER_BUTTON_GPIO < 0 || USER_BUTTON_GPIO >= 64
   return 0;
@@ -39,6 +41,12 @@ static void InitUserButtonGpio() {
   io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
   io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
   gpio_config(&io_conf);
+  g_user_button_gpio_inited = true;
+}
+
+static void EnsureUserButtonGpioInited() {
+  if (g_user_button_gpio_inited) return;
+  InitUserButtonGpio();
 }
 
 struct ButtonContext {
@@ -119,6 +127,7 @@ static void ButtonTask(void *arg) {
         } else if (!long_handled) {
           // Short press: next screen.
           ESP_LOGI(kTag, "button: click -> next screen");
+          AppUpdateServerNotifyManualAppAction();
           LvglLuaAppCarouselRequestNext();
         }
       }
@@ -137,6 +146,12 @@ static void ButtonTask(void *arg) {
   }
 }
 
+bool IsUserButtonPressed() {
+  if (kUserButtonGpio < 0) return false;
+  EnsureUserButtonGpioInited();
+  return gpio_get_level(static_cast<gpio_num_t>(kUserButtonGpio)) == 0;
+}
+
 void StartUserButtonTask(MatrixPanel_I2S_DMA &display,
                          SemaphoreHandle_t display_mutex,
                          const ButtonEventFlags &flags) {
@@ -145,7 +160,7 @@ void StartUserButtonTask(MatrixPanel_I2S_DMA &display,
     return;
   }
 
-  InitUserButtonGpio();
+  EnsureUserButtonGpioInited();
   static ButtonContext ctx;
   ctx.display = &display;
   ctx.display_mutex = display_mutex;

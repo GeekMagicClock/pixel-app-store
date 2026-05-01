@@ -579,7 +579,7 @@
     }
 
     async function loadPlaybackSettings() {
-      const obj = await api("GET", "/api/system/lua-data");
+      const obj = await api("GET", "/api/system/settings");
       const items = Array.isArray(obj?.items) ? obj.items : [];
       const map = {};
       for (const it of items) {
@@ -599,7 +599,7 @@
       el.intervalMs.value = String(interval);
       await api(
         "POST",
-        "/api/system/lua-data",
+        "/api/system/settings",
         JSON.stringify({
           items: {
             "media_gallery.interval_ms": interval,
@@ -794,6 +794,7 @@
       await refreshStorage();
       await ensureSpaceOrThrow(targetName, blob.size);
       await putAsset(targetName, blob, mime);
+      await api("POST", "/api/apps/reload", {});
 
       state.files.push({ name: targetName });
       await saveIndex();
@@ -803,6 +804,8 @@
       el.fileInput.value = "";
       await queueFile(null);
     }
+
+    
 
     async function loadState() {
       await refreshStorage();

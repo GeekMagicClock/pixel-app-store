@@ -204,7 +204,7 @@ local function clear_full_rows(board)
   return kept, cleared
 end
 
-local function evaluate_board(board, cleared)
+local function score_board_state(board, cleared)
   local heights = {}
   local total_height = 0
   local holes = 0
@@ -250,7 +250,7 @@ local function choose_target(name)
           end
         end
         test_board, cleared = clear_full_rows(test_board)
-        local score = evaluate_board(test_board, cleared)
+        local score = score_board_state(test_board, cleared)
         score = score - math.abs(px - 3) * 2
         if not best or score > best.score then
           best = {rot = rot, x = px, score = score}
@@ -500,7 +500,7 @@ end
 -- __GLOBAL_BOOT_SPLASH_WRAPPER_V1__
 local __boot_now_ms = now_ms or (sys and sys.now_ms) or function() return 0 end
 local __boot_started_ms = 0
-local __boot_ms = tonumber(data.get("tetris_sprint.boot_splash_ms") or data.get("app.boot_splash_ms") or 1200) or 1200
+local __boot_ms = tonumber(data.get("tetris_sprint.boot_splash_ms") or data.get("app.boot_splash_ms") or 5000) or 5000
 if __boot_ms < 0 then __boot_ms = 0 end
 local __boot_name = tostring(data.get("tetris_sprint.app_name") or "Tetris Sprint")
 

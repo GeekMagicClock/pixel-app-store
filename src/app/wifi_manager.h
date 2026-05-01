@@ -3,6 +3,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+// Single source of truth for setup AP SSID shown on-device and used by SoftAP.
+#define WIFI_SETUP_AP_SSID "PIXEL"
+
 // Minimal WiFi bring-up helper for boot sequence.
 // Intended for ESP-IDF framework.
 
@@ -58,3 +61,7 @@ int WifiManagerScanNetworks(WifiScanResult *out_results, int max_results, uint32
 
 // Saves STA credentials to NVS-backed Wi-Fi config for future boots.
 bool WifiManagerSaveStaCredentials(const char *ssid, const char *password);
+
+// Returns the STA esp_netif pointer for mDNS or other protocol services.
+// May return null before WifiManagerInit().
+void *WifiManagerGetStaNetif();

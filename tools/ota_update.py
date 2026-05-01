@@ -2,6 +2,7 @@
 import argparse
 import os
 import pathlib
+import subprocess
 import sys
 import urllib.request
 import urllib.error
@@ -48,11 +49,19 @@ def read_default_device_ip(project_root: pathlib.Path) -> str:
     raise ValueError(f"no device ip found in {device_file}")
 
 
+def build_firmware(project_root: pathlib.Path, env: str) -> None:
+    cmd = ["pio", "run", "-e", env]
+    print("+ " + " ".join(cmd))
+    subprocess.run(cmd, cwd=str(project_root), check=True)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Upload ESP32 firmware over local OTA by device IP")
     parser.add_argument("ip", nargs="?", help="Device IP address, e.g. 192.168.1.88")
     parser.add_argument("--ip", dest="ip_opt", help="Device IP address (overrides positional ip)")
     parser.add_argument("--firmware", help="Path to firmware.bin (default: latest .pio build output)")
+    parser.add_argument("--skip-build", action="store_true", help="Skip running pio run before OTA upload")
+    parser.add_argument("--env", default="esp32-s3-n16r8", help="PlatformIO environment to build before upload")
     parser.add_argument("--status-timeout", type=float, default=8.0, help="Timeout (seconds) for firmware status query")
     parser.add_argument("--upload-timeout", type=float, default=240.0, help="Timeout (seconds) for OTA upload request")
     args = parser.parse_args()
@@ -61,6 +70,10 @@ if __name__ == "__main__":
     ip = (args.ip_opt or args.ip or "").strip()
     if not ip:
         ip = read_default_device_ip(project_root)
+
+    if not args.skip_build:
+        build_firmware(project_root, args.env)
+
     fw_path = pathlib.Path(args.firmware) if args.firmware else find_default_firmware(project_root)
     fw_path = fw_path.resolve()
 

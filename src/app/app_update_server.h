@@ -4,7 +4,7 @@ typedef void (*AppUpdateReloadCallback)(void);
 typedef void (*AppUpdateSwitchCallback)(const char* app_id, unsigned app_id_len);
 
 // Start HTTP app-update server.
-// - PUT /api/apps/<app_id>/main.lua
+// - PUT /api/apps/<app_id>/app.bin
 // - PUT /api/apps/<app_id>/manifest.json
 // - PUT /api/apps/<app_id>/ui.json
 // - POST /api/apps/reload
@@ -19,6 +19,11 @@ typedef void (*AppUpdateSwitchCallback)(const char* app_id, unsigned app_id_len)
 // - POST /api/system/reboot
 // - GET /f.html                            (web system/apps UI)
 // - GET /app.html                          (compat alias to /f.html)
+// - GET /portal.html                       (Wi-Fi portal page)
 //
 // The callback is invoked after a successful file update or explicit reload request.
 bool AppUpdateServerStart(AppUpdateReloadCallback reload_cb, AppUpdateSwitchCallback switch_cb);
+
+// Notify scheduler that user initiated an app action (run/next/etc).
+// This creates a temporary manual-control window where scheduler won't override.
+void AppUpdateServerNotifyManualAppAction(void);

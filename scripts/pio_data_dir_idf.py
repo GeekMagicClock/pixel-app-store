@@ -12,16 +12,20 @@ env["PROJECT_DATA_DIR"] = join(env["PROJECT_DIR"], "data_littlefs")
 platform = env.PioPlatform()
 mcu = env.BoardConfig().get("build.mcu", "")
 toolchains_by_mcu = {
-    "esp32": ["toolchain-xtensa-esp32"],
-    "esp32s2": ["toolchain-xtensa-esp32s2"],
-    "esp32s3": ["toolchain-xtensa-esp32s3", "toolchain-riscv32-esp"],
+    # Support both old (6.5.x) and new (6.13.x) package names.
+    "esp32": ["toolchain-xtensa-esp32", "toolchain-xtensa-esp-elf"],
+    "esp32s2": ["toolchain-xtensa-esp32s2", "toolchain-xtensa-esp-elf"],
+    "esp32s3": ["toolchain-xtensa-esp32s3", "toolchain-xtensa-esp-elf", "toolchain-riscv32-esp", "toolchain-riscv32-esp-elf"],
     "esp32c3": ["toolchain-riscv32-esp"],
     "esp32c6": ["toolchain-riscv32-esp"],
     "esp32h2": ["toolchain-riscv32-esp"],
 }
 
-for pkg in toolchains_by_mcu.get(mcu, ["toolchain-xtensa-esp32"]):
-    toolchain_dir = platform.get_package_dir(pkg)
+for pkg in toolchains_by_mcu.get(mcu, ["toolchain-xtensa-esp32", "toolchain-xtensa-esp-elf"]):
+    try:
+        toolchain_dir = platform.get_package_dir(pkg)
+    except KeyError:
+        toolchain_dir = None
     if toolchain_dir:
         env.PrependENVPath("PATH", join(toolchain_dir, "bin"))
 

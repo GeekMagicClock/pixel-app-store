@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>GeekMagic Portal Setup</title>
+  <style>
+    :root {
+      --bg: #070707;
+      --card: #111111;
+      --muted: #b9a98a;
+      --line: #3a3022;
+      --txt: #f4ead7;
+      --ok: #b99145;
+      --warn: #8f6b32;
+      --bad: #cf6b61;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 14px/1.45 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background:
+        radial-gradient(circle at 15% -10%, #3a2d1d 0, rgba(58,45,29,0) 34%),
+        radial-gradient(circle at 85% -18%, #2a2217 0, rgba(42,34,23,0) 30%),
+        var(--bg);
+      color: var(--txt);
+    }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 18px; }
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, .24);
+    }
+    h1 { margin: 0 0 6px; font-size: 24px; }
+    .muted { color: var(--muted); font-size: 13px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+    .row.single { grid-template-columns: 1fr; }
+    input, button, select {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #0d0d0d;
+      color: var(--txt);
+      border-radius: 8px;
+      padding: 9px;
+      font-size: 14px;
+    }
+    button { cursor: pointer; font-weight: 700; }
+    .ok { background: linear-gradient(180deg, #d0a95f 0%, #ac8442 100%); border-color: #8c6a35; color: #1b140a; }
+    .warn { background: linear-gradient(180deg, #8f6b32 0%, #6f5327 100%); border-color: #5d441f; color: #f3e6cc; }
+    .wifi-list {
+      position: relative;
+      margin-top: 10px;
+      max-height: 280px;
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+      scrollbar-color: #c89a55 #1a140d;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #120f0b;
+      padding: 6px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.04), inset 0 -1px 0 rgba(0,0,0,.45);
+      background-image:
+        linear-gradient(to bottom, rgba(224, 187, 114, .18), rgba(224, 187, 114, 0)),
+        linear-gradient(to top, rgba(224, 187, 114, .16), rgba(224, 187, 114, 0));
+      background-repeat: no-repeat;
+      background-size: 100% 14px, 100% 14px;
+      background-position: top, bottom;
+    }
+    .wifi-list::-webkit-scrollbar { width: 10px; }
+    .wifi-list::-webkit-scrollbar-track { background: #1a140d; border-radius: 999px; }
+    .wifi-list::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, #e0bb72 0%, #a97836 100%);
+      border-radius: 999px;
+      border: 2px solid #1a140d;
+    }
+    .wifi-item {
+      width: 100%;
+      text-align: left;
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid #4b3b25;
+      background: #1a140d;
+      color: var(--txt);
+      margin: 0 0 6px;
+      cursor: pointer;
+    }
+    .wifi-item small { display: block; color: var(--muted); margin-top: 2px; }
+    .wifi-item.active { border-color: #c9a56a; background: #2c2215; }
+    .status {
+      margin-top: 10px;
+      border: 1px dashed #735835;
+      border-radius: 10px;
+      padding: 10px;
+      color: #e8d5b0;
+      background: rgba(95, 72, 37, 0.12);
+      font-size: 13px;
+      min-height: 38px;
+    }
+    .status.err {
+      color: #ffbdb4;
+      border-color: #8f4a40;
+      background: rgba(143, 74, 64, 0.12);
+    }
+    @media (max-width: 700px) {
+      .row { grid-template-columns: 1fr; }
+      h1 { font-size: 21px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="panel">
+      <h1>GeekMagic Portal Setup (2.4G)</h1>
+      <div class="muted">Scan Wi-Fi, select SSID, fill password, then Save & Reboot.</div>
+
+      <div class="row single">
+        <button id="scan_btn" class="ok" type="button">Scan Wi-Fi</button>
+      </div>
+
+      <div id="scan_status" class="status">Page loaded. Click "Scan Wi-Fi" to begin.</div>
+      <div id="wifi_list" class="wifi-list"></div>
+
+      <div class="row" style="margin-top:10px">
+        <input id="wifi_ssid" placeholder="Selected Wi-Fi SSID (or enter manually)" />
+        <input id="wifi_pwd" type="password" placeholder="Password (leave empty for open AP)" />
+      </div>
+
+      <div class="row" style="margin-top:10px">
+        <select id="timezone_sel">
+          <option value="UTC-12:00">UTC-12:00</option>
+          <option value="UTC-11:00">UTC-11:00</option>
+          <option value="UTC-10:00">UTC-10:00</option>
+          <option value="UTC-09:30">UTC-09:30</option>
+          <option value="UTC-09:00">UTC-09:00</option>
+          <option value="UTC-08:00">UTC-08:00</option>
+          <option value="UTC-07:00">UTC-07:00</option>
+          <option value="UTC-06:00">UTC-06:00</option>
+          <option value="UTC-05:00">UTC-05:00</option>
+          <option value="UTC-04:00">UTC-04:00</option>
+          <option value="UTC-03:30">UTC-03:30</option>
+          <option value="UTC-03:00">UTC-03:00</option>
+          <option value="UTC-02:00">UTC-02:00</option>
+          <option value="UTC-01:00">UTC-01:00</option>
+          <option value="UTC+00:00">UTC+00:00</option>
+          <option value="UTC+01:00">UTC+01:00</option>
+          <option value="UTC+02:00">UTC+02:00</option>
+          <option value="UTC+03:00">UTC+03:00</option>
+          <option value="UTC+03:30">UTC+03:30</option>
+          <option value="UTC+04:00">UTC+04:00</option>
+          <option value="UTC+04:30">UTC+04:30</option>
+          <option value="UTC+05:00">UTC+05:00</option>
+          <option value="UTC+05:30">UTC+05:30</option>
+          <option value="UTC+05:45">UTC+05:45</option>
+          <option value="UTC+06:00">UTC+06:00</option>
+          <option value="UTC+06:30">UTC+06:30</option>
+          <option value="UTC+07:00">UTC+07:00</option>
+          <option value="UTC+08:00" selected>UTC+08:00</option>
+          <option value="UTC+08:45">UTC+08:45</option>
+          <option value="UTC+09:00">UTC+09:00</option>
+          <option value="UTC+09:30">UTC+09:30</option>
+          <option value="UTC+10:00">UTC+10:00</option>
+          <option value="UTC+10:30">UTC+10:30</option>
+          <option value="UTC+11:00">UTC+11:00</option>
+          <option value="UTC+12:00">UTC+12:00</option>
+          <option value="UTC+12:45">UTC+12:45</option>
+          <option value="UTC+13:00">UTC+13:00</option>
+          <option value="UTC+14:00">UTC+14:00</option>
+        </select>
+        <input id="city_name" placeholder="City name (optional, e.g. shenzhen,cn)" />
+      </div>
+
+      <div id="save_status" class="status">Select a Wi-Fi network, then click "Save & Reboot".</div>
+
+      <div class="row">
+        <button id="save_btn" class="ok" type="button">Save & Reboot</button>
+        <a href="/f.html"><button type="button" class="warn">Open Full Settings</button></a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function $(id) { return document.getElementById(id); }
+    function esc(s) { return String(s || '').replace(/[&<>"]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m])); }
+    const scannedMap = new Map();
+
+    async function apiJson(method, path, payload) {
+      const init = { method, headers: { 'content-type': 'application/json' } };
+      if (payload !== undefined) init.body = JSON.stringify(payload);
+      const r = await fetch(path, init);
+      const text = await r.text();
+      let json = null;
+      try { json = text ? JSON.parse(text) : null; } catch (e) {}
+      if (!r.ok) throw new Error((json && json.error) || ('HTTP ' + r.status));
+      return json || {};
+    }
+
+    function setStatus(el, txt, isErr) {
+      el.textContent = txt;
+      el.classList.toggle('err', !!isErr);
+    }
+
+    function wifiSignalPercent(rssi) {
+      const n = Number(rssi);
+      if (!Number.isFinite(n)) return null;
+      const pct = Math.round((n + 100) * 2);
+      return Math.max(0, Math.min(100, pct));
+    }
+
+    function utcOffsetTextToHours(value) {
+      const s = String(value || '').trim();
+      const m = /^UTC([+-])(\\d{1,2}):(\\d{2})$/.exec(s);
+      if (!m) return 8;
+      const sign = m[1] === '-' ? -1 : 1;
+      const hour = Number(m[2]);
+      const minute = Number(m[3]);
+      return sign * (hour + minute / 60);
+    }
+
+    function utcOffsetHoursToText(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return 'UTC+08:00';
+      const sign = n < 0 ? '-' : '+';
+      const abs = Math.abs(n);
+      const hour = Math.floor(abs);
+      const minute = Math.round((abs - hour) * 60);
+      return 'UTC' + sign + String(hour).padStart(2, '0') + ':' + String(minute).padStart(2, '0');
+    }
+
+    function wifiRowHtml(it) {
+      const ssid = String(it.ssid || '');
+      const auth = String(it.auth || 'UNKNOWN');
+      const pct = Number.isFinite(it.strength) ? Number(it.strength) : wifiSignalPercent(it.rssi);
+      const signal = pct == null ? 'Signal unknown' : ('Signal ' + pct + '%');
+      return '<strong>' + esc(ssid || '(Hidden SSID)') + '</strong><small>' + esc(signal + ' · ' + auth) + '</small>';
+    }
+
+    async function scanWifi() {
+      const scanStatus = $('scan_status');
+      setStatus(scanStatus, 'Scanning, please wait...', false);
+      $('wifi_list').innerHTML = '';
+      try {
+        const json = await apiJson('GET', '/api/system/wifi/scan');
+        const aps = Array.isArray(json.aps) ? json.aps : [];
+        const list = aps
+          .map(ap => ({
+            ssid: String((ap && ap.ssid) || ''),
+            rssi: Number(ap && ap.rssi),
+            auth: String((ap && ap.auth) || 'UNKNOWN'),
+            strength: ap && ap.strength != null ? Number(ap.strength) : undefined,
+          }))
+          .filter(ap => ap.ssid)
+          .sort((a, b) => (Number.isFinite(b.rssi) ? b.rssi : -999) - (Number.isFinite(a.rssi) ? a.rssi : -999));
+        scannedMap.clear();
+        list.forEach((ap) => {
+          const auth = String(ap.auth || "UNKNOWN").toUpperCase();
+          const secure = auth !== "OPEN";
+          scannedMap.set(ap.ssid, { secure, auth });
+        });
+
+        if (!list.length) {
+          setStatus(scanStatus, 'No networks found. Retry or enter SSID manually.', true);
+          return;
+        }
+
+        setStatus(scanStatus, 'Found ' + list.length + ' networks. Click one to fill SSID.', false);
+        list.slice(0, 30).forEach(it => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'wifi-item';
+          b.innerHTML = wifiRowHtml(it);
+          b.onclick = () => {
+            $('wifi_ssid').value = it.ssid;
+            $('wifi_pwd').focus();
+            Array.from(document.querySelectorAll('.wifi-item')).forEach(x => x.classList.remove('active'));
+            b.classList.add('active');
+            setStatus($('save_status'), 'Selected: ' + it.ssid, false);
+          };
+          $('wifi_list').appendChild(b);
+        });
+      } catch (e) {
+        setStatus(scanStatus, 'Scan failed: ' + String(e.message || e), true);
+      }
+    }
+
+    async function loadStatus() {
+      try {
+        const json = await apiJson('GET', '/api/system/status');
+        if (json && json.wifi && json.wifi.saved_ssid && !$('wifi_ssid').value) {
+          $('wifi_ssid').value = json.wifi.saved_ssid;
+        }
+      } catch (e) {
+      }
+      try {
+        const settings = await apiJson('GET', '/api/system/settings');
+        const items = settings && settings.items ? settings.items : {};
+        const tzText = String(items['weather.timezone'] || '').trim();
+        const tz = tzText || utcOffsetHoursToText(items['clock.utc_offset_hours']);
+        if (Array.from($('timezone_sel').options).some((opt) => opt.value === tz)) {
+          $('timezone_sel').value = tz;
+        }
+        const city = items['owm.city'];
+        $('city_name').value = city == null ? '' : String(city);
+      } catch (e) {
+      }
+    }
+
+    $('scan_btn').onclick = scanWifi;
+    $('wifi_ssid').addEventListener('input', () => {
+      const ssid = ($('wifi_ssid').value || '').trim();
+      const scanned = scannedMap.get(ssid);
+      const pwd = String($('wifi_pwd').value || '');
+      if (scanned && scanned.secure && pwd.length < 8) {
+        setStatus($('save_status'), 'Selected Wi-Fi is secured (' + scanned.auth + '). Password must be at least 8 characters.', true);
+      }
+    });
+
+    $('save_btn').onclick = async () => {
+      const ssid = ($('wifi_ssid').value || '').trim();
+      const pwd = $('wifi_pwd').value || '';
+      const status = $('save_status');
+      if (!ssid) {
+        setStatus(status, 'Please enter Wi-Fi SSID first.', true);
+        return;
+      }
+      const scanned = scannedMap.get(ssid);
+      if (scanned && scanned.secure && pwd.length < 8) {
+        setStatus(status, 'This Wi-Fi is secured (' + scanned.auth + '). Password must be at least 8 characters.', true);
+        return;
+      }
+      setStatus(status, 'Saving locale settings...', false);
+      try {
+        const timezone = String($('timezone_sel').value || 'UTC+08:00').trim();
+        const cityName = String($('city_name').value || '').trim();
+        await apiJson('POST', '/api/system/settings', {
+          items: {
+            'weather.timezone': timezone,
+            'clock.utc_offset_hours': utcOffsetTextToHours(timezone),
+            'owm.city': cityName || null
+          }
+        });
+        setStatus(status, 'Saving Wi-Fi and rebooting...', false);
+        await apiJson('POST', '/api/system/wifi/config', { ssid: ssid, password: pwd, reboot: true });
+        setStatus(status, 'Saved. Device is rebooting and will reconnect to Wi-Fi.', false);
+      } catch (e) {
+        setStatus(status, 'Save failed: ' + String(e.message || e), true);
+      }
+    };
+
+    loadStatus();
+    scanWifi();
+  </script>
+</body>
+</html>

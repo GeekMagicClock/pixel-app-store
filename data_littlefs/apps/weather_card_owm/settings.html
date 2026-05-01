@@ -159,7 +159,7 @@
     }
 
     async function loadValues() {
-      const json = await api("GET", "/api/system/lua-data");
+      const json = await api("GET", "/api/system/settings");
       const items = json && typeof json.items === "object" ? json.items : {};
       const city = String(items["weather_card_owm.city"] ?? DEFAULTS.city).trim();
       let units = String(items["weather_card_owm.units"] ?? DEFAULTS.units).toLowerCase();
@@ -186,7 +186,7 @@
         "weather_card_owm.refresh_ms": refreshMs,
       };
 
-      await api("POST", "/api/system/lua-data", { items });
+      await api("POST", "/api/system/settings", { items });
       await api("POST", "/api/apps/switch/" + encodeURIComponent(APP_ID), {});
     }
 

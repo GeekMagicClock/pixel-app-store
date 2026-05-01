@@ -560,6 +560,14 @@ python3 scripts/publish_apps.py stock1 --upload            # incremental (safe d
 python3 scripts/publish_apps.py --upload --full-index      # full rewrite
 ```
 
+One-click beta incremental publish (changed apps only):
+
+```bash
+scripts/S2_publish_beta_incremental.sh
+scripts/S2_publish_beta_incremental.sh --since-ref origin/main --push
+scripts/S2_publish_beta_incremental.sh --dry-run
+```
+
 Packaging behavior:
 
 - `main.lua` is compiled to `app.bin`

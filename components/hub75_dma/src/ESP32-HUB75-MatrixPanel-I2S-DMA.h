@@ -318,6 +318,10 @@ struct HUB75_I2S_CFG
    */
   bool clkphase;
 
+  // Enable software +1 X compensation at pixel landing stage.
+  // Useful for panels that show x=0 at the right edge.
+  bool x_compensation;
+
   // Minimum refresh / scan rate needs to be configured on start due to LSBMSB_TRANSITION_BIT calculation in allocateDMAmemory()
   // Set this to '1' to get all colour depths displayed with correct BCM time weighting.
   uint8_t min_refresh_rate;
@@ -337,8 +341,9 @@ struct HUB75_I2S_CFG
       uint8_t _latblk = DEFAULT_LAT_BLANKING, // Anything > 1 seems to cause artefacts on ICS panels
       bool _clockphase = true, 
       uint16_t _min_refresh_rate = 60, 
-      uint8_t _pixel_color_depth_bits = PIXEL_COLOR_DEPTH_BITS_DEFAULT) 
-      : mx_width(_w), mx_height(_h), chain_length(_chain), gpio(_pinmap), driver(_drv), double_buff(_dbuff), i2sspeed(_i2sspeed), latch_blanking(_latblk), clkphase(_clockphase), min_refresh_rate(_min_refresh_rate)
+      uint8_t _pixel_color_depth_bits = PIXEL_COLOR_DEPTH_BITS_DEFAULT,
+      bool _x_compensation = false) 
+      : mx_width(_w), mx_height(_h), chain_length(_chain), gpio(_pinmap), driver(_drv), double_buff(_dbuff), i2sspeed(_i2sspeed), latch_blanking(_latblk), clkphase(_clockphase), x_compensation(_x_compensation), min_refresh_rate(_min_refresh_rate)
   {
     setPixelColorDepthBits(_pixel_color_depth_bits);
   }

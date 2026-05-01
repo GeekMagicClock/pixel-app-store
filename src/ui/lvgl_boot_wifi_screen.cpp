@@ -22,7 +22,7 @@ static const char *kTag = "boot_wifi_ui";
 
 namespace {
 
-enum class UiState : uint8_t { kNone = 0, kConnecting, kSuccess, kFailed };
+enum class UiState : uint8_t { kNone = 0, kConnecting, kSuccess, kSwitchingToAp, kFailed };
 
 static lv_obj_t *g_scr = nullptr;
 static lv_obj_t *g_canvas = nullptr;
@@ -62,28 +62,6 @@ static void TruncCopy(char *dst, size_t dst_sz, const char *src, size_t max_char
   memcpy(dst, src, n);
   dst[n - 1] = '~';
   dst[n] = '\0';
-}
-
-static void SplitIp2Lines(const char *ip, char *line_a, size_t line_a_sz, char *line_b, size_t line_b_sz) {
-  if (line_a && line_a_sz) line_a[0] = '\0';
-  if (line_b && line_b_sz) line_b[0] = '\0';
-  if (!ip || !*ip) return;
-
-  // Split after the 2nd dot: "192.168." + "1.10" fits well on 64px.
-  const char *dot1 = strchr(ip, '.');
-  const char *dot2 = dot1 ? strchr(dot1 + 1, '.') : nullptr;
-  if (!dot2) {
-    if (line_a && line_a_sz) snprintf(line_a, line_a_sz, "%s", ip);
-    return;
-  }
-
-  const size_t a_len = static_cast<size_t>(dot2 - ip + 1);
-  if (line_a && line_a_sz) {
-    const size_t n = (a_len < (line_a_sz - 1)) ? a_len : (line_a_sz - 1);
-    memcpy(line_a, ip, n);
-    line_a[n] = '\0';
-  }
-  if (line_b && line_b_sz) snprintf(line_b, line_b_sz, "%s", dot2 + 1);
 }
 
 static void DrawTextLine(lv_layer_t *layer, int y0, const char *text, lv_color_t color) {
@@ -185,9 +163,9 @@ static void RenderConnecting() {
   const uint64_t now_us = static_cast<uint64_t>(esp_timer_get_time());
   const uint64_t elapsed_ms = (now_us - g_start_us) / 1000;
   const uint32_t timeout_ms = (g_timeout_ms < 1000) ? 1000 : g_timeout_ms;
-  const uint32_t pct = (elapsed_ms >= timeout_ms) ? 100 : static_cast<uint32_t>((elapsed_ms * 100) / timeout_ms);
+  uint32_t pct = (elapsed_ms >= timeout_ms) ? 99 : static_cast<uint32_t>((elapsed_ms * 100) / timeout_ms);
+  if (pct > 99) pct = 99;
   const uint32_t left_ms = (elapsed_ms >= timeout_ms) ? 0 : static_cast<uint32_t>(timeout_ms - elapsed_ms);
-  const bool has_ssid = g_try_ssid[0] != '\0';
 
   lv_canvas_fill_bg(g_canvas, lv_color_black(), LV_OPA_COVER);
 
@@ -195,10 +173,10 @@ static void RenderConnecting() {
   lv_canvas_init_layer(g_canvas, &layer);
 
   char ssid_short[16] = {};
-  TruncCopy(ssid_short, sizeof(ssid_short), has_ssid ? g_try_ssid : "Starting", 12);
+  TruncCopy(ssid_short, sizeof(ssid_short), g_try_ssid[0] ? g_try_ssid : "--", 12);
 
   char line0[20] = {};
-  snprintf(line0, sizeof(line0), "%s", has_ssid ? "Try SSID" : "BOOTING");
+  snprintf(line0, sizeof(line0), "Try WIFI");
 
   char line1[24] = {};
   snprintf(line1, sizeof(line1), "%s", ssid_short);
@@ -206,9 +184,9 @@ static void RenderConnecting() {
   char line2[20] = {};
   snprintf(line2, sizeof(line2), "%2u%% %2us", static_cast<unsigned>(pct), static_cast<unsigned>((left_ms + 999) / 1000));
 
-  DrawTextLine(&layer, 0, line0, lv_color_make(180, 220, 255));
-  DrawTextLine(&layer, 8, line1, lv_color_white());
-  DrawTextLine(&layer, 16, line2, lv_color_make(200, 200, 200));
+  DrawTextLine(&layer, -2, line0, lv_color_make(180, 220, 255));
+  DrawTextLine(&layer, 6, line1, lv_color_white());
+  DrawTextLine(&layer, 14, line2, lv_color_make(200, 200, 200));
 
   // Progress bar: y=24..31, inside 62px.
   constexpr int kBarX0 = 1;
@@ -241,11 +219,11 @@ static void RenderSuccess() {
   char line1[24] = {};
   snprintf(line1, sizeof(line1), "%s", ssid_short);
   char line2[24] = {};
-  snprintf(line2, sizeof(line2), "LOCAL IP");
+  snprintf(line2, sizeof(line2), "LOCAL IP:");
 
-  DrawTextLine(&layer, 0, line0, lv_color_make(80, 255, 80));
-  DrawTextLine(&layer, 8, line1, lv_color_white());
-  DrawTextLine(&layer, 16, line2, lv_color_make(180, 220, 255));
+  DrawTextLine(&layer, -2, line0, lv_color_make(80, 255, 80));
+  DrawTextLine(&layer, 6, line1, lv_color_white());
+  DrawTextLine(&layer, 14, line2, lv_color_make(180, 220, 255));
   const uint32_t t_ms = static_cast<uint32_t>((static_cast<uint64_t>(esp_timer_get_time()) - g_start_us) / 1000);
   DrawMarqueeLine(&layer, 24, g_sta_ip[0] ? g_sta_ip : "--", lv_color_make(180, 220, 255), t_ms);
 
@@ -261,22 +239,30 @@ static void RenderFailed() {
   char ap_short[16] = {};
   TruncCopy(ap_short, sizeof(ap_short), g_ap_ssid[0] ? g_ap_ssid : "--", 12);
 
-  char ip_a[20] = {};
-  char ip_b[20] = {};
-  SplitIp2Lines(g_ap_ip[0] ? g_ap_ip : "--", ip_a, sizeof(ip_a), ip_b, sizeof(ip_b));
-
   char line0[24] = {};
-  snprintf(line0, sizeof(line0), "AP SETUP");
+  snprintf(line0, sizeof(line0), "1. CONNECT TO");
   char line1[24] = {};
   snprintf(line1, sizeof(line1), "%s", ap_short);
   char line2[24] = {};
-  snprintf(line2, sizeof(line2), "IP %s", ip_a[0] ? ip_a : "--");
+  snprintf(line2, sizeof(line2), "2. OPEN IP:");
 
-  DrawTextLine(&layer, 0, line0, lv_color_make(255, 220, 80));
-  DrawTextLine(&layer, 8, line1, lv_color_white());
-  DrawTextLine(&layer, 16, line2, lv_color_make(180, 220, 255));
-  DrawTextLine(&layer, 24, ip_b[0] ? ip_b : "CONNECT TO CFG", lv_color_make(180, 220, 255));
+  // Shift AP setup section upward by 2px.
+  DrawTextLine(&layer, -2, line0, lv_color_make(255, 220, 80));
+  DrawTextLine(&layer, 6, line1, lv_color_white());
+  DrawTextLine(&layer, 14, line2, lv_color_make(180, 220, 255));
+  const uint32_t t_ms = static_cast<uint32_t>((static_cast<uint64_t>(esp_timer_get_time()) - g_start_us) / 1000);
+  DrawMarqueeLine(&layer, 22, g_ap_ip[0] ? g_ap_ip : "--", lv_color_make(180, 220, 255), t_ms);
 
+  lv_canvas_finish_layer(g_canvas, &layer);
+}
+
+static void RenderSwitchingToAp() {
+  lv_canvas_fill_bg(g_canvas, lv_color_black(), LV_OPA_COVER);
+  lv_layer_t layer;
+  lv_canvas_init_layer(g_canvas, &layer);
+  DrawTextLine(&layer, 2, "WIFI FAILED", lv_color_make(255, 120, 120));
+  DrawTextLine(&layer, 12, "ENTERING AP", lv_color_make(255, 220, 80));
+  DrawTextLine(&layer, 22, "PLEASE WAIT...", lv_color_make(180, 220, 255));
   lv_canvas_finish_layer(g_canvas, &layer);
 }
 
@@ -285,6 +271,7 @@ static void Render() {
   switch (g_state) {
     case UiState::kConnecting: RenderConnecting(); break;
     case UiState::kSuccess: RenderSuccess(); break;
+    case UiState::kSwitchingToAp: RenderSwitchingToAp(); break;
     case UiState::kFailed: RenderFailed(); break;
     default: break;
   }
@@ -374,6 +361,21 @@ void LvglShowBootWifiSuccess(const char *sta_ssid, const char *sta_ip) {
   g_timer = lv_timer_create(TimerCb, 120, nullptr);
 }
 
+void LvglShowBootWifiSwitchingToAp() {
+  if (!g_font) {
+    LvglBootWifiScreenPreloadFont();
+    if (!g_font) return;
+  }
+  EnsureScreen();
+  if (!g_scr) return;
+  StopTimer();
+  g_start_us = static_cast<uint64_t>(esp_timer_get_time());
+  g_state = UiState::kSwitchingToAp;
+  LvglHub75SetFlushEnabled(true);
+  Render();
+  lv_screen_load(g_scr);
+}
+
 void LvglShowBootWifiFailed(const char *ap_ssid, const char *ap_ip) {
   if (!g_font) {
     LvglBootWifiScreenPreloadFont();
@@ -392,6 +394,8 @@ void LvglShowBootWifiFailed(const char *ap_ssid, const char *ap_ip) {
   LvglHub75SetFlushEnabled(true);
   Render();
   lv_screen_load(g_scr);
+  // Keep a light timer for marquee (IP line) animation.
+  g_timer = lv_timer_create(TimerCb, 120, nullptr);
 }
 
 void LvglStopBootWifiScreen() {

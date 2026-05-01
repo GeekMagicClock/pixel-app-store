@@ -25,6 +25,11 @@
 #define ESP32_TX_FIFO_POSITION_ADJUST(x_coord) x_coord
 #endif
 
+// Software X compensation at pixel landing stage.
+// Keep this out of transform() to avoid breaking negative-coordinate clipping
+// used by scrolling text and off-screen animation paths.
+static constexpr int8_t HUB75_X_COMPENSATION_VALUE = 1;
+
 /* This library is designed to take an 8 bit / 1 byte value (0-255) for each R G B colour sub-pixel.
  * The PIXEL_COLOR_DEPTH_BITS should always be '8' as a result.
  * However, if the library is to be used with lower colour depth (i.e. 6 bit colour), then we need to ensure the 8-bit value passed to the colour masking
@@ -336,6 +341,16 @@ void IRAM_ATTR MatrixPanel_I2S_DMA::updateMatrixDMABuffer(uint16_t x_coord, uint
   if (x_coord >= PIXELS_PER_ROW || y_coord >= m_cfg.mx_height)
   {
     return;
+  }
+
+  if (m_cfg.x_compensation && HUB75_X_COMPENSATION_VALUE != 0)
+  {
+    int16_t x_shifted = static_cast<int16_t>(x_coord) + HUB75_X_COMPENSATION_VALUE;
+    if (x_shifted < 0)
+      x_shifted += PIXELS_PER_ROW;
+    else if (x_shifted >= PIXELS_PER_ROW)
+      x_shifted -= PIXELS_PER_ROW;
+    x_coord = static_cast<uint16_t>(x_shifted);
   }
 
   /* LED Brightness Compensation. Because if we do a basic "red & mask" for example,
@@ -841,6 +856,14 @@ void MatrixPanel_I2S_DMA::hlineDMA(int16_t x_coord, int16_t y_coord, int16_t l, 
     do
     { // iterate pixels in a row
       int16_t _x = x_coord + --_l;
+      if (m_cfg.x_compensation && HUB75_X_COMPENSATION_VALUE != 0)
+      {
+        _x += HUB75_X_COMPENSATION_VALUE;
+        if (_x < 0)
+          _x += PIXELS_PER_ROW;
+        else if (_x >= PIXELS_PER_ROW)
+          _x -= PIXELS_PER_ROW;
+      }
 
       /*
         #if defined(ESP32_THE_ORIG)
@@ -881,6 +904,15 @@ void MatrixPanel_I2S_DMA::vlineDMA(int16_t x_coord, int16_t y_coord, int16_t l, 
   l = ((y_coord + l) >= m_cfg.mx_height) ? (m_cfg.mx_height - y_coord) : l;
   // if (y_coord + l > m_cfg.mx_height)
   ///    l = m_cfg.mx_height - y_coord + 1;     // reset width to end of col
+
+  if (m_cfg.x_compensation && HUB75_X_COMPENSATION_VALUE != 0)
+  {
+    x_coord += HUB75_X_COMPENSATION_VALUE;
+    if (x_coord < 0)
+      x_coord += PIXELS_PER_ROW;
+    else if (x_coord >= PIXELS_PER_ROW)
+      x_coord -= PIXELS_PER_ROW;
+  }
 
   /* LED Brightness Compensation */
   uint16_t red16, green16, blue16;

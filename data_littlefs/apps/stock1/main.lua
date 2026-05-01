@@ -6,8 +6,7 @@ local DEFAULT_SYMBOLS = {
 }
 
 local YAHOO_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
-local DEV_PROXY_BASE = "http://192.168.3.156:8787"
-local proxy_base = tostring(data.get("proxy.market_data_base") or data.get("proxy.stock_base") or DEV_PROXY_BASE)
+local proxy_base = tostring(data.get("proxy.market_data_base") or data.get("proxy.stock_base") or "")
 local ROTATE_INTERVAL_MS = tonumber(data.get("stock_theme1.rotate_interval_ms") or 5000) or 5000
 local REFRESH_INTERVAL_MS = tonumber(data.get("stock_theme1.refresh_interval_ms") or 60000) or 60000
 if ROTATE_INTERVAL_MS < 2000 then ROTATE_INTERVAL_MS = 2000 end
@@ -51,6 +50,7 @@ local state = {
   last_err = nil,
   rows = {},
   yahoo_cookie = nil,
+  yahoo_cookie_prev = nil,
   yahoo_crumb = nil,
   yahoo_crumb_ms = 0,
 }
@@ -199,7 +199,9 @@ end
 local function start_fc_request()
   if state.req_id then return end
   local headers = { ["User-Agent"] = YAHOO_UA }
-  local id, err = net.http_get("https://fc.yahoo.com", 8000, 4096, headers)
+  local prev = tostring(state.yahoo_cookie or "")
+  if prev ~= "" then headers["Cookie"] = prev end
+  local id, err = net.http_get("https://fc.yahoo.com", 8000, 8192, headers)
   if not id then
     state.last_err = tostring(err or "FC REQ FAIL")
     return
@@ -218,17 +220,40 @@ local function start_crumb_request()
   end
   local headers = {
     ["Cookie"] = cookie,
-    ["Referer"] = "https://finance.yahoo.com/",
-    ["Accept-Language"] = "en-US,en;q=0.9",
+    ["Accept"] = "*/*",
     ["User-Agent"] = YAHOO_UA,
   }
-  local id, err = net.http_get("https://query1.finance.yahoo.com/v1/test/getcrumb", 8000, 4096, headers)
+  sys.log("stock1 crumb POST cookie_len=" .. tostring(#cookie))
+  local id, err = net.http_get("https://query1.finance.yahoo.com/v1/test/getcrumb", 8000, 8192, headers)
   if not id then
     state.last_err = tostring(err or "CRUMB REQ FAIL")
     return
   end
   state.req_id = id
   state.req_kind = "crumb"
+  state.last_req_ms = now_ms()
+end
+
+local function start_crumb_request_get()
+  if state.req_id then return end
+  local cookie = tostring(state.yahoo_cookie or "")
+  if cookie == "" then
+    state.last_err = "NO COOKIE"
+    return
+  end
+  local headers = {
+    ["Cookie"] = cookie,
+    ["Accept"] = "*/*",
+    ["User-Agent"] = YAHOO_UA,
+  }
+  sys.log("stock1 crumb GET cookie_len=" .. tostring(#cookie))
+  local id, err = net.http_get("https://query1.finance.yahoo.com/v1/test/getcrumb?ts=1", 8000, 8192, headers)
+  if not id then
+    state.last_err = tostring(err or "CRUMB GET REQ FAIL")
+    return
+  end
+  state.req_id = id
+  state.req_kind = "crumb_get"
   state.last_req_ms = now_ms()
 end
 
@@ -297,7 +322,9 @@ local function poll_request()
       set_cookie = headers["set-cookie"] or headers["Set-Cookie"]
     end
     local a3 = extract_a3_cookie(set_cookie)
+    sys.log("stock1 fc status=" .. tostring(status) .. " set_cookie_len=" .. tostring(#tostring(set_cookie or "")) .. " a3=" .. tostring(a3 and "ok" or "nil"))
     if a3 and (status == 200 or status == 301 or status == 302 or status == 404) then
+      state.yahoo_cookie_prev = state.yahoo_cookie
       state.yahoo_cookie = a3
       start_crumb_request()
       return
@@ -307,6 +334,17 @@ local function poll_request()
   end
 
   if kind == "crumb" then
+    if status == 405 then
+      start_crumb_request_get()
+      return
+    end
+    if (status == 401 or status == 403) and tostring(state.yahoo_cookie_prev or "") ~= "" then
+      state.yahoo_cookie = state.yahoo_cookie_prev
+      state.yahoo_cookie_prev = nil
+      start_crumb_request()
+      return
+    end
+    state.yahoo_cookie_prev = nil
     if status == 200 then
       local crumb = trim(body or "")
       if crumb ~= "" then
@@ -316,6 +354,22 @@ local function poll_request()
         return
       end
     end
+    state.last_err = "CRUMB HTTP " .. tostring(status)
+    return
+  end
+
+  if kind == "crumb_get" then
+    if status == 200 then
+      local crumb = trim(body or "")
+      if crumb ~= "" then
+        state.yahoo_crumb = crumb
+        state.yahoo_crumb_ms = now_ms()
+        state.yahoo_cookie_prev = nil
+        start_quote_request_with_crumb()
+        return
+      end
+    end
+    state.yahoo_cookie_prev = nil
     state.last_err = "CRUMB HTTP " .. tostring(status)
     return
   end
@@ -411,7 +465,7 @@ end
 -- __GLOBAL_BOOT_SPLASH_WRAPPER_V1__
 local __boot_now_ms = now_ms or (sys and sys.now_ms) or function() return 0 end
 local __boot_started_ms = 0
-local __boot_ms = tonumber(data.get("stock1.boot_splash_ms") or data.get("app.boot_splash_ms") or 1200) or 1200
+local __boot_ms = tonumber(data.get("stock1.boot_splash_ms") or data.get("app.boot_splash_ms") or 5000) or 5000
 if __boot_ms < 0 then __boot_ms = 0 end
 local __boot_name = tostring(data.get("stock1.app_name") or "Stock Brief")
 

@@ -1,3 +1,11 @@
+V2.0.0 #UPDATES
+1) 适配64X32 P3 新板，BMI5124+SM5166 驱动。
+修改两处：x偏移问题
+components/hub75_dma/src/ESP32-HUB75-MatrixPanel-I2S-DMA.cpp
+static constexpr int8_t HUB75_X_COMPENSATION = 1;
+模糊问题：
+#define HUB75_CLKPHASE true 
+
 V1.0.19 #UPDATES
 1) Optimize: Faster boot.
 2) Other minor fixes.

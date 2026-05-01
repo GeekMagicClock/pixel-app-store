@@ -13,7 +13,7 @@ void LvglBootWifiScreenPreloadFont();
 
 void LvglShowBootWifiConnecting(const char *try_ssid, uint32_t timeout_ms);
 void LvglShowBootWifiSuccess(const char *sta_ssid, const char *sta_ip);
+void LvglShowBootWifiSwitchingToAp();
 void LvglShowBootWifiFailed(const char *ap_ssid, const char *ap_ip);
 
 void LvglStopBootWifiScreen();
-
