@@ -100,8 +100,9 @@ void LvglHub75Start(const LvglHub75PortConfig &cfg) {
   static void *buf1 = nullptr;
   static void *buf2 = nullptr;
 
-  // Partial buffer: a few lines to reduce RAM.
-  const int buf_lines = 16;
+  // Partial DMA buffer: keep this internal-only but small; the full app
+  // framebuffer and higher-level LVGL allocations live in PSRAM.
+  const int buf_lines = 8;
   const size_t buf_pixels = static_cast<size_t>(cfg.hor_res) * static_cast<size_t>(buf_lines);
 
   lv_display_t *disp = lv_display_create(cfg.hor_res, cfg.ver_res);

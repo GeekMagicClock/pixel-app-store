@@ -30,7 +30,6 @@ local C_ACCENT = 0x07FF
 local C_WARN = 0xFD20
 local C_WIN = 0x87F0
 local C_LOSS = 0xF800
-local BOOT_SPLASH_MS = 5000
 
 local SPORT = "hockey"
 local LEAGUE = tostring(data.get("hockey_schedule.league") or "nhl")
@@ -45,9 +44,10 @@ local TTL_MS = tonumber(data.get("hockey_schedule.ttl_ms") or 10 * 60 * 1000) or
 local TEAMS_MAX_BODY = tonumber(data.get("hockey_schedule.teams_max_body") or 65536) or 65536
 local SCOREBOARD_MAX_BODY = tonumber(data.get("hockey_schedule.scoreboard_max_body") or 262144) or 262144
 local TEAM_SCHEDULE_MAX_BODY = tonumber(data.get("hockey_schedule.team_schedule_max_body") or 196608) or 196608
+local TEAMS_CACHE_TTL_MS = tonumber(data.get("hockey_schedule.teams_cache_ttl_ms") or (24 * 60 * 60 * 1000)) or (24 * 60 * 60 * 1000)
 local TIMEOUT_MS = tonumber(data.get("hockey_schedule.timeout_ms") or 30000) or 30000
 local ERR_RETRY_MS = tonumber(data.get("hockey_schedule.err_retry_ms") or 15000) or 15000
-local APP_NAME = tostring(data.get("hockey_schedule.app_name") or "Hockey Schedule")
+local APP_NAME = tostring(data.get("hockey_schedule.app_name") or "Basketball Schedule")
 -- ESPN team schedule endpoint can return very large season payloads on multiple sports.
 -- Keep it disabled to avoid repeated >500KB gzip decode failures on device.
 local USE_TEAM_SCHEDULE_ENDPOINT = false
@@ -66,10 +66,16 @@ local state = {
   empty_label = "NO EVENTS",
 }
 
+local function dbg(msg)
+  print("[hockey_schedule] " .. tostring(msg or ""))
+end
+
 local MONTHS = {
   "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
   "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
 }
+
+local start_request
 
 local function now_ms()
   return sys.now_ms()
@@ -299,6 +305,27 @@ local function teams_url()
   return string.format("https://site.api.espn.com/apis/site/v2/sports/%s/%s/teams", SPORT, LEAGUE)
 end
 
+local function teams_cache_key(prefix)
+  return string.format("hockey_schedule.%s.%s.%s", tostring(prefix), tostring(SPORT), tostring(LEAGUE))
+end
+
+local function read_teams_cache_body()
+  local ts = tonumber(data.get(teams_cache_key("teams_cache_ts")) or "") or 0
+  if ts <= 0 then return nil end
+  local age = now_ms() - ts
+  if age < 0 or age > TEAMS_CACHE_TTL_MS then return nil end
+  local body = tostring(data.get(teams_cache_key("teams_cache_body")) or "")
+  if body == "" then return nil end
+  return body
+end
+
+local function write_teams_cache_body(body)
+  body = tostring(body or "")
+  if body == "" then return end
+  data.set(teams_cache_key("teams_cache_body"), body)
+  data.set(teams_cache_key("teams_cache_ts"), tostring(now_ms()))
+end
+
 local function ymd_add_days(y, m, d, delta)
   local yy, mm, dd = tonumber(y) or 0, tonumber(m) or 0, tonumber(d) or 0
   local n = tonumber(delta) or 0
@@ -323,8 +350,8 @@ local function scoreboard_url()
   local m = tonumber(t.month) or 0
   local d = tonumber(t.day) or 0
   if y <= 0 or m <= 0 or d <= 0 then return base end
-  -- Keep fallback scoreboard request narrow to avoid huge league payloads (e.g. MLB).
-  return string.format("%s?dates=%04d%02d%02d", base, y, m, d)
+  local y2, m2, d2 = ymd_add_days(y, m, d, SCORE_DAYS)
+  return string.format("%s?dates=%04d%02d%02d-%04d%02d%02d", base, y, m, d, y2, m2, d2)
 end
 
 local function team_schedule_url(team_id)
@@ -502,54 +529,130 @@ local function normalize_schedule_event(event)
   }
 end
 
+local function normalize_schedule_event_any(event)
+  local competition = event and ((event.competitions and event.competitions[1]) or event.competition or event) or nil
+  local home, away = find_home_away(competition)
+  if not home or not away then return nil end
+  local st_obj = (competition and competition.status and competition.status.type) or (event and event.status and event.status.type) or {}
+  local st = tostring(st_obj.state or "")
+  local detail = tostring(st_obj.shortDetail or st_obj.detail or "")
+  return {
+    id = tostring(event.id or ""),
+    date_raw = tostring((event and event.date) or (competition and competition.date) or ""),
+    state = st,
+    opp = abbr_from_team(away and away.team),
+    mine = abbr_from_team(home and home.team),
+    home = true,
+    date_label = date_label((event and event.date) or (competition and competition.date)),
+    time_label = compact_text(detail ~= "" and detail or hm_label((event and event.date) or (competition and competition.date)), 12),
+    detail = compact_text(detail, 12),
+    outcome = "",
+    score_label = "--",
+  }
+end
+
+local function is_upcoming_item(item)
+  if type(item) ~= "table" then return false end
+  local st = tostring(item.state or "")
+  if st == "in" or st == "post" then return false end
+  if st == "pre" then return true end
+  local now_s = now_unix_sec()
+  local ts = parse_iso_utc_epoch(item.date_raw or "")
+  if now_s and ts then
+    return ts > now_s
+  end
+  return (item.date_raw or "") ~= ""
+end
+
 local function build_schedule_model(obj)
   local events = obj and obj.events or {}
   local future = {}
-  local past = {}
-  local live = nil
+  local all_by_date = {}
+  local total = 0
+  local normalized = 0
+  local upcoming = 0
 
   for i = 1, #events do
+    total = total + 1
     local item = normalize_schedule_event(events[i])
     if item then
-      if item.state == "in" then
-        live = item
-      elseif item.state == "post" then
-        past[#past + 1] = item
-      else
+      all_by_date[#all_by_date + 1] = item
+      normalized = normalized + 1
+      if is_upcoming_item(item) then
         future[#future + 1] = item
+        upcoming = upcoming + 1
       end
     end
   end
+  dbg(string.format("model events total=%d normalized=%d upcoming=%d", total, normalized, upcoming))
 
   table.sort(future, function(a, b)
     return tostring(a.date_raw or "") < tostring(b.date_raw or "")
   end)
-  table.sort(past, function(a, b)
-    return tostring(a.date_raw or "") > tostring(b.date_raw or "")
+  table.sort(all_by_date, function(a, b)
+    return tostring(a.date_raw or "") < tostring(b.date_raw or "")
   end)
-
   local next_games = {}
   for i = 1, math.min(COUNT, #future) do
     next_games[#next_games + 1] = future[i]
   end
+  if #next_games == 0 and #all_by_date > 0 then
+    -- Resilient fallback for inconsistent state labels: pick nearest future by date.
+    local now_s = now_unix_sec()
+    if now_s then
+      for i = 1, #all_by_date do
+        local ts = parse_iso_utc_epoch(all_by_date[i].date_raw or "")
+        if ts and ts > now_s then
+          next_games[#next_games + 1] = all_by_date[i]
+          break
+        end
+      end
+    end
+  end
 
+  local no_focus = (TEAM == "" and TEAM_ID == "" and tostring(state.resolved_team_id or "") == "")
   local title = TEAM
   if title == "" and type(obj.team) == "table" then
     title = abbr_from_team(obj.team)
   end
-  if title == "" and live and live.mine then
-    title = tostring(live.mine)
-  end
   if title == "" and next_games[1] and next_games[1].mine then
     title = tostring(next_games[1].mine)
   end
-  if title == "" then title = "TEAM" end
+  if no_focus then
+    title = "NHL"
+  elseif title == "" then
+    title = "TEAM"
+  end
 
   return {
     title = title,
-    live = live,
+    live = nil,
     next_games = next_games,
-    last_result = INCLUDE_LAST_RESULT and past[1] or nil,
+    last_result = nil,
+  }
+end
+
+local function build_league_upcoming_from_scoreboard(obj)
+  local events = obj and obj.events or {}
+  local list = {}
+  for i = 1, #events do
+    local item = normalize_schedule_event_any(events[i])
+    if item and is_upcoming_item(item) then
+      list[#list + 1] = item
+    end
+  end
+  table.sort(list, function(a, b)
+    return tostring(a.date_raw or "") < tostring(b.date_raw or "")
+  end)
+  local next_games = {}
+  for i = 1, math.min(COUNT, #list) do
+    next_games[#next_games + 1] = list[i]
+  end
+  return {
+    title = "NHL",
+    live = nil,
+    next_games = next_games,
+    last_result = nil,
   }
 end
 
@@ -564,7 +667,7 @@ local function build_mock_payload()
   local payload = mock.data and mock.data() or nil
   if type(payload) ~= "table" then return nil end
   if type(payload.model) == "table" then return payload.model end
-  if payload.title or payload.live or payload.last_result or payload.next_games then return payload end
+  if payload.title or payload.next_games then return payload end
   if payload.events then return build_schedule_model(payload) end
   return nil
 end
@@ -581,8 +684,9 @@ local function handle_teams_response(status, body)
   end
   local entries = {}
   collect_team_entries(obj, entries)
+  local no_focus = (TEAM == "" and TEAM_ID == "" and tostring(state.resolved_team_id or "") == "")
   local fallback_entry = nil
-  if TEAM == "" and TEAM_ID == "" and tostring(state.resolved_team_id or "") == "" and #entries > 0 then
+  if no_focus and #entries > 0 then
     fallback_entry = entries[1]
   end
 
@@ -600,7 +704,7 @@ local function handle_teams_response(status, body)
     add(t.events)
     state.payload = build_schedule_model(merged)
     local p = state.payload
-    local has_frames = (type(p) == "table") and (p.live or (type(p.next_games) == "table" and #p.next_games > 0) or p.last_result)
+    local has_frames = (type(p) == "table") and (type(p.next_games) == "table" and #p.next_games > 0)
     if has_frames then
       state.err = nil
       state.last_ok_ms = now_ms()
@@ -617,8 +721,12 @@ local function handle_teams_response(status, body)
       return
     end
   end
-  if fallback_entry then
+  if fallback_entry and (not no_focus) then
     apply_entry(fallback_entry)
+    return
+  end
+  if no_focus then
+    start_request("scoreboard")
     return
   end
   state.err = "TEAM ?"
@@ -641,6 +749,20 @@ local function handle_scoreboard_response(status, body)
     state.empty_label = "NO EVENTS"
   end
   state.payload = build_schedule_model({ team = { abbreviation = TEAM }, events = obj.events or {} })
+  local p = state.payload
+  local has_frames = (type(p) == "table") and (type(p.next_games) == "table" and #p.next_games > 0)
+  dbg("scoreboard fallback has_frames=" .. tostring(has_frames) .. " next_games=" .. tostring((p and p.next_games and #p.next_games) or 0))
+  if not has_frames then
+    local league_payload = build_league_upcoming_from_scoreboard(obj)
+    local league_has = type(league_payload.next_games) == "table" and #league_payload.next_games > 0
+    dbg("league fallback next_games=" .. tostring((league_payload.next_games and #league_payload.next_games) or 0))
+    if league_has then
+      state.payload = league_payload
+    else
+      state.err = "NO EVENTS"
+      return
+    end
+  end
   state.err = nil
   state.last_ok_ms = now_ms()
 end
@@ -657,7 +779,7 @@ local function handle_team_schedule_response(status, body)
   end
   state.payload = build_schedule_model(obj)
   local p = state.payload
-  local has_frames = (type(p) == "table") and (p.live or (type(p.next_games) == "table" and #p.next_games > 0) or p.last_result)
+  local has_frames = (type(p) == "table") and (type(p.next_games) == "table" and #p.next_games > 0)
   if not has_frames then
     state.err = "NO EVENTS"
     return
@@ -668,14 +790,20 @@ end
 
 local function payload_has_frames(payload)
   if type(payload) ~= "table" then return false end
-  if payload.live then return true end
   if type(payload.next_games) == "table" and #payload.next_games > 0 then return true end
-  if payload.last_result then return true end
   return false
 end
 
-local function start_request(kind)
+start_request = function(kind)
   if state.req_id then return end
+  if kind == "teams" then
+    local cached = read_teams_cache_body()
+    if cached then
+      handle_teams_response(200, cached)
+      state.last_req_ms = now_ms()
+      return
+    end
+  end
   local url = teams_url()
   local max_body = TEAMS_MAX_BODY
   if kind == "scoreboard" then
@@ -792,16 +920,6 @@ end
 
 function app.render_fb(fb)
   fb:fill(C_BG)
-  if state.boot_started_ms > 0 and (now_ms() - state.boot_started_ms) < BOOT_SPLASH_MS then
-    local t1, t2 = split_title_lines(APP_NAME)
-    if t2 ~= "" then
-      fb:text_box(0, 8, 64, 8, compact_text(t1, 14), C_ACCENT, FONT, 8, "center", false)
-      fb:text_box(0, 16, 64, 8, compact_text(t2, 14), C_ACCENT, FONT, 8, "center", false)
-    else
-      fb:text_box(0, 12, 64, 8, compact_text(t1, 14), C_ACCENT, FONT, 8, "center", false)
-    end
-    return
-  end
   fb:rect(0, Y_LINE_TOP, 64, 1, C_LINE)
 
   if state.err and not state.payload then
@@ -813,11 +931,9 @@ function app.render_fb(fb)
 
   local payload = state.payload or { title = TEAM ~= "" and TEAM or "TEAM", next_games = {}, last_result = nil, live = nil }
   local frames = {}
-  if payload.live then frames[#frames + 1] = { kind = "live", item = payload.live } end
   for i = 1, #payload.next_games do
     frames[#frames + 1] = { kind = "next", item = payload.next_games[i] }
   end
-  if payload.last_result then frames[#frames + 1] = { kind = "last", item = payload.last_result } end
   if #frames == 0 then
     fb:text_box(0, Y_HEADER, 64, 8, "SCHEDULE", C_ACCENT, FONT, 8, "center", false)
     fb:text_box(0, Y_ERR_BODY, 64, 8, state.empty_label or "NO EVENTS", C_MUTED, FONT, 8, "center", false)
@@ -832,31 +948,7 @@ function app.render_fb(fb)
   local function detail_compact(txt)
     txt = compact_text(txt or "", 16)
     if txt == "" then return "" end
-    if frame.kind == "last" and string.upper(txt) == "FINAL" then return "" end
     return txt
-  end
-
-  if frame.kind == "live" then
-    fb:text_box(X_TEXT, Y_HEADER, W_TEXT, 8, compact_text(title, 10), C_ACCENT, FONT, 8, "left", false)
-    fb:text_box(X_TAG_LIVE, Y_HEADER, W_TAG_LIVE, 8, "LIVE", C_LOSS, FONT, 8, "right", false)
-    fb:text_box(X_TEXT, Y_ROW_1, W_TEXT, 8, compact_text((item.home and "VS " or "@ ") .. item.opp, 16), C_TEXT, FONT_TITLE, 8, "left", false)
-    fb:text_box(X_TEXT, Y_ROW_2, W_TEXT, 8, compact_text("SCORE " .. tostring(item.score_label or "--"), 16), C_TEXT, FONT, 8, "left", false)
-    fb:text_box(X_TEXT, Y_ROW_3, W_TEXT, 8, detail_compact(item.detail), C_MUTED, FONT, 8, "left", false)
-    return
-  end
-
-  if frame.kind == "last" then
-    local accent = item.outcome == "W" and C_WIN or (item.outcome == "L" and C_LOSS or C_WARN)
-    fb:text_box(X_TEXT, Y_HEADER, W_TEXT, 8, compact_text(title, 10), C_ACCENT, FONT, 8, "left", false)
-    fb:text_box(X_TAG_LIVE, Y_HEADER, W_TAG_LIVE, 8, "FINAL", accent, FONT, 8, "right", false)
-    if stale ~= "" then
-      fb:text_box(X_TAG_STALE, Y_HEADER, W_TAG_STALE, 8, stale, C_WARN, FONT, 8, "right", false)
-    end
-    fb:text_box(X_TEXT, Y_ROW_1, W_TEXT, 8, compact_text((item.home and "VS " or "@ ") .. item.opp, 16), C_TEXT, FONT_TITLE, 8, "left", false)
-    fb:text_box(X_TEXT, Y_ROW_2, W_TEXT, 8, compact_text("SCORE " .. tostring(item.score_label or "--"), 16), C_TEXT, FONT, 8, "left", false)
-    local last_note = (item.outcome ~= "" and (item.outcome .. " ") or "") .. detail_compact(item.detail)
-    fb:text_box(X_TEXT, Y_ROW_3, W_TEXT, 8, compact_text(last_note, 16), accent, FONT, 8, "left", false)
-    return
   end
 
   fb:text_box(X_TEXT, Y_HEADER, W_TEXT, 8, compact_text(title, 10), C_ACCENT, FONT, 8, "left", false)
@@ -864,95 +956,13 @@ function app.render_fb(fb)
   if stale ~= "" then
     fb:text_box(X_TAG_STALE, Y_HEADER, W_TAG_STALE, 8, stale, C_WARN, FONT, 8, "right", false)
   end
-  fb:text_box(X_TEXT, Y_ROW_1, W_TEXT, 8, compact_text((item.home and "VS " or "@ ") .. item.opp, 16), C_TEXT, FONT_TITLE, 8, "left", false)
-  fb:text_box(X_TEXT, Y_NEXT_ROW_2, W_TEXT, 8, kickoff_line(item), C_TEXT, FONT, 8, "left", false)
-  -- NEXT view keeps only opponent + kickoff line to avoid redundant or overlapping text.
-end
-
-
--- __GLOBAL_BOOT_SPLASH_WRAPPER_V1__
-local __boot_now_ms = now_ms or (sys and sys.now_ms) or function() return 0 end
-local __boot_started_ms = 0
-local __boot_ms = tonumber(data.get("hockey_schedule.boot_splash_ms") or data.get("app.boot_splash_ms") or 5000) or 5000
-if __boot_ms < 0 then __boot_ms = 0 end
-local __boot_name = tostring(data.get("hockey_schedule.app_name") or "Hockey Schedule")
-
-local function __boot_compact_text(s, limit)
-  s = tostring(s or "")
-  s = string.gsub(s, "%s+", " ")
-  s = string.gsub(s, "^%s+", "")
-  s = string.gsub(s, "%s+$", "")
-  local n = tonumber(limit) or 16
-  if #s > n then return string.sub(s, 1, n - 1) .. "…" end
-  return s
-end
-
-local function __boot_split_title_lines(name)
-  local text = tostring(name or "")
-  text = string.gsub(text, "%s+", " ")
-  text = string.gsub(text, "^%s+", "")
-  text = string.gsub(text, "%s+$", "")
-  if text == "" then return "APP", "" end
-  local mid = math.floor(#text / 2)
-  local cut = nil
-  local best = 999
-  for i = 1, #text do
-    if string.sub(text, i, i) == " " then
-      local d = math.abs(i - mid)
-      if d < best then
-        best = d
-        cut = i
-      end
-    end
-  end
-  if not cut then return text, "" end
-  local a = string.gsub(string.sub(text, 1, cut - 1), "%s+$", "")
-  local b = string.gsub(string.sub(text, cut + 1), "^%s+", "")
-  return a, b
-end
-
-local function __boot_is_active()
-  if __boot_started_ms <= 0 then return false end
-  return (__boot_now_ms() - __boot_started_ms) < __boot_ms
-end
-
-local __orig_init = app.init
-app.init = function(...)
-  __boot_started_ms = __boot_now_ms()
-  if __orig_init then return __orig_init(...) end
-end
-
-local __orig_render_fb = app.render_fb
-if __orig_render_fb then
-  app.render_fb = function(...)
-    local fb = select(1, ...)
-    if __boot_is_active() and fb and fb.fill and fb.text_box then
-      local t1, t2 = __boot_split_title_lines(__boot_name)
-      fb:fill(0x0000)
-      if t2 ~= "" then
-        fb:text_box(0, 8, 64, 8, __boot_compact_text(t1, 14), 0x07FF, "builtin:silkscreen_regular_8", 8, "center", false)
-        fb:text_box(0, 16, 64, 8, __boot_compact_text(t2, 14), 0x07FF, "builtin:silkscreen_regular_8", 8, "center", false)
-      else
-        fb:text_box(0, 12, 64, 8, __boot_compact_text(t1, 14), 0x07FF, "builtin:silkscreen_regular_8", 8, "center", false)
-      end
-      return true
-    end
-    return __orig_render_fb(...)
-  end
-end
-
-local __orig_render = app.render
-if __orig_render then
-  app.render = function(...)
-    if __boot_is_active() then
-      local t1, t2 = __boot_split_title_lines(__boot_name)
-      if t2 ~= "" then
-        return {"", __boot_compact_text(t1, 16), __boot_compact_text(t2, 16), ""}
-      end
-      return {"", __boot_compact_text(t1, 16), "", ""}
-    end
-    return __orig_render(...)
-  end
+  local mine = compact_text(tostring(item.mine or title or "TEAM"), 4)
+  local opp = compact_text(tostring(item.opp or "---"), 4)
+  local vsat = item.home and "vs" or "@"
+  fb:text_box(X_TEXT, 6, W_TEXT, 8, mine, C_TEXT, FONT_TITLE, 8, "left", false)
+  fb:text_box(X_TEXT, 10, W_TEXT, 8, vsat, C_ACCENT, FONT, 8, "center", false)
+  fb:text_box(X_TEXT, 19, W_TEXT, 8, opp, C_TEXT, FONT_TITLE, 8, "right", false)
+  fb:text_box(0, 24, 64, 8, kickoff_line(item), C_MUTED, FONT, 8, "left", false)
 end
 
 return app

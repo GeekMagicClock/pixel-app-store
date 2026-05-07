@@ -18,7 +18,7 @@ local C_GRID = 0x0843
 local C_FRAME = 0x18C6
 local C_WARN = 0xF800
 local C_ACCENT = 0x07FF
-local BOOT_SPLASH_MS = 5000
+local BOOT_SPLASH_MS = 0
 local APP_NAME = tostring(data.get("aqi_day_pulse.app_name") or "AQI Day Pulse")
 
 local state = {
@@ -435,8 +435,7 @@ end
 -- __GLOBAL_BOOT_SPLASH_WRAPPER_V1__
 local __boot_now_ms = now_ms or (sys and sys.now_ms) or function() return 0 end
 local __boot_started_ms = 0
-local __boot_ms = tonumber(data.get("aqi_day_pulse.boot_splash_ms") or data.get("app.boot_splash_ms") or 5000) or 5000
-if __boot_ms < 0 then __boot_ms = 0 end
+local __boot_ms = 0
 local __boot_name = tostring(data.get("aqi_day_pulse.app_name") or "AQI Day Pulse")
 
 local function __boot_compact_text(s, limit)

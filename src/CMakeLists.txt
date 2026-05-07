@@ -5,6 +5,8 @@ set(PORTAL_HTML_SOURCE "${PROJECT_DIR}/webpages/portal.html")
 set(PORTAL_HTML_HEADER "${WEB_ASSET_GEN_DIR}/portal_html_gz.h")
 set(FAVICON_SOURCE "${PROJECT_DIR}/webpages/favicon.ico")
 set(FAVICON_HEADER "${WEB_ASSET_GEN_DIR}/favicon_ico_gz.h")
+set(SETTINGS_CORE_SOURCE "${PROJECT_DIR}/webpages/settings_core.js")
+set(SETTINGS_CORE_HEADER "${WEB_ASSET_GEN_DIR}/settings_core_js_gz.h")
 
 if(NOT CMAKE_SCRIPT_MODE_FILE)
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
@@ -46,7 +48,19 @@ if(NOT CMAKE_SCRIPT_MODE_FILE)
     COMMENT "Generating embedded web asset ${FAVICON_HEADER}"
     VERBATIM
   )
-  add_custom_target(pixel_web_asset DEPENDS "${F_HTML_HEADER}" "${PORTAL_HTML_HEADER}" "${FAVICON_HEADER}")
+  add_custom_command(
+    OUTPUT "${SETTINGS_CORE_HEADER}"
+    COMMAND "${Python3_EXECUTABLE}" "${PROJECT_DIR}/scripts/embed_web_asset.py"
+            --input "${SETTINGS_CORE_SOURCE}"
+            --output "${SETTINGS_CORE_HEADER}"
+            --symbol "settings_core_js_gz"
+    DEPENDS
+      "${SETTINGS_CORE_SOURCE}"
+      "${PROJECT_DIR}/scripts/embed_web_asset.py"
+    COMMENT "Generating embedded web asset ${SETTINGS_CORE_HEADER}"
+    VERBATIM
+  )
+  add_custom_target(pixel_web_asset DEPENDS "${F_HTML_HEADER}" "${PORTAL_HTML_HEADER}" "${FAVICON_HEADER}" "${SETTINGS_CORE_HEADER}")
 
   if(NOT EXISTS "${F_HTML_HEADER}" OR "${F_HTML_SOURCE}" IS_NEWER_THAN "${F_HTML_HEADER}")
     execute_process(
@@ -84,6 +98,19 @@ if(NOT CMAKE_SCRIPT_MODE_FILE)
     )
     if(NOT WEB_ASSET_BOOTSTRAP_RESULT EQUAL 0)
       message(FATAL_ERROR "failed to bootstrap embedded web asset: ${FAVICON_SOURCE}")
+    endif()
+  endif()
+
+  if(NOT EXISTS "${SETTINGS_CORE_HEADER}" OR "${SETTINGS_CORE_SOURCE}" IS_NEWER_THAN "${SETTINGS_CORE_HEADER}")
+    execute_process(
+      COMMAND "${Python3_EXECUTABLE}" "${PROJECT_DIR}/scripts/embed_web_asset.py"
+              --input "${SETTINGS_CORE_SOURCE}"
+              --output "${SETTINGS_CORE_HEADER}"
+              --symbol "settings_core_js_gz"
+      RESULT_VARIABLE WEB_ASSET_BOOTSTRAP_RESULT
+    )
+    if(NOT WEB_ASSET_BOOTSTRAP_RESULT EQUAL 0)
+      message(FATAL_ERROR "failed to bootstrap embedded web asset: ${SETTINGS_CORE_SOURCE}")
     endif()
   endif()
 endif()

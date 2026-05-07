@@ -39,19 +39,19 @@ looks_like_device() {
   [[ "${v}" == *.* || "${v}" == *:* || "${v}" == "localhost" ]]
 }
 
-post_lua_data_with_retry() {
+post_settings_with_retry() {
   local payload_file="$1"
   local attempt=1
   local max_attempts=3
   while true; do
     if curl --silent --show-error --fail \
       -H 'Content-Type: application/json' \
-      -X POST "${BASE_URL}/api/system/lua-data" \
+      -X POST "${BASE_URL}/api/system/settings" \
       --data-binary @"${payload_file}" >/dev/null; then
       return 0
     fi
     if [[ "${attempt}" -ge "${max_attempts}" ]]; then
-      echo "error: failed to update lua-data after ${max_attempts} attempts" >&2
+      echo "error: failed to update system settings after ${max_attempts} attempts" >&2
       return 1
     fi
     attempt=$((attempt + 1))
@@ -111,7 +111,7 @@ payload = {
 }
 print(json.dumps(payload, ensure_ascii=False))
 PY
-  post_lua_data_with_retry "${PAYLOAD_FILE}"
+  post_settings_with_retry "${PAYLOAD_FILE}"
   echo "done: mock disabled for ${APP_ID}"
   exit 0
 fi
@@ -149,7 +149,7 @@ payload = {
 }
 print(json.dumps(payload, ensure_ascii=False))
 PY
-post_lua_data_with_retry "${PAYLOAD_FILE}"
+post_settings_with_retry "${PAYLOAD_FILE}"
 
 if [[ "${SWITCH_AFTER}" == "1" ]]; then
   echo "==> Switch to ${APP_ID}"

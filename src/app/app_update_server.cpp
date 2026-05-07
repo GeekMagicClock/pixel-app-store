@@ -36,6 +36,7 @@
 #include "favicon_ico_gz.h"
 #include "my_debug.h"
 #include "portal_html_gz.h"
+#include "settings_core_js_gz.h"
 #include "freertos/semphr.h"
 #include "ui/lvgl_lua_app_screen.h"
 
@@ -89,6 +90,9 @@ static portMUX_TYPE g_capture_mux = portMUX_INITIALIZER_UNLOCKED;
 static bool g_capture_busy = false;
 static QueueHandle_t g_trash_queue = nullptr;
 static TaskHandle_t g_trash_task = nullptr;
+struct TrashJob {
+  char path[192];
+};
 static uint8_t g_logs_min_level = 1;  // info
 static bool g_logs_detailed_default = false;
 static TaskHandle_t g_scheduler_task = nullptr;
@@ -1281,10 +1285,9 @@ static bool MoveToTrash(const std::string& app_dir, const std::string& app_id) {
 
   if (rename(app_dir.c_str(), trash_dir.c_str()) == 0) {
     if (g_trash_queue) {
-      std::string* payload = new std::string(trash_dir);
-      if (xQueueSend(g_trash_queue, &payload, 0) != pdTRUE) {
-        delete payload;
-      }
+      TrashJob job = {};
+      std::snprintf(job.path, sizeof(job.path), "%s", trash_dir.c_str());
+      (void)xQueueSend(g_trash_queue, &job, 0);
     }
     return true;
   }
@@ -1295,11 +1298,9 @@ static bool MoveToTrash(const std::string& app_dir, const std::string& app_id) {
 
 static void TrashCleanerTask(void*) {
   while (true) {
-    std::string* payload = nullptr;
-    if (!g_trash_queue || xQueueReceive(g_trash_queue, &payload, portMAX_DELAY) != pdTRUE) continue;
-    if (!payload) continue;
-    std::string trash_dir = *payload;
-    delete payload;
+    TrashJob job = {};
+    if (!g_trash_queue || xQueueReceive(g_trash_queue, &job, portMAX_DELAY) != pdTRUE) continue;
+    std::string trash_dir = job.path;
     if (!trash_dir.empty()) {
       (void)RemoveTree(trash_dir);
       (void)rmdir(trash_dir.c_str());
@@ -1317,10 +1318,9 @@ static void EnqueueExistingTrash() {
     const char* name = ent->d_name;
     if (!name || strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
     const std::string child = trash_root + "/" + name;
-    std::string* payload = new std::string(child);
-    if (g_trash_queue && xQueueSend(g_trash_queue, &payload, 0) != pdTRUE) {
-      delete payload;
-    }
+    TrashJob job = {};
+    std::snprintf(job.path, sizeof(job.path), "%s", child.c_str());
+    if (g_trash_queue) (void)xQueueSend(g_trash_queue, &job, 0);
   }
   closedir(dir);
 }
@@ -2386,6 +2386,20 @@ static esp_err_t HandleAppWebFile(httpd_req_t* req) {
     SendJson(req, "400 Bad Request", "{\"ok\":false,\"error\":\"invalid path\"}");
     return ESP_OK;
   }
+  // Serve embedded shared assets from firmware when present. This keeps
+  // `_shared/settings_core.js` tied to firmware releases instead of LittleFS
+  // contents that can get out of sync.
+  if (app_id == "_shared" && filename == "settings_core.js") {
+    httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
+    httpd_resp_set_type(req, "application/javascript; charset=utf-8");
+    const unsigned char* data = settings_core_js_gz;
+    const size_t len = settings_core_js_gz_len;
+    if (httpd_resp_send(req, reinterpret_cast<const char*>(data), static_cast<int>(len)) == ESP_OK) {
+      return ESP_OK;
+    }
+    SendJson(req, "500 Internal Server Error", "{\"ok\":false,\"error\":\"send failed\"}");
+    return ESP_OK;
+  }
   const std::string full_path = std::string("/littlefs/apps/") + app_id + "/" + filename;
   const std::string gz_path = full_path + ".gz";
   struct stat st = {};
@@ -3282,7 +3296,7 @@ bool AppUpdateServerStart(AppUpdateReloadCallback reload_cb, AppUpdateSwitchCall
   if (g_httpd) return true;
   EnsureLogCaptureInstalled();
   if (!g_installed_apps_cache_mu) g_installed_apps_cache_mu = xSemaphoreCreateMutex();
-  if (!g_trash_queue) g_trash_queue = xQueueCreate(12, sizeof(std::string*));
+  if (!g_trash_queue) g_trash_queue = xQueueCreate(12, sizeof(TrashJob));
   if (!g_trash_task && g_trash_queue) {
     xTaskCreatePinnedToCore(TrashCleanerTask, "trash_cleaner", 4096, nullptr, 1, &g_trash_task, tskNO_AFFINITY);
     EnqueueExistingTrash();
@@ -3507,6 +3521,8 @@ bool AppUpdateServerStart(AppUpdateReloadCallback reload_cb, AppUpdateSwitchCall
     g_httpd = nullptr;
     return false;
   }
+
+  // Note: legacy /api/system/lua-data endpoint was intentionally removed.
 
   httpd_uri_t system_logs = {};
   system_logs.uri = "/api/system/logs";

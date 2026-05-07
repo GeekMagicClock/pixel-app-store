@@ -19,6 +19,7 @@ assets = [
     ("f.html", "f_html_gz.h", "f_html_gz"),
     ("portal.html", "portal_html_gz.h", "portal_html_gz"),
     ("favicon.ico", "favicon_ico_gz.h", "favicon_ico_gz"),
+    ("settings_core.js", "settings_core_js_gz.h", "settings_core_js_gz"),
 ]
 
 generated_dir.mkdir(parents=True, exist_ok=True)

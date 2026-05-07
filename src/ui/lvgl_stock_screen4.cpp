@@ -11,6 +11,7 @@ extern "C" {
 }
 
 #include "third_party/animatedgif/AnimatedGIF.h"
+#include "ui/lvgl_mem_utils.h"
 
 static const char *kTag = "stock_screen4";
 
@@ -116,7 +117,7 @@ static void StopWeatherGif() {
     g_weather_open = false;
   }
   if (g_weather_fb) {
-    lv_free(g_weather_fb);
+    LvglFreePreferPsram(g_weather_fb);
     g_weather_fb = nullptr;
   }
   g_weather_w = 0;
@@ -381,7 +382,7 @@ static void StartWeatherGifIfNeeded() {
   // COOKED mode needs: canvas as 8bpp (w*h) + one cooked line (w*2) => w*(h+2).
   const size_t w = static_cast<size_t>(g_weather_w);
   const size_t h = static_cast<size_t>(g_weather_h);
-  g_weather_fb = static_cast<uint8_t *>(lv_malloc(w * (h + 2)));
+  g_weather_fb = static_cast<uint8_t *>(LvglAllocPreferPsram(w * (h + 2)));
   if (!g_weather_fb) {
     ESP_LOGW(kTag, "Weather GIF framebuffer alloc failed");
     StopWeatherGif();

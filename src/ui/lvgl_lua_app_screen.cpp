@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "freertos/FreeRTOS.h"
+#include "freertos/idf_additions.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "esp_log.h"
@@ -313,7 +314,17 @@ static bool StartFbTaskIfNeeded() {
   }
   if (g_state.fb_task) return true;
 
-  BaseType_t rc = xTaskCreatePinnedToCore(FbRenderTask, "app_fb", 8192, nullptr, 4, &g_state.fb_task, kLuaFbTaskCore);
+  BaseType_t rc = xTaskCreatePinnedToCoreWithCaps(FbRenderTask,
+                                                  "app_fb",
+                                                  8192,
+                                                  nullptr,
+                                                  4,
+                                                  &g_state.fb_task,
+                                                  kLuaFbTaskCore,
+                                                  MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (rc != pdPASS) {
+    rc = xTaskCreatePinnedToCore(FbRenderTask, "app_fb", 8192, nullptr, 4, &g_state.fb_task, kLuaFbTaskCore);
+  }
   if (rc != pdPASS) {
     g_state.fb_task = nullptr;
     g_state.fb_faulted = true;

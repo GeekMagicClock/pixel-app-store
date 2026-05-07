@@ -29,6 +29,18 @@ These rules are mandatory for any AI agent working in this repository.
    - `scripts/publish_app_store_all.sh`
 2. If changing publishing scripts, agents must preserve this policy and update this file when behavior changes.
 
+## Version Bump Policy (Required)
+
+1. Any publish action to `beta` or `stable` MUST include a version increase for every app being published.
+2. Agents MUST NOT use no-bump publish mode (e.g. `--allow-no-bump`) for official publish actions.
+3. If version is unchanged, agents must stop, bump version first, then publish.
+
+## Settings Asset Policy (Required)
+
+1. App delivery payloads (device push packages and published zip artifacts) MUST include `settings.html.gz` only.
+2. Raw `settings.html` MUST NOT be uploaded to device install session and MUST NOT be included in published app zip payload.
+3. If `settings.html` exists in source tree, agents must ensure matching `settings.html.gz` is regenerated from latest source before push/publish.
+
 ## Preflight Checklist (Required)
 
 Before any publish action, agents must verify:

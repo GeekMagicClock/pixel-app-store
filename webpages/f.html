@@ -556,16 +556,13 @@
     }
 
     .installed-list-wrap {
-      max-height: 68vh;
-      overflow: auto;
-      padding-right: 4px;
+      max-height: none;
+      overflow: visible;
+      padding-right: 0;
     }
 
     .installed-list-sentinel {
-      text-align: center;
-      color: var(--muted);
-      font-size: 12px;
-      padding: 10px 0 4px;
+      display: none;
     }
 
     .wifi-item {
@@ -3777,50 +3774,81 @@
       return card;
     }
 
-    function appendInstalledAppsBatch(token) {
-      if (token !== state.renderTokenInstalled || state.installedLazyLoading) return;
-      state.installedLazyLoading = true;
-      const frag = document.createDocumentFragment();
-      let count = 0;
-      while (state.installedLazyIndex < state.installedLazyItems.length && count < INSTALLED_RENDER_BATCH) {
-        frag.appendChild(createInstalledCard(state.installedLazyItems[state.installedLazyIndex++]));
-        count += 1;
+    function buildInstalledGroups() {
+      const groups = {};
+      const discovered = [];
+      const storeCategoryById = {};
+
+      for (const item of state.storeApps || []) {
+        const id = String(item?.id || item?.app_id || "").trim();
+        if (!id) continue;
+        if (storeCategoryById[id] == null) {
+          storeCategoryById[id] = item?.category;
+        }
       }
-      installedAppsGridEl.appendChild(frag);
-      hydrateLazyThumbs(installedAppsGridEl);
-      const left = state.installedLazyItems.length - state.installedLazyIndex;
-      installedAppsSentinelEl.textContent = left > 0 ? ("Scroll to load more (" + left + " left)") : "All apps loaded";
-      state.installedLazyLoading = false;
+
+      for (const item of state.installedApps || []) {
+        const id = String(item?.id || item?.app_id || "").trim();
+        const inferredCategory = item?.category || storeCategoryById[id] || "other";
+        const key = categoryKey(inferredCategory);
+        if (!groups[key]) {
+          groups[key] = [];
+          discovered.push(key);
+        }
+        groups[key].push(item);
+      }
+
+      const order = [];
+      for (const raw of state.categoryOrder || []) {
+        const key = categoryKey(raw);
+        if (groups[key] && !order.includes(key)) order.push(key);
+      }
+      for (const key of discovered) {
+        if (!order.includes(key)) order.push(key);
+      }
+
+      return order.map((key) => ({
+        key,
+        label: categoryLabel(key),
+        items: (groups[key] || []).slice().sort((a, b) =>
+          String(a.name || a.id || "").localeCompare(String(b.name || b.id || ""))
+        ),
+      }));
+    }
+
+    function createInstalledSection(group) {
+      const built = createStoreSection(group);
+      built.section.style.gridColumn = "1 / -1";
+      return built;
     }
 
     function renderInstalledApps() {
       const token = ++state.renderTokenInstalled;
       installedAppsGridEl.innerHTML = "";
       installedAppsSentinelEl.textContent = "";
-      state.installedLazyItems = state.installedApps.slice().sort((a, b) =>
-        String(a.name || a.id || "").localeCompare(String(b.name || b.id || ""))
-      );
-      state.installedLazyIndex = 0;
-      state.installedLazyLoading = false;
       if (state.installedLazyObserver) {
         state.installedLazyObserver.disconnect();
         state.installedLazyObserver = null;
       }
-      if (!state.installedLazyItems.length) {
+      if (!state.installedApps.length) {
         installedAppsGridEl.innerHTML = '<div class="muted">No installed apps. Install one from Apps Store to start playback.</div>';
+        renderScheduleBuilder();
         return;
       }
 
-      appendInstalledAppsBatch(token);
-      state.installedLazyObserver = new IntersectionObserver((entries) => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          if (token !== state.renderTokenInstalled) return;
-          if (state.installedLazyIndex >= state.installedLazyItems.length) return;
-          appendInstalledAppsBatch(token);
+      const groups = buildInstalledGroups();
+      const frag = document.createDocumentFragment();
+      for (const group of groups) {
+        if (token !== state.renderTokenInstalled) return;
+        const built = createInstalledSection(group);
+        for (const item of group.items) {
+          built.grid.appendChild(createInstalledCard(item));
         }
-      }, { root: installedAppsWrapEl, rootMargin: "120px 0px" });
-      state.installedLazyObserver.observe(installedAppsSentinelEl);
+        frag.appendChild(built.section);
+      }
+      installedAppsGridEl.appendChild(frag);
+      hydrateLazyThumbs(installedAppsGridEl);
+      installedAppsSentinelEl.textContent = "All apps loaded";
       renderScheduleBuilder();
     }
 

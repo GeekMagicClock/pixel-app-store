@@ -30,7 +30,6 @@ local C_LIVE = 0xF800
 local C_WARN = 0xFD20
 local C_GOOD = 0x07E0
 local C_BAD = 0xF800
-local BOOT_SPLASH_MS = 5000
 
 local function num_setting(key, fallback)
   local v = tonumber(data.get(key))
@@ -50,11 +49,12 @@ local ROTATE_SEC = num_setting("baseball_scoreboard.rotate_sec", num_setting("ga
 local REFRESH_SEC = num_setting("baseball_scoreboard.refresh_sec", num_setting("game_summary.refresh_sec", nil))
 local ROTATE_MS = math.floor((ROTATE_SEC and ROTATE_SEC > 0 and ROTATE_SEC or (num_setting("baseball_scoreboard.rotate_ms", num_setting("game_summary.rotate_ms", 3500)) / 1000)) * 1000)
 local TTL_MS = math.floor((REFRESH_SEC and REFRESH_SEC > 0 and REFRESH_SEC or (num_setting("baseball_scoreboard.ttl_ms", num_setting("game_summary.ttl_ms", 60000)) / 1000)) * 1000)
+local LIVE_TTL_MS = 20000
 local MAX_BODY = tonumber(data.get("baseball_scoreboard.max_body") or data.get("game_summary.max_body") or 512000) or 512000
 local SCOREBOARD_MAX_BODY = tonumber(data.get("baseball_scoreboard.scoreboard_max_body") or data.get("game_summary.scoreboard_max_body") or 458752) or 458752
 local SCOREBOARD_MAX_BODY_HARD = 524288
 local TIMEOUT_MS = tonumber(data.get("baseball_scoreboard.timeout_ms") or data.get("game_summary.timeout_ms") or 8000) or 8000
-local APP_NAME = tostring(data.get("baseball_scoreboard.app_name") or "Baseball Scoreboard")
+local APP_NAME = tostring(data.get("baseball_scoreboard.app_name") or "Basketball Scoreboard")
 if ROTATE_MS < 1000 then ROTATE_MS = 1000 end
 if TTL_MS < 10000 then TTL_MS = 10000 end
 if MAX_BODY < 16384 then MAX_BODY = 16384 end
@@ -76,7 +76,12 @@ local state = {
   boot_started_ms = 0,
   scoreboard_cap = SCOREBOARD_MAX_BODY,
   board_pages = nil,
+  has_live = false,
 }
+
+local function dbg(msg)
+  print("[baseball_scoreboard] " .. tostring(msg or ""))
+end
 
 local function board_rotation_enabled()
   -- Auto page rotation is allowed regardless of Team Focus.
@@ -130,7 +135,33 @@ local function scoreboard_url(no_date_filter)
   local m = tonumber(t.month) or 0
   local d = tonumber(t.day) or 0
   if y <= 0 or m <= 0 or d <= 0 then return base end
-  return string.format("%s?dates=%04d%02d%02d", base, y, m, d)
+
+  local function is_leap_year(yy)
+    if yy % 400 == 0 then return true end
+    if yy % 100 == 0 then return false end
+    return (yy % 4) == 0
+  end
+  local function dim(yy, mm)
+    if mm == 4 or mm == 6 or mm == 9 or mm == 11 then return 30 end
+    if mm == 2 then return is_leap_year(yy) and 29 or 28 end
+    return 31
+  end
+  local function ymd_add_days(yy, mm, dd, delta)
+    local n = delta
+    while n < 0 do
+      dd = dd - 1
+      if dd <= 0 then
+        mm = mm - 1
+        if mm <= 0 then mm = 12; yy = yy - 1 end
+        dd = dim(yy, mm)
+      end
+      n = n + 1
+    end
+    return yy, mm, dd
+  end
+
+  local y0, m0, d0 = ymd_add_days(y, m, d, -1)
+  return string.format("%s?dates=%04d%02d%02d-%04d%02d%02d", base, y0, m0, d0, y, m, d)
 end
 
 local function summary_url(event_id)
@@ -193,6 +224,12 @@ end
 
 local function hm_from_iso(iso)
   return string.match(tostring(iso or ""), "T(%d%d:%d%d)") or ""
+end
+
+local function mmdd_from_iso(iso)
+  local _, m, d = string.match(tostring(iso or ""), "^(%d%d%d%d)%-(%d%d)%-(%d%d)")
+  if not m or not d then return "" end
+  return tostring(tonumber(m) or m) .. "/" .. tostring(tonumber(d) or d)
 end
 
 local function is_leap_year(y)
@@ -262,6 +299,18 @@ local function hm_local_from_iso(iso)
   return string.format("%02d:%02d", h, m)
 end
 
+local function weekday_from_iso(iso)
+  local utc_epoch = parse_iso_utc_epoch(iso)
+  local offset = local_utc_offset_sec()
+  if not utc_epoch or not offset then return "" end
+  local local_epoch = utc_epoch + offset
+  local days = math.floor(local_epoch / 86400)
+  local w = (days + 4) % 7 -- 1970-01-01 is Thursday
+  if w < 0 then w = w + 7 end
+  local names = {"SUN","MON","TUE","WED","THU","FRI","SAT"}
+  return names[w + 1] or ""
+end
+
 local function hm_from_status(detail)
   if type(detail) ~= "string" then return "" end
   local hm = string.match(detail, "(%d%d:%d%d)")
@@ -311,6 +360,9 @@ local function parse_event_fallback(event)
   local home, away = find_home_away(comp)
   local status_text = event.status and event.status.type and (event.status.type.shortDetail or event.status.type.detail) or ""
   local state_name = tostring(event.status and event.status.type and event.status.type.state or "")
+  if state_name == "post" and score_text(away) == "-" and score_text(home) == "-" then
+    return nil
+  end
   return {
     header = compact_text(score_header(away, home), 14),
     away_abbr = abbr(away),
@@ -322,6 +374,7 @@ local function parse_event_fallback(event)
     status = compact_text(status_text, 16),
     detail1 = string.upper(LEAGUE),
     detail2 = TEAM ~= "" and TEAM or string.upper(SPORT),
+    date_raw = tostring(event and event.date or ""),
     start_label = state_name == "pre" and kickoff_label(event, status_text) or "",
     state = state_name,
     accent = state_name == "in" and C_LIVE or C_ACCENT,
@@ -335,8 +388,7 @@ end
 local function event_sort_score(event)
   local st = tostring(event and event.status and event.status.type and event.status.type.state or "")
   if st == "in" then return 300 end
-  if st == "pre" then return 200 end
-  if st == "post" then return 100 end
+  if st == "post" then return 200 end
   return 0
 end
 
@@ -344,13 +396,23 @@ local function build_scoreboard_pages(obj)
   local events = obj and obj.events or {}
   if type(events) ~= "table" or #events == 0 then return {} end
   local pages = {}
+  local focus_enabled = (TEAM ~= "" or TEAM_ID ~= "")
   for i = 1, #events do
     local e = events[i]
-    local m = parse_event_fallback(e)
-    if m then
-      pages[#pages + 1] = { event = e, model = m }
+    local comp = e and e.competitions and e.competitions[1] or nil
+    local home, away = find_home_away(comp)
+    local st = tostring(e and e.status and e.status.type and e.status.type.state or "")
+    local allowed_state = (st == "in" or st == "post")
+    local focused_match = (team_match(home) or team_match(away))
+    if allowed_state and ((not focus_enabled) or focused_match) then
+      local m = parse_event_fallback(e)
+      local post_has_scores = (st ~= "post") or (m and m.away_score ~= "-" and m.home_score ~= "-")
+      if m and post_has_scores then
+        pages[#pages + 1] = { event = e, model = m }
+      end
     end
   end
+  dbg(string.format("pages built=%d from events=%d focus=%s", #pages, #events, tostring(focus_enabled)))
   if #pages <= 1 then return pages end
   table.sort(pages, function(a, b)
     local sa = event_sort_score(a.event)
@@ -366,6 +428,13 @@ local function build_scoreboard_pages(obj)
     return out
   end
   return pages
+end
+
+local function first_board_page_or_nil()
+  if type(state.board_pages) == "table" and #state.board_pages > 0 then
+    return state.board_pages[1].model
+  end
+  return nil
 end
 
 local function parse_summary(obj)
@@ -475,6 +544,20 @@ local function build_mock_payload()
   return nil
 end
 
+local function model_is_live(model)
+  return type(model) == "table" and tostring(model.state or "") == "in"
+end
+
+local function scoreboard_has_live(parsed)
+  if model_is_live(parsed) then return true end
+  if type(state.board_pages) == "table" then
+    for i = 1, #state.board_pages do
+      if model_is_live(state.board_pages[i].model) then return true end
+    end
+  end
+  return false
+end
+
 local function handle_scoreboard_response(status, body)
   if status ~= 200 then
     state.err = "HTTP " .. tostring(status)
@@ -489,12 +572,19 @@ local function handle_scoreboard_response(status, body)
   end
   local event = choose_event(obj)
   local parsed = parse_scoreboard_fallback(obj)
+  if parsed and tostring(parsed.state or "") == "pre" then
+    parsed = nil
+  end
   local global_rotate = board_rotation_enabled()
   if global_rotate then
     state.board_pages = build_scoreboard_pages(obj)
   else
     state.board_pages = nil
   end
+  state.has_live = scoreboard_has_live(parsed)
+
+  local has_board_pages = (type(state.board_pages) == "table" and #state.board_pages > 0)
+  dbg("scoreboard response has_pages=" .. tostring(has_board_pages) .. " parsed=" .. tostring(parsed ~= nil))
   if not parsed then
     if state.payload then
       -- Keep last good board on temporary empty scoreboard windows.
@@ -506,6 +596,7 @@ local function handle_scoreboard_response(status, body)
       state.last_req_ms = 0
       return
     end
+    state.has_live = false
     state.payload = {
       header = "NO GAME",
       away_abbr = "---",
@@ -526,10 +617,24 @@ local function handle_scoreboard_response(status, body)
     return
   end
   if SCOREBOARD_ONLY then
-    if global_rotate and type(state.board_pages) == "table" and #state.board_pages > 0 then
-      state.payload = state.board_pages[1].model
+    local first_model = first_board_page_or_nil()
+    if first_model then
+      state.payload = first_model
     else
-      state.payload = parsed
+      state.payload = {
+        header = "NO GAME",
+        away_abbr = "---",
+        away_score = "-",
+        away_score_num = nil,
+        home_abbr = "---",
+        home_score = "-",
+        home_score_num = nil,
+        status = compact_text(string.upper(LEAGUE), 15),
+        detail1 = "CHECK LATER",
+        detail2 = TEAM ~= "" and TEAM or string.upper(SPORT),
+        state = "post",
+        accent = C_WARN,
+      }
     end
     state.err = nil
     state.last_ok_ms = now_ms()
@@ -539,7 +644,21 @@ local function handle_scoreboard_response(status, body)
     return
   end
   if not event or not event.id then
-    state.payload = parsed
+    local first_model = first_board_page_or_nil()
+    state.payload = first_model or {
+      header = "NO GAME",
+      away_abbr = "---",
+      away_score = "-",
+      away_score_num = nil,
+      home_abbr = "---",
+      home_score = "-",
+      home_score_num = nil,
+      status = compact_text(string.upper(LEAGUE), 15),
+      detail1 = "CHECK LATER",
+      detail2 = TEAM ~= "" and TEAM or string.upper(SPORT),
+      state = "post",
+      accent = C_WARN,
+    }
     state.err = nil
     state.last_ok_ms = now_ms()
     state.tried_open_window = false
@@ -547,12 +666,26 @@ local function handle_scoreboard_response(status, body)
     return
   end
   -- Scoreboard is always the primary render model, even when summary is available.
-  if global_rotate and type(state.board_pages) == "table" and #state.board_pages > 0 then
-    state.payload = state.board_pages[1].model
+  local first_model = first_board_page_or_nil()
+  if first_model then
+    state.payload = first_model
     state.resolved_event_id = ""
   else
-    state.payload = parsed
-    state.resolved_event_id = tostring(event.id)
+    state.payload = {
+      header = "NO GAME",
+      away_abbr = "---",
+      away_score = "-",
+      away_score_num = nil,
+      home_abbr = "---",
+      home_score = "-",
+      home_score_num = nil,
+      status = compact_text(string.upper(LEAGUE), 15),
+      detail1 = "CHECK LATER",
+      detail2 = TEAM ~= "" and TEAM or string.upper(SPORT),
+      state = "post",
+      accent = C_WARN,
+    }
+    state.resolved_event_id = ""
   end
   state.err = nil
   state.last_ok_ms = now_ms()
@@ -574,6 +707,7 @@ local function handle_summary_response(status, body)
   end
   state.payload = parse_summary(obj)
   state.board_pages = nil
+  state.has_live = model_is_live(state.payload)
   if not state.payload then
     state.err = "BAD DATA"
     state.backoff_until_ms = now_ms() + 30000
@@ -596,12 +730,16 @@ local function handle_request_error(kind, err)
   state.backoff_until_ms = now_ms() + 30000
 end
 
+local function current_refresh_interval()
+  return state.has_live and LIVE_TTL_MS or TTL_MS
+end
+
 local function start_request(kind)
   if state.req_id then return end
   if state.backoff_until_ms > 0 and now_ms() < state.backoff_until_ms then return end
   local url = kind == "scoreboard" and scoreboard_url(state.tried_open_window) or summary_url(state.resolved_event_id)
   local request_max_body = kind == "scoreboard" and state.scoreboard_cap or MAX_BODY
-  local id, body, age_ms, err = net.cached_get(url, TTL_MS, TIMEOUT_MS, request_max_body)
+  local id, body, age_ms, err = net.cached_get(url, current_refresh_interval(), TIMEOUT_MS, request_max_body)
   if err then
     handle_request_error(kind, err)
     return
@@ -645,6 +783,7 @@ function app.init()
   state.backoff_until_ms = 0
   state.scoreboard_cap = SCOREBOARD_MAX_BODY
   state.board_pages = nil
+  state.has_live = false
   state.payload = build_mock_payload()
   state.boot_started_ms = now_ms()
   if state.payload then
@@ -681,7 +820,7 @@ function app.tick(dt_ms)
     end
     return
   end
-  local interval = state.err and 30000 or TTL_MS
+  local interval = state.err and 30000 or current_refresh_interval()
   if now_ms() - state.last_req_ms >= interval then
     ensure_request()
   end
@@ -689,18 +828,6 @@ end
 
 function app.render_fb(fb)
   fb:fill(C_BG)
-
-  if state.boot_started_ms > 0 and (now_ms() - state.boot_started_ms) < BOOT_SPLASH_MS then
-    local t1, t2 = split_title_lines(APP_NAME)
-    if t2 ~= "" then
-      fb:text_box(0, 8, 64, 8, compact_text(t1, 14), C_ACCENT, FONT, 8, "center", false)
-      fb:text_box(0, 16, 64, 8, compact_text(t2, 14), C_ACCENT, FONT, 8, "center", false)
-    else
-      fb:text_box(0, 12, 64, 8, compact_text(t1, 14), C_ACCENT, FONT, 8, "center", false)
-    end
-    return
-  end
-
   if state.err and not state.payload then
     fb:text_box(0, Y_ERR_TITLE, 64, 8, "SCOREBOARD", C_TEXT, FONT, 8, "center", false)
     fb:text_box(0, Y_ERR_BODY, 64, 8, compact_text(state.err, 16), C_WARN, FONT, 8, "center", false)
@@ -738,6 +865,22 @@ function app.render_fb(fb)
       local pidx = math.floor(state.anim_ms / ROTATE_MS) % #state.board_pages + 1
       model = state.board_pages[pidx].model or model
     end
+  end
+  if tostring(model.state or "") == "pre" then
+    model = {
+      header = "NO GAME",
+      away_abbr = "---",
+      away_score = "-",
+      away_score_num = nil,
+      home_abbr = "---",
+      home_score = "-",
+      home_score_num = nil,
+      status = compact_text(string.upper(LEAGUE), 15),
+      detail1 = "CHECK LATER",
+      detail2 = TEAM ~= "" and TEAM or string.upper(SPORT),
+      state = "post",
+      accent = C_WARN,
+    }
   end
 
   local function line_color(self_score, other_score)
@@ -779,9 +922,7 @@ function app.render_fb(fb)
   elseif tostring(model.state or "") == "post" and status_line ~= "" then
     detail = status_line
   elseif tostring(model.state or "") == "post" then
-    detail = "FINAL"
-  elseif tostring(model.state or "") == "pre" and tostring(model.start_label or "") ~= "" then
-    detail = tostring(model.start_label or "")
+    detail = mmdd_from_iso(model.date_raw or "")
   end
   local detail_color = C_MUTED
   if stale ~= "" then
@@ -790,17 +931,17 @@ function app.render_fb(fb)
     detail_color = C_LIVE
   elseif tostring(model.state or "") == "post" and status_line ~= "" then
     detail_color = C_TEXT
-  elseif tostring(model.state or "") == "pre" and tostring(model.start_label or "") ~= "" then
-    detail_color = C_ACCENT
   end
   local league_tag = compact_text(string.upper(LEAGUE), 8)
   local state_tag = ""
+  local post_weekday = ""
+  local post_date = ""
   if model.state == "in" then
     state_tag = "LIVE"
   elseif model.state == "post" then
     state_tag = "FINAL"
-  elseif model.state == "pre" then
-    state_tag = "UP NEXT"
+    post_weekday = weekday_from_iso(model.date_raw or "")
+    post_date = mmdd_from_iso(model.date_raw or "")
   elseif stale ~= "" then
     state_tag = stale
   else
@@ -815,103 +956,22 @@ function app.render_fb(fb)
   local home_score = tostring(model.home_score or "-")
   fb:text_box(X_TEXT, Y_ROW_1, W_TEXT, 8, compact_text(away_abbr .. " " .. away_score, 12), line_color(model.away_score_num, model.home_score_num), FONT_TITLE, 8, "left", false)
   fb:text_box(X_TEXT, Y_ROW_2, W_TEXT, 8, compact_text(home_abbr .. " " .. home_score, 12), line_color(model.home_score_num, model.away_score_num), FONT_TITLE, 8, "left", false)
-  fb:text_box(
-    X_TEXT,
-    Y_ROW_3,
-    W_TEXT,
-    8,
-    compact_text(detail ~= "" and detail or model.detail2, 15),
-    detail_color,
-    FONT,
-    8,
-    "left",
-    false
-  )
-end
-
-
--- __GLOBAL_BOOT_SPLASH_WRAPPER_V1__
-local __boot_now_ms = now_ms or (sys and sys.now_ms) or function() return 0 end
-local __boot_started_ms = 0
-local __boot_ms = tonumber(data.get("baseball_scoreboard.boot_splash_ms") or data.get("app.boot_splash_ms") or 5000) or 5000
-if __boot_ms < 0 then __boot_ms = 0 end
-local __boot_name = tostring(data.get("baseball_scoreboard.app_name") or "Baseball Scoreboard")
-
-local function __boot_compact_text(s, limit)
-  s = tostring(s or "")
-  s = string.gsub(s, "%s+", " ")
-  s = string.gsub(s, "^%s+", "")
-  s = string.gsub(s, "%s+$", "")
-  local n = tonumber(limit) or 16
-  if #s > n then return string.sub(s, 1, n - 1) .. "…" end
-  return s
-end
-
-local function __boot_split_title_lines(name)
-  local text = tostring(name or "")
-  text = string.gsub(text, "%s+", " ")
-  text = string.gsub(text, "^%s+", "")
-  text = string.gsub(text, "%s+$", "")
-  if text == "" then return "APP", "" end
-  local mid = math.floor(#text / 2)
-  local cut = nil
-  local best = 999
-  for i = 1, #text do
-    if string.sub(text, i, i) == " " then
-      local d = math.abs(i - mid)
-      if d < best then
-        best = d
-        cut = i
-      end
-    end
-  end
-  if not cut then return text, "" end
-  local a = string.gsub(string.sub(text, 1, cut - 1), "%s+$", "")
-  local b = string.gsub(string.sub(text, cut + 1), "^%s+", "")
-  return a, b
-end
-
-local function __boot_is_active()
-  if __boot_started_ms <= 0 then return false end
-  return (__boot_now_ms() - __boot_started_ms) < __boot_ms
-end
-
-local __orig_init = app.init
-app.init = function(...)
-  __boot_started_ms = __boot_now_ms()
-  if __orig_init then return __orig_init(...) end
-end
-
-local __orig_render_fb = app.render_fb
-if __orig_render_fb then
-  app.render_fb = function(...)
-    local fb = select(1, ...)
-    if __boot_is_active() and fb and fb.fill and fb.text_box then
-      local t1, t2 = __boot_split_title_lines(__boot_name)
-      fb:fill(0x0000)
-      if t2 ~= "" then
-        fb:text_box(0, 8, 64, 8, __boot_compact_text(t1, 14), 0x07FF, "builtin:silkscreen_regular_8", 8, "center", false)
-        fb:text_box(0, 16, 64, 8, __boot_compact_text(t2, 14), 0x07FF, "builtin:silkscreen_regular_8", 8, "center", false)
-      else
-        fb:text_box(0, 12, 64, 8, __boot_compact_text(t1, 14), 0x07FF, "builtin:silkscreen_regular_8", 8, "center", false)
-      end
-      return true
-    end
-    return __orig_render_fb(...)
-  end
-end
-
-local __orig_render = app.render
-if __orig_render then
-  app.render = function(...)
-    if __boot_is_active() then
-      local t1, t2 = __boot_split_title_lines(__boot_name)
-      if t2 ~= "" then
-        return {"", __boot_compact_text(t1, 16), __boot_compact_text(t2, 16), ""}
-      end
-      return {"", __boot_compact_text(t1, 16), "", ""}
-    end
-    return __orig_render(...)
+  if tostring(model.state or "") == "post" and post_date ~= "" then
+    fb:text_box(X_TEXT, Y_ROW_3, 40, 8, compact_text(post_date, 8), C_TEXT, FONT, 8, "left", false)
+    fb:text_box(40, Y_ROW_3, 24, 8, compact_text(post_weekday, 6), C_ACCENT, FONT, 8, "right", false)
+  else
+    fb:text_box(
+      X_TEXT,
+      Y_ROW_3,
+      W_TEXT,
+      8,
+      compact_text(detail ~= "" and detail or model.detail2, 15),
+      detail_color,
+      FONT,
+      8,
+      "left",
+      false
+    )
   end
 end
 

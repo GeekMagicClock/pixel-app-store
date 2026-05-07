@@ -37,7 +37,6 @@ local C_ROW_1 = 0xFFFF
 local C_ROW_2 = 0x87F0
 local C_ROW_3 = 0x07FF
 local C_ROW_4 = 0xFD20
-local BOOT_SPLASH_MS = 5000
 
 local SPORT = "baseball"
 local LEAGUE = tostring(data.get("baseball_standings.league") or "mlb")
@@ -389,16 +388,6 @@ end
 
 function app.render_fb(fb)
   fb:fill(C_BG)
-  if state.boot_started_ms > 0 and (now_ms() - state.boot_started_ms) < BOOT_SPLASH_MS then
-    local t1, t2 = split_title_lines(APP_NAME)
-    if t2 ~= "" then
-      fb:text_box(0, 8, 64, 8, compact_text(t1, 14), C_ACCENT, FONT, 8, "center", false)
-      fb:text_box(0, 16, 64, 8, compact_text(t2, 14), C_ACCENT, FONT, 8, "center", false)
-    else
-      fb:text_box(0, 12, 64, 8, compact_text(t1, 14), C_ACCENT, FONT, 8, "center", false)
-    end
-    return
-  end
   fb:rect(0, Y_LINE_TOP, 64, 1, C_LINE)
 
   if state.err and not state.payload then
@@ -434,92 +423,6 @@ function app.render_fb(fb)
   end
   if #rows == 0 then
     fb:text_box(0, Y_EMPTY, 64, 8, "NO TABLE", C_MUTED, FONT, 8, "center", false)
-  end
-end
-
-
--- __GLOBAL_BOOT_SPLASH_WRAPPER_V1__
-local __boot_now_ms = now_ms or (sys and sys.now_ms) or function() return 0 end
-local __boot_started_ms = 0
-local __boot_ms = tonumber(data.get("baseball_standings.boot_splash_ms") or data.get("app.boot_splash_ms") or 5000) or 5000
-if __boot_ms < 0 then __boot_ms = 0 end
-local __boot_name = tostring(data.get("baseball_standings.app_name") or "Baseball Standings")
-
-local function __boot_compact_text(s, limit)
-  s = tostring(s or "")
-  s = string.gsub(s, "%s+", " ")
-  s = string.gsub(s, "^%s+", "")
-  s = string.gsub(s, "%s+$", "")
-  local n = tonumber(limit) or 16
-  if #s > n then return string.sub(s, 1, n - 1) .. "…" end
-  return s
-end
-
-local function __boot_split_title_lines(name)
-  local text = tostring(name or "")
-  text = string.gsub(text, "%s+", " ")
-  text = string.gsub(text, "^%s+", "")
-  text = string.gsub(text, "%s+$", "")
-  if text == "" then return "APP", "" end
-  local mid = math.floor(#text / 2)
-  local cut = nil
-  local best = 999
-  for i = 1, #text do
-    if string.sub(text, i, i) == " " then
-      local d = math.abs(i - mid)
-      if d < best then
-        best = d
-        cut = i
-      end
-    end
-  end
-  if not cut then return text, "" end
-  local a = string.gsub(string.sub(text, 1, cut - 1), "%s+$", "")
-  local b = string.gsub(string.sub(text, cut + 1), "^%s+", "")
-  return a, b
-end
-
-local function __boot_is_active()
-  if __boot_started_ms <= 0 then return false end
-  return (__boot_now_ms() - __boot_started_ms) < __boot_ms
-end
-
-local __orig_init = app.init
-app.init = function(...)
-  __boot_started_ms = __boot_now_ms()
-  if __orig_init then return __orig_init(...) end
-end
-
-local __orig_render_fb = app.render_fb
-if __orig_render_fb then
-  app.render_fb = function(...)
-    local fb = select(1, ...)
-    if __boot_is_active() and fb and fb.fill and fb.text_box then
-      local t1, t2 = __boot_split_title_lines(__boot_name)
-      fb:fill(0x0000)
-      if t2 ~= "" then
-        fb:text_box(0, 8, 64, 8, __boot_compact_text(t1, 14), 0x07FF, "builtin:silkscreen_regular_8", 8, "center", false)
-        fb:text_box(0, 16, 64, 8, __boot_compact_text(t2, 14), 0x07FF, "builtin:silkscreen_regular_8", 8, "center", false)
-      else
-        fb:text_box(0, 12, 64, 8, __boot_compact_text(t1, 14), 0x07FF, "builtin:silkscreen_regular_8", 8, "center", false)
-      end
-      return true
-    end
-    return __orig_render_fb(...)
-  end
-end
-
-local __orig_render = app.render
-if __orig_render then
-  app.render = function(...)
-    if __boot_is_active() then
-      local t1, t2 = __boot_split_title_lines(__boot_name)
-      if t2 ~= "" then
-        return {"", __boot_compact_text(t1, 16), __boot_compact_text(t2, 16), ""}
-      end
-      return {"", __boot_compact_text(t1, 16), "", ""}
-    end
-    return __orig_render(...)
   end
 end
 

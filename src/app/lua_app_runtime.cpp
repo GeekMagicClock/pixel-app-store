@@ -28,6 +28,7 @@ extern "C" {
 #include "esp_event.h"
 #include "esp_http_client.h"
 #include "esp_heap_caps.h"
+#include "multi_heap.h"
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "miniz.h"
@@ -422,8 +423,27 @@ struct HttpReq {
   int64_t done_ms = 0;
   int status = 0;
   std::string body_or_err;
+  char* body_buf = nullptr;
+  size_t body_len = 0;
   std::string resp_set_cookie;
 };
+
+static HttpReq* CreateHttpReq() {
+  void* mem = LvglAllocPreferPsram(sizeof(HttpReq));
+  if (!mem) return nullptr;
+  return new (mem) HttpReq();
+}
+
+static void DestroyHttpReq(HttpReq* req) {
+  if (!req) return;
+  if (req->body_buf) {
+    LvglFreePreferPsram(req->body_buf);
+    req->body_buf = nullptr;
+    req->body_len = 0;
+  }
+  req->~HttpReq();
+  LvglFreePreferPsram(req);
+}
 
 static int64_t NowMs() { return esp_timer_get_time() / 1000; }
 
@@ -481,7 +501,13 @@ class HttpClientMgr {
       ESP_LOGW(kTag, "http reject: too many pending requests (%u)", static_cast<unsigned>(pending));
       return 0;
     }
-    HttpReq* req = new HttpReq();
+    HttpReq* req = CreateHttpReq();
+    if (!req) {
+      Unlock();
+      if (out_err) *out_err = "oom";
+      ESP_LOGW(kTag, "http reject: HttpReq alloc failed");
+      return 0;
+    }
     req->id = ++next_id_;
     req->owner = owner;
     req->url = url;
@@ -531,7 +557,7 @@ class HttpClientMgr {
       Lock();
       reqs_.erase(req->id);
       Unlock();
-      delete req;
+      DestroyHttpReq(req);
       ESP_LOGW(kTag, "http task create failed after all retries");
       if (out_err) *out_err = "xTaskCreate failed";
       return 0;
@@ -562,11 +588,17 @@ class HttpClientMgr {
 
     if (out_done) *out_done = true;
     if (out_status) *out_status = req->status;
-    if (out_body_or_err) *out_body_or_err = std::move(req->body_or_err);
+    if (out_body_or_err) {
+      if (req->body_buf && req->body_len > 0) {
+        out_body_or_err->assign(req->body_buf, req->body_len);
+      } else {
+        *out_body_or_err = std::move(req->body_or_err);
+      }
+    }
 
     reqs_.erase(it);
     Unlock();
-    delete req;
+    DestroyHttpReq(req);
     return true;
   }
 
@@ -597,12 +629,62 @@ class HttpClientMgr {
 
     if (out_done) *out_done = true;
     if (out_status) *out_status = req->status;
-    if (out_body_or_err) *out_body_or_err = std::move(req->body_or_err);
+    if (out_body_or_err) {
+      if (req->body_buf && req->body_len > 0) {
+        out_body_or_err->assign(req->body_buf, req->body_len);
+      } else {
+        *out_body_or_err = std::move(req->body_or_err);
+      }
+    }
     if (out_set_cookie) *out_set_cookie = std::move(req->resp_set_cookie);
 
     reqs_.erase(it);
     Unlock();
-    delete req;
+    DestroyHttpReq(req);
+    return true;
+  }
+
+  bool PollAndPopExBody(int id,
+                        bool* out_done,
+                        int* out_status,
+                        char** out_body,
+                        size_t* out_body_len,
+                        std::string* out_err,
+                        std::string* out_set_cookie) {
+    if (out_done) *out_done = false;
+    if (out_status) *out_status = 0;
+    if (out_body) *out_body = nullptr;
+    if (out_body_len) *out_body_len = 0;
+    if (out_err) out_err->clear();
+    if (out_set_cookie) out_set_cookie->clear();
+    if (!mu_) return false;
+
+    Lock();
+    ReapDoneLocked(NowMs());
+    auto it = reqs_.find(id);
+    if (it == reqs_.end()) {
+      Unlock();
+      return false;
+    }
+    HttpReq* req = it->second;
+    const bool abandoned = req->abandoned;
+    if (!req->done || abandoned) {
+      Unlock();
+      return !abandoned;
+    }
+
+    if (out_done) *out_done = true;
+    if (out_status) *out_status = req->status;
+    if (out_body) *out_body = req->body_buf;
+    if (out_body_len) *out_body_len = req->body_len;
+    req->body_buf = nullptr;
+    req->body_len = 0;
+    if (out_err) *out_err = std::move(req->body_or_err);
+    if (out_set_cookie) *out_set_cookie = std::move(req->resp_set_cookie);
+
+    reqs_.erase(it);
+    Unlock();
+    DestroyHttpReq(req);
     return true;
   }
 
@@ -623,7 +705,7 @@ class HttpClientMgr {
       req->abandoned = true;
       req->owner = 0;
       if (req->done) {
-        delete req;
+        DestroyHttpReq(req);
         it = reqs_.erase(it);
       } else {
         ++it;
@@ -641,7 +723,7 @@ class HttpClientMgr {
       it->second->abandoned = true;
       it->second->owner = 0;
       if (it->second->done) {
-        delete it->second;
+        DestroyHttpReq(it->second);
         reqs_.erase(it);
       }
     }
@@ -691,10 +773,37 @@ class HttpClientMgr {
       HttpReq* req = it->second;
       req->status = status;
       req->body_or_err = std::move(body_or_err);
+      if (req->body_buf) {
+        LvglFreePreferPsram(req->body_buf);
+        req->body_buf = nullptr;
+        req->body_len = 0;
+      }
       req->done_ms = NowMs();
       req->done = true;
     }
     Unlock();
+  }
+
+  void FinishBodyById(int id, int status, char* body, size_t body_len) {
+    if (!mu_ || id <= 0) {
+      if (body) LvglFreePreferPsram(body);
+      return;
+    }
+    Lock();
+    auto it = reqs_.find(id);
+    if (it != reqs_.end() && it->second) {
+      HttpReq* req = it->second;
+      req->status = status;
+      req->body_or_err.clear();
+      if (req->body_buf) LvglFreePreferPsram(req->body_buf);
+      req->body_buf = body;
+      req->body_len = body_len;
+      body = nullptr;
+      req->done_ms = NowMs();
+      req->done = true;
+    }
+    Unlock();
+    if (body) LvglFreePreferPsram(body);
   }
 
   void ReapDoneLocked(int64_t now_ms) {
@@ -713,14 +822,14 @@ class HttpClientMgr {
         ++it;
         continue;
       }
-      delete req;
+      DestroyHttpReq(req);
       it = reqs_.erase(it);
     }
   }
 
   static bool HasEnoughInternalMemForTls() {
-    static constexpr uint32_t kMinFreeInternal = 24 * 1024;
-    static constexpr uint32_t kMinLargestInternal = 12 * 1024;
+    static constexpr uint32_t kMinFreeInternal = 18 * 1024;
+    static constexpr uint32_t kMinLargestInternal = 6 * 1024;
     const uint32_t free_internal =
         static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
     const uint32_t largest_internal =
@@ -741,7 +850,9 @@ class HttpClientMgr {
     const int timeout_ms = req->timeout_ms;
     const int max_body_bytes = req->max_body_bytes;
     const int64_t request_start_ms = NowMs();
-    auto mem_snapshot = []() {
+    auto mem_snapshot = [](const char* stage) {
+      multi_heap_info_t ih = {};
+      heap_caps_get_info(&ih, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
       const uint32_t free8 = static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_8BIT));
       const uint32_t min8 = static_cast<uint32_t>(heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
       const uint32_t largest8 = static_cast<uint32_t>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
@@ -753,16 +864,32 @@ class HttpClientMgr {
           static_cast<uint32_t>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
       const uint32_t free32 = static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_32BIT));
       const uint32_t largest32 = static_cast<uint32_t>(heap_caps_get_largest_free_block(MALLOC_CAP_32BIT));
+      const uint32_t free_dma = static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_DMA));
+      const uint32_t largest_dma =
+          static_cast<uint32_t>(heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
+      const uint32_t free_spiram = static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+      const uint32_t largest_spiram =
+          static_cast<uint32_t>(heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
       ESP_LOGI(kTag,
-               "http mem free8=%u min8=%u largest8=%u free_internal=%u min_internal=%u largest_internal=%u free32=%u largest32=%u",
+               "http mem stage=%s free8=%u min8=%u largest8=%u free_internal=%u min_internal=%u largest_internal=%u free_dma=%u largest_dma=%u free_spiram=%u largest_spiram=%u free32=%u largest32=%u internal(total=%u free=%u largest=%u blocks=%u free_blocks=%u)",
+               stage ? stage : "na",
                static_cast<unsigned>(free8),
                static_cast<unsigned>(min8),
                static_cast<unsigned>(largest8),
                static_cast<unsigned>(free_internal),
                static_cast<unsigned>(min_internal),
                static_cast<unsigned>(largest_internal),
+               static_cast<unsigned>(free_dma),
+               static_cast<unsigned>(largest_dma),
+               static_cast<unsigned>(free_spiram),
+               static_cast<unsigned>(largest_spiram),
                static_cast<unsigned>(free32),
-               static_cast<unsigned>(largest32));
+               static_cast<unsigned>(largest32),
+               static_cast<unsigned>(ih.total_free_bytes + ih.total_allocated_bytes),
+               static_cast<unsigned>(ih.total_free_bytes),
+               static_cast<unsigned>(ih.largest_free_block),
+               static_cast<unsigned>(ih.allocated_blocks),
+               static_cast<unsigned>(ih.free_blocks));
     };
 
     struct RunSlotGuard {
@@ -804,13 +931,14 @@ class HttpClientMgr {
              request_url.c_str());
     const bool is_https = IsHttpsUrl(request_url);
     if (is_https) {
+      mem_snapshot("tls_precheck");
       if (!HasEnoughInternalMemForTls()) {
         // Give allocator/other tasks a short chance to release internal blocks.
         vTaskDelay(pdMS_TO_TICKS(120));
       }
       if (!HasEnoughInternalMemForTls()) {
         ESP_LOGW(kTag, "http skip id=%d: low internal heap for TLS", req_id);
-        mem_snapshot();
+        mem_snapshot("tls_skip");
         HttpMgr().FinishById(req_id, 0, "low internal heap");
         return;
       }
@@ -848,16 +976,16 @@ class HttpClientMgr {
     }
     cfg.disable_auto_redirect = false;
     cfg.user_agent = "esp32-pixel/1.0";
-    cfg.keep_alive_enable = false;
-    cfg.buffer_size = 4096;
-    cfg.buffer_size_tx = 2048;
+    cfg.keep_alive_enable = true;
+    cfg.buffer_size = 1536;
+    cfg.buffer_size_tx = 1024;
     cfg.event_handler = on_http_event;
     cfg.user_data = &resp_meta;
 
     esp_http_client_handle_t client = esp_http_client_init(&cfg);
     if (!client) {
       ESP_LOGW(kTag, "http init failed url=%s timeout=%d max_body=%d", request_url.c_str(), timeout_ms, max_body_bytes);
-      mem_snapshot();
+      mem_snapshot("http_init_fail");
       HttpMgr().FinishById(req_id, 0, "http init failed");
       return;
     }
@@ -865,7 +993,7 @@ class HttpClientMgr {
     esp_http_client_set_header(client, "Accept", "application/json");
     esp_http_client_set_header(client, "Accept-Encoding", "gzip");
     esp_http_client_set_header(client, "Cache-Control", "no-cache");
-    esp_http_client_set_header(client, "Connection", "close");
+    esp_http_client_set_header(client, "Connection", "keep-alive");
     for (size_t i = 0; i < req->headers.size(); ++i) {
       const std::string& hk = req->headers[i].first;
       const std::string& hv = req->headers[i].second;
@@ -889,7 +1017,7 @@ class HttpClientMgr {
       if (saved_errno == EMFILE) {
         ESP_LOGW(kTag, "http fd exhausted (EMFILE): sockets/files reached limit, forcing close+cleanup");
       }
-      mem_snapshot();
+      mem_snapshot("http_open_fail");
       (void)esp_http_client_close(client);
       esp_http_client_cleanup(client);
       HttpMgr().FinishById(req_id, 0, esp_err_to_name(err));
@@ -915,18 +1043,21 @@ class HttpClientMgr {
                esp_err_to_name(static_cast<esp_err_t>(fetch_ret)),
                fetch_ret,
                url.c_str());
-      mem_snapshot();
+      mem_snapshot("runtime_fail");
       (void)esp_http_client_close(client);
       esp_http_client_cleanup(client);
       HttpMgr().FinishById(req_id, 0, esp_err_to_name(static_cast<esp_err_t>(fetch_ret)));
       return;
     }
 
-    const int cap = (max_body_bytes > 0) ? max_body_bytes : 256;
+    int cap = (max_body_bytes > 0) ? max_body_bytes : 256;
+    if (content_len > 0 && content_len < cap) {
+      cap = static_cast<int>(content_len);
+    }
     char* body = static_cast<char*>(LvglAllocPreferPsram(static_cast<size_t>(cap) + 1));
     if (!body) {
       ESP_LOGW(kTag, "http body alloc failed cap=%d url=%s", cap, url.c_str());
-      mem_snapshot();
+      mem_snapshot("runtime_fail");
       (void)esp_http_client_close(client);
       esp_http_client_cleanup(client);
       HttpMgr().FinishById(req_id, 0, "body alloc failed");
@@ -940,7 +1071,7 @@ class HttpClientMgr {
       const int r = esp_http_client_read(client, buf, sizeof(buf));
       if (r < 0) {
         ESP_LOGW(kTag, "http read failed id=%d url=%s", req_id, url.c_str());
-        mem_snapshot();
+        mem_snapshot("runtime_fail");
         LvglFreePreferPsram(body);
         (void)esp_http_client_close(client);
         esp_http_client_cleanup(client);
@@ -951,7 +1082,7 @@ class HttpClientMgr {
 
       if (total + r > cap) {
         ESP_LOGW(kTag, "http body too large cap=%d need=%d url=%s", cap, total + r, url.c_str());
-        mem_snapshot();
+        mem_snapshot("runtime_fail");
         LvglFreePreferPsram(body);
         (void)esp_http_client_close(client);
         esp_http_client_cleanup(client);
@@ -964,9 +1095,9 @@ class HttpClientMgr {
     }
 
     // If server returned gzip content, inflate before exposing body to Lua JSON parser.
-    // Auto-grow decode buffer up to 500KB to avoid surfacing transient "gzip decode failed"
+    // Auto-grow decode buffer up to 1MB to avoid surfacing transient "gzip decode failed"
     // when compressed payload inflates beyond the initial max_body setting.
-    static constexpr size_t kGzipDecodeCapMax = 500U * 1024U;
+    static constexpr size_t kGzipDecodeCapMax = 1024U * 1024U;
     static constexpr size_t kGzipDecodeCapStep = 64U * 1024U;
     if (total >= 18 && static_cast<uint8_t>(body[0]) == 0x1f && static_cast<uint8_t>(body[1]) == 0x8b) {
       size_t decode_cap = static_cast<size_t>(cap);
@@ -1009,7 +1140,7 @@ class HttpClientMgr {
       if (!ok || !decoded) {
         ESP_LOGW(kTag, "http gzip decode failed id=%d cap=%u compressed_len=%d url=%s", req_id,
                  static_cast<unsigned>(decode_cap), total, url.c_str());
-        mem_snapshot();
+        mem_snapshot("runtime_fail");
         if (decoded) LvglFreePreferPsram(decoded);
         LvglFreePreferPsram(body);
         (void)esp_http_client_close(client);
@@ -1054,8 +1185,8 @@ class HttpClientMgr {
                body_truncated.empty() ? "<empty>" : body_truncated.c_str());
     }
     req->resp_set_cookie = resp_meta.set_cookie;
-    HttpMgr().FinishById(req_id, http_status, std::string(body, static_cast<size_t>(total)));
-    LvglFreePreferPsram(body);
+    HttpMgr().FinishBodyById(req_id, http_status, body, static_cast<size_t>(total));
+    body = nullptr;
   }
 
   SemaphoreHandle_t mu_ = nullptr;
@@ -1206,8 +1337,11 @@ class CachedHttpMgr {
 
     bool done = false;
     int status = 0;
-    std::string body;
-    const bool ok = HttpMgr().PollAndPop(id, &done, &status, &body);
+    char* body = nullptr;
+    size_t body_len = 0;
+    std::string err;
+    std::string ignored_cookie;
+    const bool ok = HttpMgr().PollAndPopExBody(id, &done, &status, &body, &body_len, &err, &ignored_cookie);
     if (!ok) return false;
 
     if (!done) {
@@ -1226,8 +1360,8 @@ class CachedHttpMgr {
       auto cit = cache_.find(url);
       if (cit != cache_.end() && cit->second.inflight_id == id) {
         cit->second.inflight_id = 0;
-        if (status == 200 && !body.empty()) {
-          cit->second.body = body;
+        if (status == 200 && body && body_len > 0 && body_len <= kMaxBodyBytes) {
+          cit->second.body.assign(body, body_len);
           cit->second.updated_ms = NowMs();
         }
       }
@@ -1237,17 +1371,22 @@ class CachedHttpMgr {
 
     if (out_done) *out_done = true;
     if (out_status) *out_status = status;
-    if (out_body_or_err) *out_body_or_err = body;
+    if (out_body_or_err) {
+      if (body) out_body_or_err->assign(body, body_len);
+      else *out_body_or_err = std::move(err);
+    }
+    if (body) LvglFreePreferPsram(body);
     return true;
   }
 
  private:
+  static constexpr size_t kMaxBodyBytes = 24 * 1024;
+
   void Lock() { (void)xSemaphoreTake(mu_, portMAX_DELAY); }
   void Unlock() { (void)xSemaphoreGive(mu_); }
 
   void TrimCacheLocked() {
     static constexpr size_t kMaxEntries = 8;
-    static constexpr size_t kMaxBodyBytes = 24 * 1024;
 
     auto current_bytes = [this]() -> size_t {
       size_t n = 0;
@@ -1391,9 +1530,11 @@ static int LuaNetHttpPoll(lua_State* L) {
   const int id = static_cast<int>(luaL_checkinteger(L, 1));
   bool done = false;
   int status = 0;
-  std::string body;
+  char* body = nullptr;
+  size_t body_len = 0;
+  std::string err;
   std::string set_cookie;
-  const bool ok = HttpMgr().PollAndPopEx(id, &done, &status, &body, &set_cookie);
+  const bool ok = HttpMgr().PollAndPopExBody(id, &done, &status, &body, &body_len, &err, &set_cookie);
   if (!ok) {
     lua_pushboolean(L, 1);
     lua_pushinteger(L, 0);
@@ -1405,7 +1546,12 @@ static int LuaNetHttpPoll(lua_State* L) {
   if (!done) return 1;
 
   lua_pushinteger(L, static_cast<lua_Integer>(status));
-  lua_pushlstring(L, body.data(), body.size());
+  if (body) {
+    lua_pushlstring(L, body, body_len);
+    LvglFreePreferPsram(body);
+  } else {
+    lua_pushlstring(L, err.data(), err.size());
+  }
   lua_newtable(L);
   if (!set_cookie.empty()) {
     lua_pushstring(L, set_cookie.c_str());

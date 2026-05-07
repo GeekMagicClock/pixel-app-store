@@ -6,6 +6,8 @@ import json
 import os
 import re
 import struct
+import subprocess
+import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -89,6 +91,15 @@ def http_post_json(url: str) -> dict:
   if last_err:
     raise last_err
   raise RuntimeError("http_post_json failed")
+
+def try_switch_app(host: str, app_id: str) -> bool:
+  app_id_enc = urllib.parse.quote(app_id, safe="")
+  url = f"http://{host}/api/apps/switch/{app_id_enc}"
+  try:
+    resp = http_post_json(url)
+    return bool(resp.get("ok"))
+  except Exception:
+    return False
 
 
 def parse_ppm_p6(buf: bytes) -> tuple[int, int, bytes]:
@@ -303,11 +314,62 @@ def main() -> int:
   commit_url = f"http://{host}/api/apps/install/commit"
   abort_url = f"http://{host}/api/apps/install/abort"
   upload_url = f"http://{host}/api/apps/{app_id_enc}/thumbnail.png"
+  local_app_dir = repo_root / "data_littlefs" / "apps" / app_id
+  local_manifest = local_app_dir / "manifest.json"
   committed = False
+  switched_away = False
+  original_app_id = app_id
+  try:
+    current = detect_current_app(host)
+  except Exception:
+    current = ""
+  if current == app_id:
+    # Avoid "app_updating" overlay: update thumbnail while another app is active.
+    for candidate in ("pixel_clock", "weather_card_owm", "media_gallery"):
+      if candidate == app_id:
+        continue
+      if try_switch_app(host, candidate):
+        switched_away = True
+        time.sleep(0.2)
+        break
+
   begin_resp = http_post_json(begin_url)
   if not bool(begin_resp.get("ok")):
     raise SystemExit(f"[ERROR] install begin failed: {begin_resp}")
   try:
+    # Install commit validates staged manifest + entry file. Stage them first,
+    # then update thumbnail in the same session.
+    if not local_manifest.exists():
+      raise SystemExit(f"[ERROR] missing local manifest: {local_manifest}")
+    manifest_obj = json.loads(local_manifest.read_text(encoding="utf-8"))
+    entry_name = "app.bin"
+    main_lua = local_app_dir / "main.lua"
+    if not main_lua.exists():
+      raise SystemExit(f"[ERROR] missing main.lua: {main_lua}")
+    default_luac = repo_root / "python" / "store" / "tools" / "luac-esp-compat"
+    luac = os.environ.get("LUA_COMPILER", str(default_luac))
+    if not os.path.isfile(luac) or not os.access(luac, os.X_OK):
+      raise SystemExit(f"[ERROR] luac compiler not found/executable: {luac}")
+
+    with tempfile.TemporaryDirectory(prefix=f"preview_{app_id}_") as td:
+      tmp_entry = Path(td) / "app.bin"
+      subprocess.run([luac, "-o", str(tmp_entry), str(main_lua)], check=True)
+      manifest_obj["entry"] = entry_name
+      manifest_obj["lua_bytecode"] = True
+
+      manifest_url = f"http://{host}/api/apps/{app_id_enc}/manifest.json"
+      entry_url = f"http://{host}/api/apps/{app_id_enc}/{urllib.parse.quote(entry_name, safe='/')}"
+      m_resp = http_put_bytes(
+        manifest_url,
+        (json.dumps(manifest_obj, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
+        content_type="application/json",
+      )
+      if not bool(m_resp.get("ok")):
+        raise SystemExit(f"[ERROR] manifest upload failed: {m_resp}")
+      e_resp = http_put_bytes(entry_url, tmp_entry.read_bytes(), content_type="application/octet-stream")
+      if not bool(e_resp.get("ok")):
+        raise SystemExit(f"[ERROR] entry upload failed: {e_resp}")
+
     put_resp = http_put_bytes(upload_url, local_png.read_bytes(), content_type="image/png")
     if not bool(put_resp.get("ok")):
       raise SystemExit(f"[ERROR] upload failed: {put_resp}")
@@ -322,6 +384,8 @@ def main() -> int:
         http_post_json(abort_url)
       except Exception:
         pass
+    if switched_away:
+      try_switch_app(host, original_app_id)
 
   try:
     ok = verify_thumbnail_flag(host, app_id)

@@ -267,7 +267,7 @@ Development rule (must follow):
 - Firmware exposes app web assets at `/api/apps/web/<app_id>/<file>`.
 - If `<file>.gz` exists, firmware serves it with `Content-Encoding: gzip` (recommended for `settings.html`).
 - `f.html` only decides whether to show the `Settings` button, then loads the app page; it does not define per-app fields.
-- App settings pages should read/write values via `/api/system/lua-data`, then call `/api/apps/reload` (and optional `/api/apps/switch/<app_id>`).
+- App settings pages should read/write values via `/api/system/settings`, then call `/api/apps/reload` (and optional `/api/apps/switch/<app_id>`).
 
 This keeps app development decoupled from frontend changes and allows adding new apps without editing `f.html`.
 
@@ -277,7 +277,7 @@ Development rule (must follow):
 
 - Finance apps (`stock1`, `stock_chart`, future stock/crypto apps) must own their data-fetch logic and failure handling.
 - App defaults must not hardcode LAN proxy endpoints.
-- Any debug proxy usage must come only from explicit `lua-data` config (`proxy.*`) and remain optional.
+- Any debug proxy usage must come only from explicit system settings config (`proxy.*`) and remain optional.
 - For Yahoo endpoints, follow the production flow used by firmware/app logic (cookie + crumb), and keep this path valid without proxy.
 
 Runtime expectations from `src/app/lua_app_runtime.h`:

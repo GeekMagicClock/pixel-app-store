@@ -342,7 +342,6 @@ def package_app(
         "size": zip_path.stat().st_size,
         "lua_bytecode": True,
         "entry": "app.bin",
-        "compiler": luac_version,
     }
     if min_fw:
         entry["min_fw"] = min_fw
