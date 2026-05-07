@@ -198,7 +198,6 @@ for path in sorted(src.rglob("*")):
     if rel.as_posix() == "manifest.json":
         manifest = json.loads(path.read_text(encoding="utf-8"))
         manifest["entry"] = "app.bin"
-        manifest["lua_bytecode"] = True
         out.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     elif rel.as_posix() == "main.lua":
         out = dst / "app.bin"

@@ -355,7 +355,6 @@ def main() -> int:
       tmp_entry = Path(td) / "app.bin"
       subprocess.run([luac, "-o", str(tmp_entry), str(main_lua)], check=True)
       manifest_obj["entry"] = entry_name
-      manifest_obj["lua_bytecode"] = True
 
       manifest_url = f"http://{host}/api/apps/{app_id_enc}/manifest.json"
       entry_url = f"http://{host}/api/apps/{app_id_enc}/{urllib.parse.quote(entry_name, safe='/')}"

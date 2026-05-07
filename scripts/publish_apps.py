@@ -307,11 +307,6 @@ def package_app(
 
         packaged_manifest = dict(manifest)
         packaged_manifest["entry"] = "app.bin"
-        packaged_manifest["lua_bytecode"] = True
-        packaged_manifest["build"] = {
-            "packaged_at": datetime.now(timezone.utc).isoformat(),
-            "compiler": luac_version,
-        }
         (stage / "manifest.json").write_text(json.dumps(packaged_manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         shutil.copy2(thumb_src, stage / "thumbnail.png")
 
@@ -340,7 +335,6 @@ def package_app(
         "thumbnail_sha256": thumb_sha,
         "crc32": crc32_file(zip_path),
         "size": zip_path.stat().st_size,
-        "lua_bytecode": True,
         "entry": "app.bin",
     }
     if min_fw:
@@ -362,6 +356,15 @@ def validate_published_entry(entry: dict, app_id: str) -> None:
 
 
 def write_index(board_dir: Path, entries: list[dict], channel: str) -> None:
+    sanitized_entries: list[dict] = []
+    for item in entries:
+        cleaned = dict(item)
+        cleaned.pop("lua_bytecode", None)
+        cleaned.pop("build", None)
+        cleaned.pop("compiler", None)
+        sanitized_entries.append(cleaned)
+
+    entries = sanitized_entries
     for item in entries:
         validate_published_entry(item, str(item.get("id") or "unknown"))
     categories = []

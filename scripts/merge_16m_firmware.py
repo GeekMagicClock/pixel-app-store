@@ -175,11 +175,9 @@ def main() -> int:
     partition_offset = str(flasher_args.get("partition-table", {}).get("offset", "0x8000"))
     app_offset = str(flasher_args.get("app", {}).get("offset", "0x10000"))
 
-    product_model = read_define(header_path, "PRODUCT_MODEL") or "Pixel"
     version = read_define(header_path, "SW_VERSION") or "dev"
-    default_name = (
-        f"{sanitize_fragment(product_model)}_{sanitize_fragment(version)}_full_{flash_size}.bin"
-    )
+    version_safe = sanitize_fragment(version)
+    default_name = f"pixel_v2_{version_safe}_16MB_merged.bin"
     output_path = Path(args.output).expanduser() if args.output else build_dir / default_name
     if not output_path.is_absolute():
         output_path = (project_root / output_path).resolve()

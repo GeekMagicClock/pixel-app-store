@@ -285,7 +285,6 @@ def main() -> None:
             'thumbnail_url': thumbnail_url,
             'sha256': digest,
             'size': zip_path.stat().st_size,
-            'lua_bytecode': package_uses_bytecode or packaged_entry.endswith('.bin'),
             'entry': packaged_entry,
         })
 

@@ -1,0 +1,13 @@
+openmeteo_3day
+weather_card_owm
+sunrise_sunset_owm
+tetris_clock
+crt_clock
+basketball_scoreboard
+basketball_schedule
+media_gallery
+binance_chart
+binance_ticker
+stock_chart
+stock_fear_index
+moon_phase_png

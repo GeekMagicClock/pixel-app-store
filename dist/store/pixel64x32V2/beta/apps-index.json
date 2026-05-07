@@ -370,7 +370,6 @@
       "thumbnail_sha256": "90266a4509cb8654f30a9b4a4639444c8fbd550950eb980db46becad809838e7",
       "crc32": "f48bbaec",
       "size": 21485,
-      "lua_bytecode": true,
       "entry": "app.bin",
       "min_fw": "0.0.0"
     },
@@ -385,7 +384,6 @@
       "thumbnail_sha256": "b82bdefc57f3c44efef06eb078d7ffe2913602fdd077d4e21be8e1b23497debc",
       "crc32": "1c8ba532",
       "size": 22043,
-      "lua_bytecode": true,
       "entry": "app.bin",
       "min_fw": "0.0.0"
     },
@@ -400,7 +398,6 @@
       "thumbnail_sha256": "083ec4863f4678a0cb2986eb299a3746c6e4c5d43cb61cdb20e0b0799c541959",
       "crc32": "ff6a0d26",
       "size": 15011,
-      "lua_bytecode": true,
       "entry": "app.bin",
       "min_fw": "0.0.0"
     },
@@ -415,7 +412,6 @@
       "thumbnail_sha256": "9ead74abe97cb5b61cc4d5e74388fc8d6d605411de17f902e562b020535d2014",
       "crc32": "74801bed",
       "size": 21503,
-      "lua_bytecode": true,
       "entry": "app.bin",
       "min_fw": "0.0.0"
     },
@@ -430,7 +426,6 @@
       "thumbnail_sha256": "f3b09e14c5974fa3008dbcc485b0240b6e3b15a9c35e72bd0d9761a538109926",
       "crc32": "f16cecad",
       "size": 22082,
-      "lua_bytecode": true,
       "entry": "app.bin",
       "min_fw": "0.0.0"
     },
@@ -445,7 +440,6 @@
       "thumbnail_sha256": "eaa8bcd71703bf2764c94f0880fbc33dee5e62e633d36e4529c2f1ca345cd16f",
       "crc32": "a9eda39e",
       "size": 15069,
-      "lua_bytecode": true,
       "entry": "app.bin",
       "min_fw": "0.0.0"
     },
@@ -460,7 +454,6 @@
       "thumbnail_sha256": "22f41b70d43a559fb510ec842efbb3961e855b78cb7f479f3dc3dbf61204891c",
       "crc32": "b65436f5",
       "size": 21367,
-      "lua_bytecode": true,
       "entry": "app.bin",
       "min_fw": "0.0.0"
     },
@@ -475,7 +468,6 @@
       "thumbnail_sha256": "d179e867114ee9c33f17a761ccd3b2e452806e8bd09876f2f32b11e32bd39ca6",
       "crc32": "329bb2b7",
       "size": 22099,
-      "lua_bytecode": true,
       "entry": "app.bin",
       "min_fw": "0.0.0"
     },
@@ -490,7 +482,6 @@
       "thumbnail_sha256": "3acf5b11a4fe4f831a875e44589b48b18582e0932b8b1459792e7c53c500acd7",
       "crc32": "01d3f1a0",
       "size": 15002,
-      "lua_bytecode": true,
       "entry": "app.bin",
       "min_fw": "0.0.0"
     },
@@ -505,7 +496,6 @@
       "thumbnail_sha256": "86ee003fabc4d33a104a607b652f3b256b539523f736e32bbaad249cf1cac1a7",
       "crc32": "db734172",
       "size": 21482,
-      "lua_bytecode": true,
       "entry": "app.bin",
       "min_fw": "0.0.0"
     },
@@ -520,7 +510,6 @@
       "thumbnail_sha256": "dcb7c7a5ff87b8633ea8b4979063a75a8eeac949463446fa843f33e5f83bdbf8",
       "crc32": "88dfd59d",
       "size": 22069,
-      "lua_bytecode": true,
       "entry": "app.bin",
       "min_fw": "0.0.0"
     },
@@ -535,7 +524,6 @@
       "thumbnail_sha256": "16259da8c51705d94de8d97b2c47d92ec69f5c937508728137e16af822391354",
       "crc32": "f2485a2e",
       "size": 14985,
-      "lua_bytecode": true,
       "entry": "app.bin",
       "min_fw": "0.0.0"
     },
@@ -550,7 +538,6 @@
       "thumbnail_sha256": "03724b2c8c8f4789b4e832ddc68f26fdfaec006d522af6c8452a43d26d11bd2b",
       "crc32": "9b173753",
       "size": 21448,
-      "lua_bytecode": true,
       "entry": "app.bin",
       "min_fw": "0.0.0"
     },
@@ -565,7 +552,6 @@
       "thumbnail_sha256": "912e86b8d7638954358a99a66a3a543b2ff761d8bed9eae0d3ecb8e2149bd627",
       "crc32": "6d978053",
       "size": 22526,
-      "lua_bytecode": true,
       "entry": "app.bin",
       "min_fw": "0.0.0"
     },
@@ -580,7 +566,6 @@
       "thumbnail_sha256": "841785aaeeb6b8c43910a0ad6f6927acb52495bb504fffa908864e102a2d9ee9",
       "crc32": "fa71de45",
       "size": 15014,
-      "lua_bytecode": true,
       "entry": "app.bin",
       "min_fw": "0.0.0"
     },
