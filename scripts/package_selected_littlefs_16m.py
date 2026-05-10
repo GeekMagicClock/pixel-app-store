@@ -11,6 +11,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from packaging_policy import is_forbidden_doc_asset
+
 DEFAULT_ENV = "esp32-s3-n16r8"
 DEFAULT_LUAC_TOOL = "python/store/tools/luac-esp-compat"
 DEFAULT_APPS = [
@@ -72,8 +74,12 @@ def stage_release_app(src_app_dir: Path, dst_app_dir: Path, luac: str, cwd: Path
             continue
         rel_posix = rel.as_posix()
 
+        # Do not ship docs in device app payload.
+        if is_forbidden_doc_asset(rel_posix):
+            continue
+
         # Already handled / or intentionally excluded.
-        if rel_posix in {"manifest.json", "thumbnail.png", "main.lua"}:
+        if rel_posix in {"manifest.json", "main.lua"}:
             continue
 
         # Delivery policy: include settings.html.gz only, never raw settings.html.
@@ -149,6 +155,7 @@ def main() -> int:
     header = project_root / "include" / "my_debug.h"
     data_root = project_root / "data_littlefs"
     apps_root = data_root / "apps"
+    source_apps_root = project_root / "apps_src"
     build_dir = project_root / ".pio" / "build" / args.env
     luac_path = Path(args.luac)
     if not luac_path.is_absolute():
@@ -157,8 +164,10 @@ def main() -> int:
     if not luac_path.exists():
         raise SystemExit(f"luac tool not found: {luac_path}")
 
-    if not apps_root.is_dir():
-        raise SystemExit(f"apps dir not found: {apps_root}")
+    if not source_apps_root.is_dir():
+        raise SystemExit(f"apps source dir not found: {source_apps_root}")
+
+    apps_root.mkdir(parents=True, exist_ok=True)
 
     version = args.version.strip() or read_define(header, "SW_VERSION") or "dev"
     version_safe = sanitize(version)
@@ -181,13 +190,13 @@ def main() -> int:
     for app in selected_apps:
         print(" -", app)
 
-    missing = [app for app in selected_apps if not (apps_root / app).is_dir()]
+    missing = [app for app in selected_apps if not (source_apps_root / app).is_dir()]
     if missing:
         raise SystemExit("Missing app directories:\n" + "\n".join(f"- {m}" for m in missing))
 
     # Ensure settings.html.gz policy for selected apps.
     for app in selected_apps:
-        app_dir = apps_root / app
+        app_dir = source_apps_root / app
         if (app_dir / "settings.html").is_file() and not (app_dir / "settings.html.gz").is_file():
             raise SystemExit(f"{app}: settings.html.gz is required when settings.html exists")
 
@@ -199,13 +208,13 @@ def main() -> int:
         tmp_path = Path(tmp)
         backup_apps_dir = tmp_path / "apps_backup"
 
-        print("Preparing filtered data_littlefs/apps ...")
+        print("Preparing filtered data_littlefs/apps (compiled from apps_src) ...")
         shutil.move(str(apps_root), str(backup_apps_dir))
         apps_root.mkdir(parents=True, exist_ok=True)
 
         try:
             for app in selected_apps:
-                src = backup_apps_dir / app
+                src = source_apps_root / app
                 dst = apps_root / app
                 stage_release_app(src, dst, str(luac_path), project_root)
 

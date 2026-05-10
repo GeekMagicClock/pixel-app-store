@@ -5,7 +5,7 @@ usage() {
   cat <<'USAGE'
 S2: Publish beta (zip/png to GitHub, index(.gz) to OTA)
 Usage:
-  scripts/S2_publish_beta.sh [app_id ...] [--github-worktree <path>] [--push] [--no-ota-index] [--allow-no-bump]
+  scripts/S2_publish_beta.sh [app_id ...] [--github-worktree <path>] [--push] [--no-ota-index]
 Examples:
   scripts/S2_publish_beta.sh campfire_scene
   scripts/S2_publish_beta.sh campfire_scene moon_phase_png --push
@@ -17,7 +17,6 @@ BOARD="${PIXEL_STORE_BOARD:-pixel64x32V2}"
 GITHUB_WORKTREE="${PIXEL_STORE_GITHUB_WORKTREE:-}"
 DO_PUSH=0
 UPLOAD_OTA_INDEX=1
-ALLOW_NO_BUMP=0
 
 detect_github_worktree() {
   local candidates=(
@@ -56,10 +55,6 @@ while [[ $# -gt 0 ]]; do
       UPLOAD_OTA_INDEX=0
       shift
       ;;
-    --allow-no-bump)
-      ALLOW_NO_BUMP=1
-      shift
-      ;;
     *)
       APPS+=("$1")
       shift
@@ -78,10 +73,12 @@ CMD=(python3 "${ROOT}/scripts/publish_apps.py"
   --zip-base-url "${GITHUB_RAW_BASE}"
   --zip-url-mode direct
 )
-if [[ "${ALLOW_NO_BUMP}" == "1" ]]; then
-  CMD+=(--allow-no-bump)
+if (( ${#APPS[@]} > 0 )); then
+  CMD+=("${APPS[@]}")
+else
+  # Full publish should clean stale historical artifacts first.
+  CMD+=(--clean)
 fi
-CMD+=("${APPS[@]}")
 "${CMD[@]}"
 
 if [[ -z "${GITHUB_WORKTREE}" ]]; then

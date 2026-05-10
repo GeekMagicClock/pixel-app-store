@@ -122,7 +122,7 @@ def has_thumbnail(app_dir: pathlib.Path) -> bool:
 def main():
     ap = argparse.ArgumentParser(description="Capture real 64x32 app thumbnails from device screen")
     ap.add_argument("--device", default="192.168.3.140", help="Device host or host:port")
-    ap.add_argument("--apps-root", default="data_littlefs/apps")
+    ap.add_argument("--apps-root", default="apps_src")
     ap.add_argument("--settle-ms", type=int, default=5000, help="Wait after switch before capture")
     ap.add_argument("--timeout", type=float, default=8.0)
     ap.add_argument("--retries", type=int, default=3)

@@ -1,0 +1,8 @@
+Moon phase PNG assets (32 frames):
+- Source: NASA Scientific Visualization Studio (SVS)
+- Dataset page: https://svs.gsfc.nasa.gov/5187/
+- Frame source pattern:
+  https://svs.gsfc.nasa.gov/vis/a000000/a005100/a005187/frames/730x730_1x1_30p/moon.####.jpg
+- License/usage: NASA imagery is generally public domain (U.S. Government work)
+- Local files:
+  moon_phase_0.png ... moon_phase_31.png (resized to 32x32)

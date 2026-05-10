@@ -9,7 +9,7 @@ import binascii
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-APPS = ROOT / "data_littlefs" / "apps"
+APPS = ROOT / "apps_src"
 
 SPORTS = {
     "soccer": {"label": "Soccer", "league": "eng.1"},

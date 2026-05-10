@@ -19,8 +19,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib import request
 
+from packaging_policy import is_forbidden_doc_asset
+
 ROOT = Path(__file__).resolve().parents[1]
-APPS_DIR = ROOT / "data_littlefs" / "apps"
+APPS_DIR = ROOT / "apps_src"
 DEFAULT_DIST_ROOT = ROOT / "dist" / "store"
 DEFAULT_BOARD = "pixel64x32V2"
 DEFAULT_CHANNEL = "stable"
@@ -127,6 +129,9 @@ def copy_or_compile_tree(app_dir: Path, stage_dir: Path, luac: str) -> bool:
         if path.is_dir():
             continue
         rel = path.relative_to(app_dir)
+        # Never publish docs into app delivery artifacts.
+        if is_forbidden_doc_asset(rel.as_posix()):
+            continue
         if rel.name == "settings.html":
             gz = path.with_name(path.name + ".gz")
             if not gz.exists():
@@ -266,6 +271,15 @@ def validate_zip_has_no_lua_source(zip_path: Path) -> None:
                 raise SystemExit(f"{zip_path.name}: contains forbidden source file '{name}'")
 
 
+def validate_zip_has_no_docs(zip_path: Path) -> None:
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        for name in zf.namelist():
+            if name.endswith("/"):
+                continue
+            if is_forbidden_doc_asset(name):
+                raise SystemExit(f"{zip_path.name}: contains forbidden doc path '{name}'")
+
+
 def package_app(
     app_id: str,
     board_dir: Path,
@@ -315,6 +329,7 @@ def package_app(
             zip_path.unlink()
         shutil.make_archive(str(zip_path.with_suffix("")), "zip", root_dir=stage)
         validate_zip_has_no_lua_source(zip_path)
+        validate_zip_has_no_docs(zip_path)
 
     category = normalize_category(manifest.get("category"))
     desc = str(manifest.get("description") or "")
@@ -480,6 +495,29 @@ def merge_entries(existing: list[dict], updates: list[dict], enforce_version_bum
     return out
 
 
+def enforce_full_publish_version_bump(existing: list[dict], updates: list[dict]) -> None:
+    existing_map: dict[str, dict] = {}
+    for item in existing:
+        app_id = str(item.get("id") or "").strip()
+        if app_id:
+            existing_map[app_id] = item
+
+    for item in updates:
+        app_id = str(item.get("id") or "").strip()
+        if not app_id:
+            continue
+        old = existing_map.get(app_id)
+        if not old:
+            # New app is allowed in full publish.
+            continue
+        old_ver = str(old.get("version") or "").strip()
+        new_ver = str(item.get("version") or "").strip()
+        if old_ver and new_ver and semver_cmp(new_ver, old_ver) <= 0:
+            raise SystemExit(
+                f"{app_id}: version must increase for full publish (old={old_ver}, new={new_ver})"
+            )
+
+
 def deploy_remote(
     local_dir: Path,
     remote: str,
@@ -628,6 +666,17 @@ def main() -> int:
             f"incremental index merge: updated {len(entries)} app(s), total {len(merged_entries)} app(s) in index"
         )
     else:
+        if not args.allow_no_bump:
+            identity = os.path.expanduser(args.identity) if args.identity else None
+            existing_entries = load_existing_entries(
+                board_dir=board_dir,
+                base_url=base_url,
+                remote=remote_target,
+                ssh_port=args.ssh_port,
+                identity=identity,
+                prefer_remote=True,
+            )
+            enforce_full_publish_version_bump(existing_entries, entries)
         entries.sort(key=lambda item: (item["category"], item["name"].lower(), item["id"]))
         write_index(board_dir, entries, args.channel)
 

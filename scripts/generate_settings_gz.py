@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate settings.html.gz for apps under data_littlefs/apps where settings.html exists
+Generate settings.html.gz for apps under apps_src where settings.html exists
 but settings.html.gz is missing or out-of-date. Uses gzip mtime=0 to make deterministic output.
 Prints a newline-separated list of app ids for which gz files were created/updated.
 """
@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-APPS_DIR = ROOT / 'data_littlefs' / 'apps'
+APPS_DIR = ROOT / 'apps_src'
 
 if not APPS_DIR.exists():
     print(f"apps dir not found: {APPS_DIR}", file=sys.stderr)

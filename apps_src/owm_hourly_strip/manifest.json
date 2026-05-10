@@ -1,0 +1,14 @@
+{
+  "app_id": "owm_hourly_strip",
+  "name": "Hourly Weather Strip",
+  "version": "1.0.7",
+  "min_fw": "0.0.0",
+  "min_api": "1.0",
+  "entry": "app.bin",
+  "layout_id": "framebuffer_rgb565",
+  "capabilities": [
+    "weather",
+    "net"
+  ],
+  "category": "weather"
+}

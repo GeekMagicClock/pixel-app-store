@@ -41,6 +41,15 @@ These rules are mandatory for any AI agent working in this repository.
 2. Raw `settings.html` MUST NOT be uploaded to device install session and MUST NOT be included in published app zip payload.
 3. If `settings.html` exists in source tree, agents must ensure matching `settings.html.gz` is regenerated from latest source before push/publish.
 
+## Documentation Asset Policy (Required)
+
+1. Published app zip payloads MUST NOT include documentation files.
+2. The following are forbidden in published app zip payloads:
+   - `*.md`
+   - `*.markdown`
+   - any file under `doc/` or `docs/` directories
+3. If packaging scripts include such files, agents must fix the scripts before publishing.
+
 ## Preflight Checklist (Required)
 
 Before any publish action, agents must verify:
@@ -50,5 +59,6 @@ Before any publish action, agents must verify:
 3. OTA upload step includes only:
    - `apps-index.json`
    - `apps-index.json.gz`
+4. Published app zip inspection confirms no forbidden doc assets (`*.md`, `*.markdown`, `doc/`, `docs/`).
 
 If any check fails, agents must stop and fix scripts before publishing.

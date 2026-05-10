@@ -17,6 +17,7 @@
 
 #include "cJSON.h"
 #include "app/display_control.h"
+#include "app/hub75_config.h"
 #include "app/wifi_manager.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -2242,7 +2243,8 @@ static esp_err_t HandleInstalledApps(httpd_req_t* req) {
   std::string body;
   if (!ReadInstalledAppsCache(&body)) {
     if (!LoadInstalledAppsIndexBody(&body)) {
-      body = "{\"ok\":true,\"apps\":[]}";
+      body = BuildInstalledAppsBody();
+      (void)SaveInstalledAppsIndexBody(body);
       WriteInstalledAppsCache(body);
     } else {
       WriteInstalledAppsCache(body);
@@ -2467,6 +2469,8 @@ static esp_err_t HandleSystemStatus(httpd_req_t* req) {
   AppendJsonEscaped(&body, fw_ota_state.last_error);
   body += "\"},\"display\":{\"brightness\":";
   body += std::to_string(static_cast<unsigned>(DisplayControlGetBrightness()));
+  body += ",\"x_compensation_enabled\":";
+  body += Hub75GetXCompensationEnabled() ? "true" : "false";
   body += "},\"storage\":{\"mounted\":";
   body += littlefs_ok ? "true" : "false";
   body += ",\"used_bytes\":";
@@ -2617,6 +2621,49 @@ static esp_err_t HandleSystemBrightness(httpd_req_t* req) {
   char resp[64];
   snprintf(resp, sizeof(resp), "{\"ok\":true,\"brightness\":%d}", brightness);
   SendJson(req, "200 OK", resp);
+  return ESP_OK;
+}
+
+static esp_err_t HandleSystemDisplayXCompensationGet(httpd_req_t* req) {
+  const bool enabled = Hub75GetXCompensationEnabled();
+  SendJson(req, "200 OK", enabled ? "{\"ok\":true,\"enabled\":true}" : "{\"ok\":true,\"enabled\":false}");
+  return ESP_OK;
+}
+
+static esp_err_t HandleSystemDisplayXCompensationPost(httpd_req_t* req) {
+  std::string body;
+  if (!ReadRequestBodyToString(req, 256, &body)) {
+    SendJson(req, "400 Bad Request", "{\"ok\":false,\"error\":\"invalid body\"}");
+    return ESP_OK;
+  }
+
+  cJSON* root = cJSON_ParseWithLength(body.c_str(), body.size());
+  if (!root) {
+    SendJson(req, "400 Bad Request", "{\"ok\":false,\"error\":\"invalid json\"}");
+    return ESP_OK;
+  }
+
+  const cJSON* enabled_item = cJSON_GetObjectItemCaseSensitive(root, "enabled");
+  if (!cJSON_IsBool(enabled_item)) {
+    cJSON_Delete(root);
+    SendJson(req, "400 Bad Request", "{\"ok\":false,\"error\":\"enabled bool required\"}");
+    return ESP_OK;
+  }
+
+  const bool enabled = cJSON_IsTrue(enabled_item);
+  Hub75SetXCompensationEnabled(enabled);
+  const bool saved = Hub75SavePersistentConfig();
+  cJSON_Delete(root);
+
+  if (!saved) {
+    SendJson(req, "500 Internal Server Error", "{\"ok\":false,\"error\":\"save failed\"}");
+    return ESP_OK;
+  }
+
+  SendJson(req, "200 OK",
+           enabled
+               ? "{\"ok\":true,\"enabled\":true,\"persisted\":true,\"reboot_required\":true}"
+               : "{\"ok\":true,\"enabled\":false,\"persisted\":true,\"reboot_required\":true}");
   return ESP_OK;
 }
 
@@ -3495,6 +3542,28 @@ bool AppUpdateServerStart(AppUpdateReloadCallback reload_cb, AppUpdateSwitchCall
   brightness.handler = HandleSystemBrightness;
   if (httpd_register_uri_handler(g_httpd, &brightness) != ESP_OK) {
     ESP_LOGE(kTag, "register brightness failed");
+    httpd_stop(g_httpd);
+    g_httpd = nullptr;
+    return false;
+  }
+
+  httpd_uri_t x_comp_get = {};
+  x_comp_get.uri = "/api/system/display/x_compensation";
+  x_comp_get.method = HTTP_GET;
+  x_comp_get.handler = HandleSystemDisplayXCompensationGet;
+  if (httpd_register_uri_handler(g_httpd, &x_comp_get) != ESP_OK) {
+    ESP_LOGE(kTag, "register x_compensation GET failed");
+    httpd_stop(g_httpd);
+    g_httpd = nullptr;
+    return false;
+  }
+
+  httpd_uri_t x_comp_post = {};
+  x_comp_post.uri = "/api/system/display/x_compensation";
+  x_comp_post.method = HTTP_POST;
+  x_comp_post.handler = HandleSystemDisplayXCompensationPost;
+  if (httpd_register_uri_handler(g_httpd, &x_comp_post) != ESP_OK) {
+    ESP_LOGE(kTag, "register x_compensation POST failed");
     httpd_stop(g_httpd);
     g_httpd = nullptr;
     return false;

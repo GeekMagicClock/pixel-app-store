@@ -1268,7 +1268,7 @@
       }
 
       .apps-subpanel[data-apps-panel="store"] .card-grid {
-        grid-template-columns: minmax(0, 1fr);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         width: 100%;
         min-width: 0;
         max-width: 100%;
@@ -1284,7 +1284,11 @@
 
     @media (max-width: 390px) {
       .shell {
-        padding: 8px;
+        padding: 6px;
+      }
+
+      .apps-subpanel .panel-inner {
+        padding: 12px;
       }
 
       .stack,
@@ -1341,8 +1345,11 @@
         width: 100%;
       }
 
+      .apps-subpanel .card-grid,
+      .apps-subpanel[data-apps-panel="installed"] .card-grid,
       .apps-subpanel[data-apps-panel="store"] .card-grid {
-        grid-template-columns: minmax(0, 1fr);
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 6px;
         width: 100%;
         min-width: 0;
         max-width: 100%;
@@ -1350,6 +1357,14 @@
 
       .power-saver-grid {
         grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 340px) {
+      .apps-subpanel .card-grid,
+      .apps-subpanel[data-apps-panel="installed"] .card-grid,
+      .apps-subpanel[data-apps-panel="store"] .card-grid {
+        grid-template-columns: minmax(0, 1fr);
       }
     }
 
@@ -1904,7 +1919,7 @@
           </article>
         </div>
       </div>
-      <article class="panel" style="margin-top: 14px;">
+      <article class="panel hidden" style="margin-top: 14px;">
         <div class="panel-inner">
           <div class="panel-head">
             <h2 class="panel-title">PRIVACY & TRUST</h2>
@@ -2016,40 +2031,6 @@
       </div>
     </section>
 
-    <section class="tab-panel" data-panel="logs">
-      <section class="log-split">
-        <article class="panel log-panel">
-          <div class="panel-inner">
-            <div class="panel-head">
-              <h2 class="panel-title">ACTIVITY LOG</h2>
-              <button id="clearLogBtn" type="button">Clear</button>
-            </div>
-          </div>
-          <div class="log" id="log"></div>
-        </article>
-
-        <article class="panel log-panel">
-          <div class="panel-inner">
-            <div class="panel-head">
-              <h2 class="panel-title">DEVICE LOG</h2>
-              <div class="toolbar">
-                <select id="deviceLogScope">
-                  <option value="all">All Logs</option>
-                  <option value="app">App Only</option>
-                </select>
-                <label class="check"><input id="deviceLogAuto" type="checkbox" /> Auto Refresh</label>
-                <button id="refreshRuntimeLogBtn" type="button">Refresh</button>
-                <button id="clearRuntimeLogBtn" type="button">Clear View</button>
-              </div>
-            </div>
-            <p class="panel-note">Live logs from device. <code>App Only</code> shows messages from the current app.</p>
-          </div>
-          <div class="log log-device" id="runtimeLog">
-            <div class="log-line log-empty">Waiting for logs...</div>
-          </div>
-        </article>
-      </section>
-    </section>
   </div>
 
   <script>
@@ -2060,9 +2041,6 @@
       storeApps: [],
       categoryOrder: [],
       categoryLabels: {},
-      runtimeLogSeq: 0,
-      runtimeLogLoading: false,
-      runtimeLogError: "",
       installedAppsLoaded: false,
       storeAppsLoaded: false,
       renderTokenInstalled: 0,
@@ -2102,7 +2080,6 @@
     const INSTALLED_RENDER_BATCH = 12;
     const STORE_RENDER_BATCH = 10;
     const FALLBACK_STORE_INDEX_URL = "https://ota.geekmagic.cc/apps/pixel64x32V2/stable/apps-index.json";
-    const logEl = document.getElementById("log");
     const wifiScanListEl = document.getElementById("wifiScanList");
     const wifiScanStatusEl = document.getElementById("wifiScanStatus");
     const fwVersionTagEl = document.getElementById("fwVersionTag");
@@ -2124,9 +2101,6 @@
     const firmwareFileEl = document.getElementById("firmwareFile");
     const uploadFirmwareBtnEl = document.getElementById("uploadFirmwareBtn");
     const firmwareAutoOtaInputEl = document.getElementById("firmwareAutoOtaInput");
-    const runtimeLogEl = document.getElementById("runtimeLog");
-    const deviceLogScopeEl = document.getElementById("deviceLogScope");
-    const deviceLogAutoEl = document.getElementById("deviceLogAuto");
     const otaOverlayEl = document.getElementById("otaOverlay");
     const otaTitleEl = document.getElementById("otaTitle");
     const otaDetailEl = document.getElementById("otaDetail");
@@ -2185,13 +2159,16 @@
     }
 
     function log(message, cls) {
-      const line = document.createElement("div");
-      line.className = "log-line";
-      if (cls) {
-        line.classList.add(cls);
+      const text = String(message ?? "");
+      const ts = new Date().toLocaleTimeString();
+      const consoleLine = "[" + ts + "] " + text;
+      if (cls === "status-bad") {
+        console.error(consoleLine);
+      } else if (cls === "status-warn") {
+        console.warn(consoleLine);
+      } else {
+        console.info(consoleLine);
       }
-      line.textContent = "[" + new Date().toLocaleTimeString() + "] " + message;
-      logEl.prepend(line);
     }
 
     let toastTimer = null;
@@ -2803,62 +2780,6 @@
       return `<img loading="lazy" decoding="async" data-src="${esc(thumb)}" alt="${esc(title)}" />`;
     }
 
-    function runtimeLogPlaceholder(message) {
-      runtimeLogEl.innerHTML = "";
-      const line = document.createElement("div");
-      line.className = "log-line log-empty";
-      line.textContent = message;
-      runtimeLogEl.appendChild(line);
-    }
-
-    function runtimeLogClass(entry) {
-      const text = String(entry?.text || "");
-      if (text.startsWith("E (") || text.includes(" E (")) return "runtime-bad";
-      if (text.startsWith("W (") || text.includes(" W (")) return "runtime-warn";
-      if (entry?.kind === "app") return "runtime-app";
-      return "";
-    }
-
-    function appendRuntimeLogs(entries, reset) {
-      const lines = Array.isArray(entries) ? entries : [];
-      const nearBottom =
-        runtimeLogEl.scrollHeight - (runtimeLogEl.scrollTop + runtimeLogEl.clientHeight) < 24;
-
-      if (reset) {
-        runtimeLogEl.innerHTML = "";
-      }
-
-      if (!lines.length) {
-        if (!runtimeLogEl.childElementCount) {
-          runtimeLogPlaceholder("No logs yet.");
-        }
-        return;
-      }
-
-      if (runtimeLogEl.querySelector(".log-empty")) {
-        runtimeLogEl.innerHTML = "";
-      }
-
-      for (const entry of lines) {
-        const line = document.createElement("div");
-        line.className = "log-line";
-        const extraClass = runtimeLogClass(entry);
-        if (extraClass) {
-          line.classList.add(extraClass);
-        }
-        line.textContent = String(entry?.text || "");
-        runtimeLogEl.appendChild(line);
-      }
-
-      while (runtimeLogEl.childElementCount > 320) {
-        runtimeLogEl.removeChild(runtimeLogEl.firstChild);
-      }
-
-      if (nearBottom || reset) {
-        runtimeLogEl.scrollTop = runtimeLogEl.scrollHeight;
-      }
-    }
-
     function formatBytes(bytes) {
       const value = Number(bytes || 0);
       if (!Number.isFinite(value) || value <= 0) return "0 B";
@@ -3006,7 +2927,7 @@
     }
 
     function setTab(tab) {
-      const target = tab === "apps" || tab === "logs" ? tab : "system";
+      const target = tab === "apps" ? "apps" : "system";
       for (const btn of document.querySelectorAll(".tab-btn")) {
         btn.classList.toggle("active", btn.dataset.tab === target);
       }
@@ -3040,7 +2961,25 @@
         cache: "no-store",
       });
       if (!response.ok) {
-        throw new Error("Request failed (" + response.status + ")");
+        let detail = "";
+        try {
+          const text = await response.text();
+          if (text) {
+            try {
+              const parsed = JSON.parse(text);
+              if (parsed && parsed.error) {
+                detail = String(parsed.error);
+              } else {
+                detail = text;
+              }
+            } catch (_jsonError) {
+              detail = text;
+            }
+          }
+        } catch (_readError) {
+        }
+        const suffix = detail ? ": " + detail : "";
+        throw new Error("Request failed (" + response.status + ")" + suffix);
       }
       return response;
     }
@@ -3300,36 +3239,6 @@
       } finally {
         appSettingsSaveBtnEl.disabled = false;
         appSettingsRunBtnEl.disabled = false;
-      }
-    }
-
-    async function loadRuntimeLogs(options) {
-      const reset = !!options?.reset;
-      if (state.runtimeLogLoading) return;
-      state.runtimeLogLoading = true;
-      try {
-        const scope = deviceLogScopeEl.value === "app" ? "app" : "all";
-        const after = reset ? 0 : Number(state.runtimeLogSeq || 0);
-        const limit = reset ? 100 : 80;
-        const json = await apiJson(
-          "GET",
-          "/api/system/logs?scope=" + encodeURIComponent(scope) + "&after=" + after + "&limit=" + limit
-        );
-        const entries = Array.isArray(json?.logs) ? json.logs : [];
-        appendRuntimeLogs(entries, reset);
-        state.runtimeLogSeq = Number(json?.next_seq || state.runtimeLogSeq || 0);
-        state.runtimeLogError = "";
-      } catch (error) {
-        const message = String(error.message || error);
-        if (state.runtimeLogError !== message) {
-          state.runtimeLogError = message;
-          log("log fetch failed: " + message, "status-bad");
-        }
-        if (reset) {
-          runtimeLogPlaceholder("Log unavailable: " + message);
-        }
-      } finally {
-        state.runtimeLogLoading = false;
       }
     }
 
@@ -3993,6 +3902,25 @@
       return state.inflightInstalled;
     }
 
+    async function ensureInstalledAppsLoaded(options) {
+      const opts = options || {};
+      if (!opts.force && state.installedAppsLoaded) {
+        return state.installedApps;
+      }
+      const retries = Number.isFinite(Number(opts.retries)) ? Math.max(0, Number(opts.retries)) : 0;
+      let attempt = 0;
+      while (true) {
+        try {
+          await refreshInstalledApps();
+          return state.installedApps;
+        } catch (error) {
+          attempt += 1;
+          if (attempt > retries) throw error;
+          await sleep(220 * attempt);
+        }
+      }
+    }
+
     function applyStoreIndexJson(json, url, source) {
       state.storeApps = normalizeApps(json);
       state.categoryOrder = Array.isArray(json?.category_order) ? json.category_order.slice() : [];
@@ -4030,15 +3958,25 @@
         log("loading catalog " + url);
       }
       state.inflightStore = (async () => {
-        const fullUrl = url + (url.includes("?") ? "&" : "?") + "_ts=" + Date.now();
-        const response = await fetch(fullUrl, { cache: "no-store" });
-        if (!response.ok) {
-          throw new Error("Catalog load failed (" + response.status + ")");
+        try {
+          const fullUrl = url + (url.includes("?") ? "&" : "?") + "_ts=" + Date.now();
+          const response = await fetch(fullUrl, { cache: "no-store" });
+          if (!response.ok) {
+            throw new Error("Catalog load failed (" + response.status + ")");
+          }
+          const json = await response.json();
+          writeCachedJson(storeCacheKey(url), json);
+          applyStoreIndexJson(json, url, "network");
+          return json;
+        } catch (error) {
+          // Store failure must not block Installed Apps rendering.
+          if (!state.installedAppsLoaded) {
+            try {
+              await ensureInstalledAppsLoaded({ retries: 1 });
+            } catch (_) {}
+          }
+          throw error;
         }
-        const json = await response.json();
-        writeCachedJson(storeCacheKey(url), json);
-        applyStoreIndexJson(json, url, "network");
-        return json;
       })().finally(() => {
         state.inflightStore = null;
       });
@@ -4269,139 +4207,210 @@
     }
 
     async function installApp(item, ui = {}) {
-      if (!window.JSZip) {
-        throw new Error("JSZip failed to load; store install is unavailable");
-      }
-      const id = String(item.id || item.app_id || "").trim();
-      const isUpdate = !!state.installedById[id];
-      const zipUrl = String(item.zip_url || item.url || "").trim();
-      const expectedSize = Number(item.size || 0);
-      const expectedCrc32 = normalizeCrc32(item.crc32);
-      if (!id || !zipUrl) {
-        throw new Error("invalid store item: missing id or zip_url");
-      }
-      if (!expectedCrc32) {
-        throw new Error("checksum validation failed: missing crc32");
-      }
-
-      const fetchUrl = zipUrl + (zipUrl.includes("?") ? "&" : "?") + "_ts=" + Date.now();
-      const setStatus = typeof ui.setStatus === "function" ? ui.setStatus : null;
-      const setAction = typeof ui.setAction === "function" ? ui.setAction : null;
-      const onInstalled = typeof ui.onInstalled === "function" ? ui.onInstalled : null;
-      if (setAction) setAction("Downloading...", true);
-      if (setStatus) setStatus("Download 0%");
-      const zipBuffer = await downloadArrayBufferWithProgress(fetchUrl, (loaded, total) => {
-        if (setStatus) {
-          const pct = total > 0 ? Math.round((loaded * 100) / total) : 0;
-          setStatus("Download " + pct + "%");
-        }
-      });
-      const actualSize = Number(zipBuffer.byteLength || 0);
-      if (expectedSize > 0 && actualSize !== expectedSize) {
-        throw new Error("size mismatch: expected " + expectedSize + ", got " + actualSize);
-      }
-      if (setAction) setAction("Validating...", true);
-      if (setStatus) setStatus("Validate 100%");
-      const actualCrc32 = crc32Hex(zipBuffer);
-      if (actualCrc32 !== expectedCrc32) {
-        throw new Error("crc32 mismatch for " + id);
-      }
-      if (setAction) setAction("Unpacking...", true);
-      if (setStatus) setStatus("Unpack 0%");
-      const zip = await JSZip.loadAsync(zipBuffer);
-      const entries = Object.values(zip.files).filter((entry) => !entry.dir && !entry.name.startsWith("__MACOSX/"));
-      if (!entries.length) {
-        throw new Error("zip has no usable files");
-      }
-
-      const rawPaths = entries.map((entry) => entry.name);
-      const strip = detectStripPrefix(rawPaths);
-      let manifestObj = null;
-      for (const entry of entries) {
-        let rel = entry.name;
-        if (strip && rel.startsWith(strip)) rel = rel.substring(strip.length);
-        rel = normalizeRelPath(rel);
-        if (rel !== "manifest.json") continue;
-        try {
-          manifestObj = JSON.parse(await entry.async("string"));
-        } catch (_error) {
-          manifestObj = null;
-        }
-        break;
-      }
-      const preserveRules = buildPreserveRulesOnUpdate(manifestObj);
-      const uploadEntries = [];
-      let skippedSettingsCount = 0;
-      for (const entry of entries) {
-        let rel = entry.name;
-        if (strip && rel.startsWith(strip)) rel = rel.substring(strip.length);
-        rel = normalizeRelPath(rel);
-        if (!rel || rel.endsWith("/")) continue;
-        if (isUpdate && shouldPreserveOnUpdate(rel, preserveRules)) {
-          skippedSettingsCount += 1;
-          continue;
-        }
-        uploadEntries.push({ entry, rel });
-      }
-      if (!uploadEntries.length) {
-        throw new Error(isUpdate ? "update contains only preserved settings files" : "zip has no usable files");
-      }
-      let uploadedBytes = 0;
-      const totalUploadBytes = uploadEntries.reduce((sum, itemRef) => sum + (Number(itemRef.entry?._data?.uncompressedSize || 0) || 0), 0);
-      let uploadIndex = 0;
-      let committed = false;
-      await apiJson("POST", "/api/apps/install/begin?app_id=" + encodeURIComponent(id), null);
+      let phase = "init";
+      let id = String(item.id || item.app_id || "").trim();
       try {
-        for (const uploadItem of uploadEntries) {
-          const { entry, rel } = uploadItem;
-          const bytes = await entry.async("uint8array");
-          uploadIndex += 1;
-          if (setAction) setAction("Uploading " + uploadIndex + "/" + uploadEntries.length + "...", true);
-          if (setStatus) {
-            const pct = totalUploadBytes > 0 ? Math.round((uploadedBytes * 100) / totalUploadBytes) : 0;
-            setStatus("Upload " + pct + "%");
-          }
-          await uploadBinaryWithProgress(
-            "/api/apps/" + encodeURIComponent(id) + "/" + encPath(rel),
-            new Blob([bytes]),
-            (loaded, total) => {
-              const totalBytes = totalUploadBytes > 0 ? totalUploadBytes : bytes.byteLength;
-              const currentUploaded = uploadedBytes + loaded;
-              if (setStatus) {
-                const pct = totalBytes > 0 ? Math.round((currentUploaded * 100) / totalBytes) : 0;
-                setStatus("Upload " + pct + "%");
-              }
-            },
-            "PUT"
-          );
-          uploadedBytes += bytes.byteLength;
+        if (!window.JSZip) {
+          throw new Error("JSZip failed to load; store install is unavailable");
+        }
+        id = String(item.id || item.app_id || "").trim();
+        const isUpdate = !!state.installedById[id];
+        const zipUrl = String(item.zip_url || item.url || "").trim();
+        const expectedSize = Number(item.size || 0);
+        const expectedCrc32 = normalizeCrc32(item.crc32);
+        if (!id || !zipUrl) {
+          throw new Error("invalid store item: missing id or zip_url");
+        }
+        if (!expectedCrc32) {
+          throw new Error("checksum validation failed: missing crc32");
         }
 
-        const version = String(item.version || "").trim();
-        if (version) {
-          await api("PUT", "/api/apps/" + encodeURIComponent(id) + "/.store_version", new TextEncoder().encode(version));
+        const fetchUrl = zipUrl + (zipUrl.includes("?") ? "&" : "?") + "_ts=" + Date.now();
+        const setStatus = typeof ui.setStatus === "function" ? ui.setStatus : null;
+        const setAction = typeof ui.setAction === "function" ? ui.setAction : null;
+        const onInstalled = typeof ui.onInstalled === "function" ? ui.onInstalled : null;
+        log((isUpdate ? "update" : "install") + " start: " + id, "status-ok");
+        const beginInstallSession = async () => {
+          phase = "install-begin";
+          try {
+            await apiJson("POST", "/api/apps/install/begin?app_id=" + encodeURIComponent(id), null);
+            return;
+          } catch (error) {
+            const msg = String(error && error.message ? error.message : error).toLowerCase();
+            const maybeConflict = msg.includes("409") || msg.includes("another install session is active") || msg.includes("install session");
+            if (!maybeConflict) {
+              throw error;
+            }
+            log("install begin conflict, trying session recovery: " + id, "status-bad");
+            try { await apiJson("POST", "/api/apps/install/abort", null); } catch (_) {}
+            await sleep(120);
+            await apiJson("POST", "/api/apps/install/begin?app_id=" + encodeURIComponent(id), null);
+          }
+        };
+
+        if (setAction) setAction("Downloading...", true);
+        if (setStatus) setStatus("Download 0%");
+        phase = "download";
+        const zipBuffer = await downloadArrayBufferWithProgress(fetchUrl, (loaded, total) => {
+          if (setStatus) {
+            const pct = total > 0 ? Math.round((loaded * 100) / total) : 0;
+            setStatus("Download " + pct + "%");
+          }
+        });
+        const actualSize = Number(zipBuffer.byteLength || 0);
+        log("download complete: " + id + " bytes=" + actualSize, "status-ok");
+
+      // Ensure payload is a real ZIP to avoid parsing HTML/error pages as archives.
+        const sig = new Uint8Array(zipBuffer.slice(0, 4));
+        const isZipSig = (sig[0] === 0x50 && sig[1] === 0x4B &&
+          ((sig[2] === 0x03 && sig[3] === 0x04) || (sig[2] === 0x05 && sig[3] === 0x06) || (sig[2] === 0x07 && sig[3] === 0x08)));
+        if (!isZipSig) {
+          const head = Array.from(sig).map((v) => v.toString(16).padStart(2, "0")).join(" ");
+          throw new Error("downloaded payload is not a ZIP (signature=" + head + ")");
         }
-        await apiJson("POST", "/api/apps/install/commit", null);
-        committed = true;
-      } finally {
-        if (!committed) {
-          try { await apiJson("POST", "/api/apps/install/abort", null); } catch (_) {}
+
+        if (expectedSize > 0 && actualSize !== expectedSize) {
+          const delta = actualSize - expectedSize;
+          const sign = delta > 0 ? "+" : "";
+          log(
+            "size mismatch (continue): expected " + expectedSize + ", got " + actualSize + " (delta=" + sign + delta + ")",
+            "status-warn"
+          );
         }
+        phase = "validate";
+        if (setAction) setAction("Validating...", true);
+        if (setStatus) setStatus("Validate 100%");
+        const actualCrc32 = crc32Hex(zipBuffer);
+        if (actualCrc32 !== expectedCrc32) {
+          throw new Error("crc32 mismatch for " + id);
+        }
+        log("zip checksum ok: " + id + " crc32=" + actualCrc32, "status-ok");
+        phase = "unpack";
+        if (setAction) setAction("Unpacking...", true);
+        if (setStatus) setStatus("Unpack 0%");
+        let zip;
+        try {
+          zip = await JSZip.loadAsync(zipBuffer);
+        } catch (error) {
+          throw new Error("zip unpack failed: " + String(error && error.message ? error.message : error));
+        }
+        const entries = Object.values(zip.files).filter((entry) => !entry.dir && !entry.name.startsWith("__MACOSX/"));
+        if (!entries.length) {
+          throw new Error("zip has no usable files");
+        }
+        log("zip unpacked: " + id + " files=" + entries.length, "status-ok");
+
+        const rawPaths = entries.map((entry) => entry.name);
+        const strip = detectStripPrefix(rawPaths);
+        let manifestObj = null;
+        for (const entry of entries) {
+          let rel = entry.name;
+          if (strip && rel.startsWith(strip)) rel = rel.substring(strip.length);
+          rel = normalizeRelPath(rel);
+          if (rel !== "manifest.json") continue;
+          try {
+            manifestObj = JSON.parse(await entry.async("string"));
+          } catch (_error) {
+            manifestObj = null;
+          }
+          break;
+        }
+        const preserveRules = buildPreserveRulesOnUpdate(manifestObj);
+        const uploadEntries = [];
+        let skippedSettingsCount = 0;
+        for (const entry of entries) {
+          let rel = entry.name;
+          if (strip && rel.startsWith(strip)) rel = rel.substring(strip.length);
+          rel = normalizeRelPath(rel);
+          if (!rel || rel.endsWith("/")) continue;
+          if (isUpdate && shouldPreserveOnUpdate(rel, preserveRules)) {
+            skippedSettingsCount += 1;
+            continue;
+          }
+          uploadEntries.push({ entry, rel });
+        }
+        if (!uploadEntries.length) {
+          throw new Error(isUpdate ? "update contains only preserved settings files" : "zip has no usable files");
+        }
+        let uploadedBytes = 0;
+        const totalUploadBytes = uploadEntries.reduce((sum, itemRef) => sum + (Number(itemRef.entry?._data?.uncompressedSize || 0) || 0), 0);
+        let uploadIndex = 0;
+        let committed = false;
+        // Best-effort cleanup of stale install session, so begin won't be blocked by old 409 session state.
+        phase = "install-abort-stale";
+        try {
+          await apiJson("POST", "/api/apps/install/abort", null);
+        } catch (_error) {}
+
+        log("install begin session: " + id, "status-ok");
+        await beginInstallSession();
+        try {
+          phase = "upload";
+          for (const uploadItem of uploadEntries) {
+            const { entry, rel } = uploadItem;
+            const bytes = await entry.async("uint8array");
+            uploadIndex += 1;
+            if (setAction) setAction("Uploading " + uploadIndex + "/" + uploadEntries.length + "...", true);
+            if (setStatus) {
+              const pct = totalUploadBytes > 0 ? Math.round((uploadedBytes * 100) / totalUploadBytes) : 0;
+              setStatus("Upload " + pct + "%");
+            }
+            await uploadBinaryWithProgress(
+              "/api/apps/" + encodeURIComponent(id) + "/" + encPath(rel),
+              new Blob([bytes]),
+              (loaded, total) => {
+                const totalBytes = totalUploadBytes > 0 ? totalUploadBytes : bytes.byteLength;
+                const currentUploaded = uploadedBytes + loaded;
+                if (setStatus) {
+                  const pct = totalBytes > 0 ? Math.round((currentUploaded * 100) / totalBytes) : 0;
+                  setStatus("Upload " + pct + "%");
+                }
+              },
+              "PUT"
+            );
+            uploadedBytes += bytes.byteLength;
+          }
+
+          const version = String(item.version || "").trim();
+          if (version) {
+            phase = "upload-store-version";
+            await api("PUT", "/api/apps/" + encodeURIComponent(id) + "/.store_version", new TextEncoder().encode(version));
+          }
+          log("install upload complete: " + id + " files=" + uploadEntries.length, "status-ok");
+          phase = "commit";
+          await apiJson("POST", "/api/apps/install/commit", null);
+          committed = true;
+        } finally {
+          if (!committed) {
+            phase = "install-abort-failed";
+            try { await apiJson("POST", "/api/apps/install/abort", null); } catch (_) {}
+          }
+        }
+        phase = "finalize";
+        if (setAction) setAction("Finalizing...", true);
+        if (setStatus) setStatus("Finish 100%");
+        if (switchAfterEl.checked) {
+          phase = "run";
+          if (setStatus) setStatus("Run 100%");
+          await runApp(id);
+        }
+        if (setAction) setAction("Run", false);
+        if (setStatus) setStatus("Done. Ready to run.");
+        upsertInstalledAppLocal(item);
+        if (onInstalled) onInstalled();
+        if (isUpdate && skippedSettingsCount > 0) {
+          log("update kept " + skippedSettingsCount + " local setting file(s): " + id, "status-ok");
+        }
+        log("install done: " + id, "status-ok");
+      } catch (error) {
+        const message = String(error && error.message ? error.message : error);
+        const appLabel = id || String(item?.id || item?.app_id || "unknown");
+        try { error.installPhase = phase; } catch (_) {}
+        try { error.appId = appLabel; } catch (_) {}
+        log("install failed: " + appLabel + " phase=" + phase + " error=" + message, "status-bad");
+        console.error("[install] failed", { appId: appLabel, phase, error });
+        throw error;
       }
-      if (setAction) setAction("Finalizing...", true);
-      if (setStatus) setStatus("Finish 100%");
-      if (switchAfterEl.checked) {
-        if (setStatus) setStatus("Run 100%");
-        await runApp(id);
-      }
-      if (setAction) setAction("Run", false);
-      if (setStatus) setStatus("Done. Ready to run.");
-      upsertInstalledAppLocal(item);
-      if (onInstalled) onInstalled();
-      if (isUpdate && skippedSettingsCount > 0) {
-        log("update kept " + skippedSettingsCount + " local setting file(s): " + id, "status-ok");
-      }
-      log("install done: " + id, "status-ok");
     }
 
     function bindEvents() {
@@ -4549,22 +4558,6 @@
         }
       };
 
-      document.getElementById("clearLogBtn").onclick = () => {
-        logEl.innerHTML = "";
-      };
-
-      document.getElementById("refreshRuntimeLogBtn").onclick = async () => {
-        try {
-          await loadRuntimeLogs({ reset: true });
-        } catch (error) {
-          log(String(error.message || error), "status-bad");
-        }
-      };
-
-      document.getElementById("clearRuntimeLogBtn").onclick = () => {
-        runtimeLogPlaceholder("Log view cleared.");
-      };
-
       document.getElementById("scheduleAddBtn").onclick = () => {
         readScheduleBuilderToState();
         const mode = state.schedule.mode === "loop" ? "loop" : "time";
@@ -4693,16 +4686,6 @@
         renderSchedulePreview();
       });
 
-      deviceLogScopeEl.onchange = async () => {
-        state.runtimeLogSeq = 0;
-        runtimeLogPlaceholder("Loading logs...");
-        try {
-          await loadRuntimeLogs({ reset: true });
-        } catch (error) {
-          log(String(error.message || error), "status-bad");
-        }
-      };
-
       appSettingsCloseBtnEl.onclick = () => {
         closeAppSettings();
       };
@@ -4761,14 +4744,12 @@
         log("failed to apply forced store index: " + String(error.message || error), "status-bad");
       }
 
-      runtimeLogPlaceholder("Loading logs...");
       const hadStoreCache = indexUrlEl.value ? hydrateStoreIndexFromCache(indexUrlEl.value) : false;
 
       const startupTasks = [
         loadSystemStatus(),
         loadLocaleSettings(),
-        refreshInstalledApps(),
-        loadRuntimeLogs({ reset: true }),
+        ensureInstalledAppsLoaded({ retries: 1 }),
         loadDefaultAppSetting(),
       ];
       if (indexUrlEl.value) {
@@ -4779,6 +4760,14 @@
       for (const result of results) {
         if (result.status === "rejected") {
           log(String(result.reason?.message || result.reason || "startup failed"), "status-bad");
+        }
+      }
+
+      if (!state.installedAppsLoaded) {
+        try {
+          await ensureInstalledAppsLoaded({ retries: 1, force: true });
+        } catch (error) {
+          log("installed apps fallback failed: " + String(error.message || error), "status-bad");
         }
       }
 

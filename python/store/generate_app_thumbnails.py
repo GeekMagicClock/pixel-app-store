@@ -661,7 +661,7 @@ def render_by_app(app_id: str, pix):
 
 def main():
     ap = argparse.ArgumentParser(description="Generate 64x32 app preview thumbnails")
-    ap.add_argument("--apps-root", default="data_littlefs/apps")
+    ap.add_argument("--apps-root", default="apps_src")
     ap.add_argument("--app-id")
     ap.add_argument("--apps", action="append", default=[], help="Only generate specified app ids. Supports comma-separated values.")
     ap.add_argument("--force", action="store_true", help="Overwrite existing thumbnails")

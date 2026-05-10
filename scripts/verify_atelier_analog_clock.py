@@ -41,7 +41,7 @@ def main() -> int:
     base = f"http://{args.device}"
 
     if args.push:
-        run(["bash", "scripts/push_app.sh", args.device, args.app_id, "data_littlefs/apps", "--switch"], root)
+    run(["bash", "scripts/push_app.sh", args.device, args.app_id, "apps_src", "--switch"], root)
     else:
         run(["bash", "scripts/switch_app.sh", args.device, args.app_id], root)
 

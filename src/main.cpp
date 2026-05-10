@@ -609,6 +609,10 @@ static void MountLittlefs() {
     ESP_LOGI(kTag, "LittleFS: used=%u, total=%u", static_cast<unsigned>(used), static_cast<unsigned>(total));
   }
 
+  if (!Hub75LoadPersistentConfig()) {
+    ESP_LOGI(kTag, "hub75 config not found/invalid, using defaults");
+  }
+
   LogInstalledLuaApps();
   if (!SelectStartupLuaAppId(g_active_app_id, sizeof(g_active_app_id))) {
     ESP_LOGW(kTag, "no startup app selected");
@@ -670,6 +674,8 @@ extern "C" void app_main(void) {
     vTaskDelay(pdMS_TO_TICKS(200));
   }
  #endif 
+  MountLittlefs();
+
   MatrixPanel_I2S_DMA display(MakePanelConfig());
   if (!display.begin()) {
     ESP_LOGE(kTag, "Display init failed!");
@@ -717,7 +723,6 @@ extern "C" void app_main(void) {
   xTaskCreatePinnedToCore(LvglTask, "lvgl", 8192, nullptr, 5, &g_lvgl_task_handle, 0);
   g_lvgl_ready.store(true, std::memory_order_release);
 
-  MountLittlefs();
   xTaskCreatePinnedToCore(BootFlowTask, "boot_flow", 6144, nullptr, 4, nullptr, 1);
 
   if (kEnableHeapLogTask) {

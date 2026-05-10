@@ -6,9 +6,17 @@ import json
 import pathlib
 import shutil
 import subprocess
+import sys
 import tempfile
 import zipfile
 from datetime import datetime, timezone
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+SCRIPTS_DIR = ROOT / 'scripts'
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
+from packaging_policy import is_forbidden_doc_asset
 
 CATEGORY_ORDER = ['finance', 'time', 'weather', 'sports', 'games', 'art', 'media', 'other']
 CATEGORY_LABELS = {
@@ -31,6 +39,13 @@ def sha256_file(path: pathlib.Path) -> str:
     return h.hexdigest()
 
 
+def should_skip_packaged_file(rel_posix: str) -> bool:
+    rel = str(rel_posix or '').strip().strip('/')
+    if not rel:
+        return True
+    return is_forbidden_doc_asset(rel)
+
+
 def zip_app(app_dir: pathlib.Path, out_zip: pathlib.Path) -> None:
     if out_zip.exists():
         out_zip.unlink()
@@ -39,6 +54,8 @@ def zip_app(app_dir: pathlib.Path, out_zip: pathlib.Path) -> None:
             if p.is_dir():
                 continue
             rel = p.relative_to(app_dir).as_posix()
+            if should_skip_packaged_file(rel):
+                continue
             zf.write(p, arcname=rel)
 
 
@@ -92,6 +109,8 @@ def zip_app_with_bytecode(app_dir: pathlib.Path, out_zip: pathlib.Path, luac_bin
                 if p.is_dir():
                     continue
                 rel = p.relative_to(stage).as_posix()
+                if should_skip_packaged_file(rel):
+                    continue
                 zf.write(p, arcname=rel)
 
 
@@ -223,7 +242,7 @@ def clean_output_dir(out_dir: pathlib.Path) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description='Build app zip files and apps-index.json for GitHub store')
-    ap.add_argument('--apps-root', default='data_littlefs/apps')
+    ap.add_argument('--apps-root', default='apps_src')
     ap.add_argument('--out-dir', default='dist/store')
     ap.add_argument('--base-url', required=True, help='Base URL where zip files are hosted, e.g. https://raw.githubusercontent.com/<org>/<repo>/main/dist/store')
     ap.add_argument('--lua-bytecode', action='store_true', help='Compile app main.lua to Lua 5.4 bytecode before zipping')

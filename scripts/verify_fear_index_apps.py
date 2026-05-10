@@ -89,7 +89,7 @@ def main() -> int:
     art.mkdir(parents=True, exist_ok=True)
 
     if args.push:
-        run(["bash", "scripts/push_app.sh", args.device, meta["app_id"], "data_littlefs/apps", "--switch"], root)
+    run(["bash", "scripts/push_app.sh", args.device, meta["app_id"], "apps_src", "--switch"], root)
     else:
         run(["bash", "scripts/switch_app.sh", args.device, meta["app_id"]], root)
 

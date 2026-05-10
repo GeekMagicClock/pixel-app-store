@@ -1,0 +1,14 @@
+{
+  "app_id": "crypto_fear_index",
+  "name": "Crypto Fear",
+  "version": "1.0.5",
+  "min_fw": "0.0.0",
+  "min_api": "1.0",
+  "entry": "app.bin",
+  "layout_id": "framebuffer_rgb565",
+  "capabilities": [
+    "net",
+    "crypto"
+  ],
+  "category": "finance"
+}

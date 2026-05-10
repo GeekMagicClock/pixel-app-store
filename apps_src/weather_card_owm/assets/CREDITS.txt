@@ -1,0 +1,6 @@
+Weather scene PNG assets:
+- Base weather symbols: OpenWeather icon set
+  https://openweathermap.org/weather-conditions
+  https://openweathermap.org/img/wn/<icon>@2x.png
+- Local scene files were generated and composited for this app:
+  wx_clear.png, wx_clouds.png, wx_rain.png, wx_thunder.png, wx_snow.png, wx_mist.png
