@@ -226,20 +226,60 @@ local function hm_from_iso(iso)
   return string.match(tostring(iso or ""), "T(%d%d:%d%d)") or ""
 end
 
+local parse_iso_utc_epoch
+local local_utc_offset_sec
+local is_leap_year
+local days_in_month
+
 local function mmdd_from_iso(iso)
+  if type(parse_iso_utc_epoch) ~= "function" or type(local_utc_offset_sec) ~= "function" then
+    local _, m, d = string.match(tostring(iso or ""), "^(%d%d%d%d)%-(%d%d)%-(%d%d)")
+    if not m or not d then return "" end
+    return tostring(tonumber(m) or m) .. "/" .. tostring(tonumber(d) or d)
+  end
+  local utc_epoch = parse_iso_utc_epoch(iso)
+  local offset = local_utc_offset_sec()
+  if utc_epoch and offset and type(is_leap_year) == "function" and type(days_in_month) == "function" then
+    local local_epoch = utc_epoch + offset
+    local days_since_epoch = math.floor(local_epoch / 86400)
+    local y = 1970
+    local dleft = days_since_epoch
+    while true do
+      local leap = is_leap_year(y)
+      local yd = leap and 366 or 365
+      if dleft >= yd then
+        dleft = dleft - yd
+        y = y + 1
+      else
+        break
+      end
+    end
+    local mo = 1
+    while true do
+      local md = days_in_month(y, mo)
+      if dleft >= md then
+        dleft = dleft - md
+        mo = mo + 1
+      else
+        break
+      end
+    end
+    local day = dleft + 1
+    return tostring(mo) .. "/" .. tostring(day)
+  end
   local _, m, d = string.match(tostring(iso or ""), "^(%d%d%d%d)%-(%d%d)%-(%d%d)")
   if not m or not d then return "" end
   return tostring(tonumber(m) or m) .. "/" .. tostring(tonumber(d) or d)
 end
 
-local function is_leap_year(y)
+is_leap_year = function(y)
   y = tonumber(y) or 0
   if y % 400 == 0 then return true end
   if y % 100 == 0 then return false end
   return (y % 4) == 0
 end
 
-local function days_in_month(y, m)
+days_in_month = function(y, m)
   if m == 4 or m == 6 or m == 9 or m == 11 then return 30 end
   if m == 2 then return is_leap_year(y) and 29 or 28 end
   return 31
@@ -264,7 +304,7 @@ local function epoch_from_local_parts(y, m, d, hh, mm, ss)
   return days * 86400 + hh * 3600 + mm * 60 + ss
 end
 
-local function parse_iso_utc_epoch(iso)
+parse_iso_utc_epoch = function(iso)
   local s = tostring(iso or "")
   local y, m, d, hh, mm, ss = string.match(s, "^(%d%d%d%d)%-(%d%d)%-(%d%d)T(%d%d):(%d%d):(%d%d)Z$")
   if not y then
@@ -275,7 +315,7 @@ local function parse_iso_utc_epoch(iso)
   return epoch_from_local_parts(y, m, d, hh, mm, ss)
 end
 
-local function local_utc_offset_sec()
+local_utc_offset_sec = function()
   local lt = sys and sys.local_time and sys.local_time() or nil
   local ut = sys and sys.unix_time and sys.unix_time() or nil
   if type(lt) ~= "table" then return nil end
@@ -334,6 +374,26 @@ local function kickoff_label(event, status_text)
   return compact_text("START " .. hm, 15)
 end
 
+local function no_game_away_abbr()
+  if TEAM ~= "" then return TEAM end
+  return "---"
+end
+
+local function now_unix_sec()
+  local u = sys and sys.unix_time and sys.unix_time() or nil
+  u = tonumber(u)
+  if u then return math.floor(u) end
+  return nil
+end
+
+local function event_is_future_pre(event)
+  local ts = parse_iso_utc_epoch(event and event.date or "")
+  local now_s = now_unix_sec()
+  if ts and now_s then return ts > now_s end
+  return true
+end
+
+
 local function choose_event(obj)
   local events = obj and obj.events or {}
   local best = nil
@@ -345,7 +405,17 @@ local function choose_event(obj)
     local st = tostring(e and e.status and e.status.type and e.status.type.state or "")
     local score = 0
     if team_match(home) or team_match(away) then score = score + 100 end
-    if st == "in" then score = score + 50 elseif st == "pre" then score = score + 25 else score = score + 10 end
+    if st == "in" then
+      score = score + 50
+    elseif st == "pre" then
+      if event_is_future_pre(e) then
+        score = score + 25
+      else
+        score = score - 200
+      end
+    else
+      score = score + 10
+    end
     if score > best_score then
       best = e
       best_score = score
@@ -402,7 +472,8 @@ local function build_scoreboard_pages(obj)
     local comp = e and e.competitions and e.competitions[1] or nil
     local home, away = find_home_away(comp)
     local st = tostring(e and e.status and e.status.type and e.status.type.state or "")
-    local allowed_state = (st == "in" or st == "post")
+    local pre_ok = (st ~= "pre") or event_is_future_pre(e)
+    local allowed_state = (st == "in" or st == "post" or ((not focus_enabled) and st == "pre" and pre_ok))
     local focused_match = (team_match(home) or team_match(away))
     if allowed_state and ((not focus_enabled) or focused_match) then
       local m = parse_event_fallback(e)
@@ -581,9 +652,11 @@ local function handle_scoreboard_response(status, body)
   else
     state.board_pages = nil
   end
-  state.has_live = scoreboard_has_live(parsed)
-
   local has_board_pages = (type(state.board_pages) == "table" and #state.board_pages > 0)
+  if not parsed and has_board_pages then
+    parsed = first_board_page_or_nil()
+  end
+  state.has_live = scoreboard_has_live(parsed)
   dbg("scoreboard response has_pages=" .. tostring(has_board_pages) .. " parsed=" .. tostring(parsed ~= nil))
   if not parsed then
     if state.payload then
@@ -599,7 +672,7 @@ local function handle_scoreboard_response(status, body)
     state.has_live = false
     state.payload = {
       header = "NO GAME",
-      away_abbr = "---",
+      away_abbr = no_game_away_abbr(),
       away_score = "-",
       away_score_num = nil,
       home_abbr = "---",
@@ -623,7 +696,7 @@ local function handle_scoreboard_response(status, body)
     else
       state.payload = {
         header = "NO GAME",
-        away_abbr = "---",
+        away_abbr = no_game_away_abbr(),
         away_score = "-",
         away_score_num = nil,
         home_abbr = "---",
@@ -647,7 +720,7 @@ local function handle_scoreboard_response(status, body)
     local first_model = first_board_page_or_nil()
     state.payload = first_model or {
       header = "NO GAME",
-      away_abbr = "---",
+      away_abbr = no_game_away_abbr(),
       away_score = "-",
       away_score_num = nil,
       home_abbr = "---",
@@ -673,7 +746,7 @@ local function handle_scoreboard_response(status, body)
   else
     state.payload = {
       header = "NO GAME",
-      away_abbr = "---",
+      away_abbr = no_game_away_abbr(),
       away_score = "-",
       away_score_num = nil,
       home_abbr = "---",
@@ -837,7 +910,7 @@ function app.render_fb(fb)
 
   local model = state.payload or {
     header = "LOADING",
-    away_abbr = "---",
+    away_abbr = no_game_away_abbr(),
     away_score = "-",
     away_score_num = nil,
     home_abbr = "---",
@@ -850,37 +923,23 @@ function app.render_fb(fb)
     accent = C_ACCENT,
   }
   if board_rotation_enabled() and type(state.board_pages) == "table" and #state.board_pages > 1 then
-    local live_idx = nil
+    -- Rotate among live games if present, otherwise rotate through all pages.
+    local live_indices = {}
     for i = 1, #state.board_pages do
       local m = state.board_pages[i].model
       if m and tostring(m.state or "") == "in" then
-        live_idx = i
-        break
+        table.insert(live_indices, i)
       end
     end
-    if live_idx then
-      -- If any game is live, pin screen to live score (no rotation).
-      model = state.board_pages[live_idx].model or model
+    if #live_indices == 1 then
+      model = state.board_pages[live_indices[1]].model or model
+    elseif #live_indices > 1 then
+      local pidx = math.floor(state.anim_ms / ROTATE_MS) % #live_indices + 1
+      model = state.board_pages[live_indices[pidx]].model or model
     else
       local pidx = math.floor(state.anim_ms / ROTATE_MS) % #state.board_pages + 1
       model = state.board_pages[pidx].model or model
     end
-  end
-  if tostring(model.state or "") == "pre" then
-    model = {
-      header = "NO GAME",
-      away_abbr = "---",
-      away_score = "-",
-      away_score_num = nil,
-      home_abbr = "---",
-      home_score = "-",
-      home_score_num = nil,
-      status = compact_text(string.upper(LEAGUE), 15),
-      detail1 = "CHECK LATER",
-      detail2 = TEAM ~= "" and TEAM or string.upper(SPORT),
-      state = "post",
-      accent = C_WARN,
-    }
   end
 
   local function line_color(self_score, other_score)
@@ -923,6 +982,8 @@ function app.render_fb(fb)
     detail = status_line
   elseif tostring(model.state or "") == "post" then
     detail = mmdd_from_iso(model.date_raw or "")
+  elseif tostring(model.state or "") == "pre" then
+    detail = model.start_label ~= "" and model.start_label or status_line
   end
   local detail_color = C_MUTED
   if stale ~= "" then
@@ -942,6 +1003,8 @@ function app.render_fb(fb)
     state_tag = "FINAL"
     post_weekday = weekday_from_iso(model.date_raw or "")
     post_date = mmdd_from_iso(model.date_raw or "")
+  elseif model.state == "pre" then
+    state_tag = "NEXT"
   elseif stale ~= "" then
     state_tag = stale
   else
@@ -954,8 +1017,15 @@ function app.render_fb(fb)
   local away_score = tostring(model.away_score or "-")
   local home_abbr = tostring(model.home_abbr or "---")
   local home_score = tostring(model.home_score or "-")
-  fb:text_box(X_TEXT, Y_ROW_1, W_TEXT, 8, compact_text(away_abbr .. " " .. away_score, 12), line_color(model.away_score_num, model.home_score_num), FONT_TITLE, 8, "left", false)
-  fb:text_box(X_TEXT, Y_ROW_2, W_TEXT, 8, compact_text(home_abbr .. " " .. home_score, 12), line_color(model.home_score_num, model.away_score_num), FONT_TITLE, 8, "left", false)
+  local function build_team_line(abbr, score)
+    if not score or score == "-" or score == "" then
+      return compact_text(abbr, 12)
+    end
+    return compact_text(abbr .. " " .. score, 12)
+  end
+
+  fb:text_box(X_TEXT, Y_ROW_1, W_TEXT, 8, build_team_line(away_abbr, away_score), line_color(model.away_score_num, model.home_score_num), FONT_TITLE, 8, "left", false)
+  fb:text_box(X_TEXT, Y_ROW_2, W_TEXT, 8, build_team_line(home_abbr, home_score), line_color(model.home_score_num, model.away_score_num), FONT_TITLE, 8, "left", false)
   if tostring(model.state or "") == "post" and post_date ~= "" then
     fb:text_box(X_TEXT, Y_ROW_3, 40, 8, compact_text(post_date, 8), C_TEXT, FONT, 8, "left", false)
     fb:text_box(40, Y_ROW_3, 24, 8, compact_text(post_weekday, 6), C_ACCENT, FONT, 8, "right", false)

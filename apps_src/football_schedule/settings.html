@@ -64,7 +64,6 @@
   </div>
 
   <div class="actions">
-    <button id="save" type="button">Save</button>
     <button id="saveRun" class="primary" type="button">Save & Run</button>
   </div>
   <div id="status" class="status"></div>
@@ -72,44 +71,7 @@
   <script>
     const APP_ID = "football_schedule";
     const FORCED_SPORT = "football";
-    const teamCache = new Map();
-    const TEAM_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-    const TEAM_CACHE_PREFIX = "sports:teams:v2:";
-    const CFG = {
-      soccer: {
-        label: "Soccer",
-        leagues: [
-          { code: "eng.1", name: "Premier League", teams: [["ARS", "Arsenal"], ["CHE", "Chelsea"], ["LIV", "Liverpool"], ["MCI", "Manchester City"], ["MUN", "Manchester United"], ["NEW", "Newcastle"], ["TOT", "Tottenham"]] },
-          { code: "esp.1", name: "La Liga", teams: [["BAR", "Barcelona"], ["RMA", "Real Madrid"], ["ATM", "Atletico Madrid"], ["SEV", "Sevilla"], ["VAL", "Valencia"]] },
-          { code: "ger.1", name: "Bundesliga", teams: [["BAY", "Bayern"], ["BVB", "Dortmund"], ["RBL", "Leipzig"], ["LEV", "Leverkusen"]] },
-          { code: "ita.1", name: "Serie A", teams: [["INT", "Inter"], ["JUV", "Juventus"], ["MIL", "AC Milan"], ["NAP", "Napoli"], ["ROM", "Roma"]] }
-        ]
-      },
-      basketball: {
-        label: "Basketball",
-        leagues: [
-          { code: "nba", name: "NBA", teams: [["LAL", "Lakers"], ["BOS", "Celtics"], ["GSW", "Warriors"], ["PHX", "Suns"], ["MIA", "Heat"], ["MIL", "Bucks"], ["DEN", "Nuggets"], ["NYK", "Knicks"]] }
-        ]
-      },
-      football: {
-        label: "Football",
-        leagues: [
-          { code: "nfl", name: "NFL", teams: [["KC", "Chiefs"], ["BUF", "Bills"], ["SF", "49ers"], ["DAL", "Cowboys"], ["PHI", "Eagles"], ["BAL", "Ravens"], ["MIA", "Dolphins"]] }
-        ]
-      },
-      baseball: {
-        label: "Baseball",
-        leagues: [
-          { code: "mlb", name: "MLB", teams: [["NYY", "Yankees"], ["LAD", "Dodgers"], ["BOS", "Red Sox"], ["HOU", "Astros"], ["ATL", "Braves"], ["CHC", "Cubs"]] }
-        ]
-      },
-      hockey: {
-        label: "Hockey",
-        leagues: [
-          { code: "nhl", name: "NHL", teams: [["BOS", "Bruins"], ["NYR", "Rangers"], ["TOR", "Maple Leafs"], ["VGK", "Golden Knights"], ["COL", "Avalanche"], ["EDM", "Oilers"]] }
-        ]
-      }
-    };
+    const LEAGUES = [{"code":"nfl","name":"NFL","teams":[["ARI","Arizona Cardinals","22"],["ATL","Atlanta Falcons","1"],["BAL","Baltimore Ravens","33"],["BUF","Buffalo Bills","2"],["CAR","Carolina Panthers","29"],["CHI","Chicago Bears","3"],["CIN","Cincinnati Bengals","4"],["CLE","Cleveland Browns","5"],["DAL","Dallas Cowboys","6"],["DEN","Denver Broncos","7"],["DET","Detroit Lions","8"],["GB","Green Bay Packers","9"],["HOU","Houston Texans","34"],["IND","Indianapolis Colts","11"],["JAX","Jacksonville Jaguars","30"],["KC","Kansas City Chiefs","12"],["LV","Las Vegas Raiders","13"],["LAC","Los Angeles Chargers","24"],["LAR","Los Angeles Rams","14"],["MIA","Miami Dolphins","15"],["MIN","Minnesota Vikings","16"],["NE","New England Patriots","17"],["NO","New Orleans Saints","18"],["NYG","New York Giants","19"],["NYJ","New York Jets","20"],["PHI","Philadelphia Eagles","21"],["PIT","Pittsburgh Steelers","23"],["SF","San Francisco 49ers","25"],["SEA","Seattle Seahawks","26"],["TB","Tampa Bay Buccaneers","27"],["TEN","Tennessee Titans","10"],["WSH","Washington Commanders","28"]]}];
 
     const el = {
       sport: document.getElementById("sport"),
@@ -118,7 +80,6 @@
       count: document.getElementById("count"),
       rotateSec: document.getElementById("rotateSec"),
       refreshSec: document.getElementById("refreshSec"),
-      save: document.getElementById("save"),
       saveRun: document.getElementById("saveRun"),
       status: document.getElementById("status")
     };
@@ -151,6 +112,7 @@
         const opt = document.createElement("option");
         opt.value = item.value;
         opt.textContent = item.label;
+        if (item.teamId) opt.teamId = item.teamId;
         node.appendChild(opt);
       }
       if (value != null && value !== "") node.value = value;
@@ -165,7 +127,7 @@
     }
 
 function sportDef() {
-      return CFG[el.sport.value] || CFG.soccer;
+      return { leagues: LEAGUES };
     }
 
     function selectedSportDef() {
@@ -180,17 +142,9 @@ function sportDef() {
       }
       return sport.leagues[0];
     }
-
-    async function fetchLeagueTeams(sport, league) {
-      return [];
-    }
-
     async function rebuildTeam(preferredTeam) {
       const league = leagueDef();
-      const dynamicTeams = await fetchLeagueTeams(FORCED_SPORT, league.code || "eng.1");
-      const sourceTeams = Array.isArray(dynamicTeams) && dynamicTeams.length > 0
-        ? dynamicTeams
-        : (league.teams || []).map(function (x) { return [x[0], x[1], ""]; });
+      const sourceTeams = (league.teams || []).map(function (x) { return [x[0], x[1], ""]; });
       const options = [{ value: "", label: "No Team Focus" }];
       for (const t of sourceTeams) {
         options.push({ value: t[0], label: t[0] + " - " + t[1], teamId: t[2] || "" });
@@ -235,8 +189,7 @@ function sportDef() {
     }
 
     async function saveNow() {
-      el.save.disabled = true;
-      el.saveRun.disabled = true;
+      if (el.saveRun) el.saveRun.disabled = true;
       try {
         const t0 = Date.now();
         setStatus("Saving...");
@@ -247,8 +200,7 @@ function sportDef() {
       } catch (e) {
         setStatus(String(e && e.message || e), "bad");
       } finally {
-        el.save.disabled = false;
-        el.saveRun.disabled = false;
+        if (el.saveRun) el.saveRun.disabled = false;
       }
     }
 
@@ -271,7 +223,7 @@ function sportDef() {
       const json = await api("GET", "/api/system/settings");
       const items = json && typeof json.items === "object" ? json.items : {};
 
-      const sportOptions = Object.keys(CFG).map(function (k) { return { value: k, label: CFG[k].label }; });
+      const sportOptions = [{ value: FORCED_SPORT, label: "Football" }];
       setOptions(el.sport, sportOptions, FORCED_SPORT);
       lockSportField();
       await rebuildLeague(String(items["football_schedule.league"] || ""), String(items["football_schedule.team"] || ""));
@@ -288,8 +240,7 @@ function sportDef() {
       const option = el.team.options[el.team.selectedIndex];
       el.team.dataset.teamId = option && option.teamId ? option.teamId : "";
     });
-    el.save.addEventListener("click", saveNow);
-    el.saveRun.addEventListener("click", saveNow);
+    if (el.saveRun) el.saveRun.addEventListener("click", saveNow);
 
     load().catch(function (e) { setStatus(String(e && e.message || e), "bad"); });
   </script>

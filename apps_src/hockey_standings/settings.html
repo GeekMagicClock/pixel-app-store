@@ -71,7 +71,6 @@
   </div>
 
   <div class="actions">
-    <button id="save" type="button">Save</button>
     <button id="saveRun" class="primary" type="button">Save & Run</button>
   </div>
   <div id="status" class="status"></div>
@@ -79,44 +78,7 @@
   <script>
     const APP_ID = "hockey_standings";
     const FORCED_SPORT = "hockey";
-    const teamCache = new Map();
-    const TEAM_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-    const TEAM_CACHE_PREFIX = "sports:teams:v2:";
-    const CFG = {
-      soccer: {
-        label: "Soccer",
-        leagues: [
-          { code: "eng.1", name: "Premier League", teams: [["ARS", "Arsenal"], ["CHE", "Chelsea"], ["LIV", "Liverpool"], ["MCI", "Manchester City"], ["MUN", "Manchester United"], ["NEW", "Newcastle"], ["TOT", "Tottenham"]] },
-          { code: "esp.1", name: "La Liga", teams: [["BAR", "Barcelona"], ["RMA", "Real Madrid"], ["ATM", "Atletico Madrid"], ["SEV", "Sevilla"], ["VAL", "Valencia"]] },
-          { code: "ger.1", name: "Bundesliga", teams: [["BAY", "Bayern"], ["BVB", "Dortmund"], ["RBL", "Leipzig"], ["LEV", "Leverkusen"]] },
-          { code: "ita.1", name: "Serie A", teams: [["INT", "Inter"], ["JUV", "Juventus"], ["MIL", "AC Milan"], ["NAP", "Napoli"], ["ROM", "Roma"]] }
-        ]
-      },
-      basketball: {
-        label: "Basketball",
-        leagues: [
-          { code: "nba", name: "NBA", teams: [["LAL", "Lakers"], ["BOS", "Celtics"], ["GSW", "Warriors"], ["PHX", "Suns"], ["MIA", "Heat"], ["MIL", "Bucks"], ["DEN", "Nuggets"], ["NYK", "Knicks"]] }
-        ]
-      },
-      football: {
-        label: "Football",
-        leagues: [
-          { code: "nfl", name: "NFL", teams: [["KC", "Chiefs"], ["BUF", "Bills"], ["SF", "49ers"], ["DAL", "Cowboys"], ["PHI", "Eagles"], ["BAL", "Ravens"], ["MIA", "Dolphins"]] }
-        ]
-      },
-      baseball: {
-        label: "Baseball",
-        leagues: [
-          { code: "mlb", name: "MLB", teams: [["NYY", "Yankees"], ["LAD", "Dodgers"], ["BOS", "Red Sox"], ["HOU", "Astros"], ["ATL", "Braves"], ["CHC", "Cubs"]] }
-        ]
-      },
-      hockey: {
-        label: "Hockey",
-        leagues: [
-          { code: "nhl", name: "NHL", teams: [["BOS", "Bruins"], ["NYR", "Rangers"], ["TOR", "Maple Leafs"], ["VGK", "Golden Knights"], ["COL", "Avalanche"], ["EDM", "Oilers"]] }
-        ]
-      }
-    };
+    const LEAGUES = [{"code":"nhl","name":"NHL","teams":[["ANA","Anaheim Ducks","25"],["BOS","Boston Bruins","1"],["BUF","Buffalo Sabres","2"],["CGY","Calgary Flames","3"],["CAR","Carolina Hurricanes","7"],["CHI","Chicago Blackhawks","4"],["COL","Colorado Avalanche","17"],["CBJ","Columbus Blue Jackets","29"],["DAL","Dallas Stars","9"],["DET","Detroit Red Wings","5"],["EDM","Edmonton Oilers","6"],["FLA","Florida Panthers","26"],["LA","Los Angeles Kings","8"],["MIN","Minnesota Wild","30"],["MTL","Montreal Canadiens","10"],["NSH","Nashville Predators","27"],["NJ","New Jersey Devils","11"],["NYI","New York Islanders","12"],["NYR","New York Rangers","13"],["OTT","Ottawa Senators","14"],["PHI","Philadelphia Flyers","15"],["PIT","Pittsburgh Penguins","16"],["SJ","San Jose Sharks","18"],["SEA","Seattle Kraken","124292"],["STL","St. Louis Blues","19"],["TB","Tampa Bay Lightning","20"],["TOR","Toronto Maple Leafs","21"],["UTAH","Utah Mammoth","129764"],["VAN","Vancouver Canucks","22"],["VGK","Vegas Golden Knights","37"],["WSH","Washington Capitals","23"],["WPG","Winnipeg Jets","28"]]}];
 
     const el = {
       sport: document.getElementById("sport"),
@@ -126,7 +88,6 @@
       autoPage: document.getElementById("autoPage"),
       rotateSec: document.getElementById("rotateSec"),
       refreshSec: document.getElementById("refreshSec"),
-      save: document.getElementById("save"),
       saveRun: document.getElementById("saveRun"),
       status: document.getElementById("status")
     };
@@ -159,6 +120,7 @@
         const opt = document.createElement("option");
         opt.value = item.value;
         opt.textContent = item.label;
+        if (item.teamId) opt.teamId = item.teamId;
         node.appendChild(opt);
       }
       if (value != null && value !== "") node.value = value;
@@ -173,7 +135,7 @@
     }
 
 function sportDef() {
-      return CFG[el.sport.value] || CFG.soccer;
+      return { leagues: LEAGUES };
     }
 
     function selectedSportDef() {
@@ -188,15 +150,9 @@ function sportDef() {
       }
       return sport.leagues[0];
     }
-
-    async function fetchLeagueTeams(sport, league) {
-      return [];
-    }
-
     async function rebuildTeam(preferredTeam) {
       const league = leagueDef();
-      const dynamicTeams = await fetchLeagueTeams(FORCED_SPORT, league.code || "eng.1");
-      const sourceTeams = Array.isArray(dynamicTeams) && dynamicTeams.length > 0 ? dynamicTeams : (league.teams || []);
+      const sourceTeams = (leagueDef || league).teams || [];
       const options = [{ value: "", label: "No Team Focus" }];
       for (const t of sourceTeams) {
         options.push({ value: t[0], label: t[0] + " - " + t[1] });
@@ -225,7 +181,7 @@ function sportDef() {
         "hockey_standings.sport": FORCED_SPORT,
         "hockey_standings.league": el.league.value || "eng.1",
         "hockey_standings.team": (el.team.value || "").trim().toUpperCase() || null,
-        "hockey_standings.mode": "top",
+        "hockey_standings.mode": (el.team.value || "").trim() ? "around_team" : "top",
         "hockey_standings.rows_per_page": clampInt(el.rowsPerPage.value, 1, 4, 4),
         "hockey_standings.auto_page": el.autoPage.value === "0" ? "0" : "1",
         "hockey_standings.rotate_ms": rotateSec * 1000,
@@ -234,8 +190,7 @@ function sportDef() {
     }
 
     async function saveNow() {
-      el.save.disabled = true;
-      el.saveRun.disabled = true;
+      if (el.saveRun) el.saveRun.disabled = true;
       try {
         const t0 = Date.now();
         setStatus("Saving...");
@@ -246,8 +201,7 @@ function sportDef() {
       } catch (e) {
         setStatus(String(e && e.message || e), "bad");
       } finally {
-        el.save.disabled = false;
-        el.saveRun.disabled = false;
+        if (el.saveRun) el.saveRun.disabled = false;
       }
     }
 
@@ -270,7 +224,7 @@ function sportDef() {
       const json = await api("GET", "/api/system/settings");
       const items = json && typeof json.items === "object" ? json.items : {};
 
-      const sportOptions = Object.keys(CFG).map(function (k) { return { value: k, label: CFG[k].label }; });
+      const sportOptions = [{ value: FORCED_SPORT, label: "Hockey" }];
       setOptions(el.sport, sportOptions, FORCED_SPORT);
       lockSportField();
       await rebuildLeague(String(items["hockey_standings.league"] || ""), String(items["hockey_standings.team"] || ""));
@@ -285,8 +239,7 @@ function sportDef() {
 
     el.sport.addEventListener("change", function () { rebuildLeague("", "").catch(function () {}); });
     el.league.addEventListener("change", function () { rebuildTeam("").catch(function () {}); });
-    el.save.addEventListener("click", saveNow);
-    el.saveRun.addEventListener("click", saveNow);
+    if (el.saveRun) el.saveRun.addEventListener("click", saveNow);
 
     load().catch(function (e) { setStatus(String(e && e.message || e), "bad"); });
   </script>

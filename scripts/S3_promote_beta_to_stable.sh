@@ -46,6 +46,27 @@ mkdir -p "${STABLE_DIR}"
 if [[ ${#APPS[@]} -eq 0 ]]; then
   echo "==> Promote full beta channel to stable (no compile)"
   rsync -a --delete "${BETA_DIR}/" "${STABLE_DIR}/"
+
+  python3 - "${STABLE_DIR}/apps-index.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+idx = Path(sys.argv[1])
+if not idx.exists():
+    raise SystemExit(f"missing stable index after promote: {idx}")
+
+payload = json.loads(idx.read_text(encoding="utf-8"))
+apps = payload.get("apps") or []
+for app in apps:
+    if isinstance(app.get("zip_url"), str):
+        app["zip_url"] = app["zip_url"].replace("/beta/", "/stable/")
+    if isinstance(app.get("thumbnail_url"), str):
+        app["thumbnail_url"] = app["thumbnail_url"].replace("/beta/", "/stable/")
+payload["channel"] = "stable"
+idx.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+print(f"normalized stable index: {idx}")
+PY
 else
   echo "==> Promote selected app(s): ${APPS[*]}"
   python3 - "${BETA_DIR}" "${STABLE_DIR}" "${APPS[@]}" <<'PY'

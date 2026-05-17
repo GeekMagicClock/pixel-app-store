@@ -50,6 +50,21 @@ These rules are mandatory for any AI agent working in this repository.
    - any file under `doc/` or `docs/` directories
 3. If packaging scripts include such files, agents must fix the scripts before publishing.
 
+## Sports App Focus Policy (Required)
+
+These rules apply to all sports apps, including every `*_scoreboard`, `*_schedule`, and `*_standings` app.
+
+1. If the user sets a focus team (`team` or `team_id`), the app MUST show only information for that team.
+2. When a focus team is set, agents MUST NOT fill empty states by showing other teams' games, scores, schedules, or standings rows.
+3. Schedule apps with a focus team MUST show `No Game` when that team has no upcoming schedule data.
+4. Scoreboard apps with a focus team MUST prioritize:
+   - live game for the focus team,
+   - then the most recent completed score for the focus team,
+   - then `No Game` when no live or completed score exists.
+5. Scoreboard apps without a focus team may rotate league games, but MUST prioritize live games before completed games.
+6. Standings apps with a focus team MUST emphasize that team's row. If standings content scrolls, it should scroll horizontally/around the focused row so the focus team remains the clear visual anchor.
+7. Sports app empty states MUST be explicit (`No Game`, `No Schedule`, or equivalent) instead of showing unrelated teams or ambiguous score placeholders such as `--`.
+
 ## Preflight Checklist (Required)
 
 Before any publish action, agents must verify:

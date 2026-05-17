@@ -2154,7 +2154,18 @@
         localStorage.setItem("pixel_store_channel", channel);
         return { url, channel };
       } catch (error) {
-        return { url: FALLBACK_STORE_INDEX_URL, channel: "stable" };
+        let channel = "stable";
+        let url = "";
+        try {
+          channel = String(localStorage.getItem("pixel_store_channel") || "").trim().toLowerCase() === "beta" ? "beta" : "stable";
+          url = String(localStorage.getItem(LS_KEY) || "").trim();
+        } catch (_) {}
+        if (!url) {
+          url = channel === "beta"
+            ? "https://ota.geekmagic.cc/apps/pixel64x32V2/beta/apps-index.json"
+            : FALLBACK_STORE_INDEX_URL;
+        }
+        return { url, channel };
       }
     }
 
@@ -2425,6 +2436,9 @@
     }
 
     function renderSchedulePreview() {
+      if (!schedulePreviewEl) {
+        return;
+      }
       const items = state.schedule.mode === "time"
         ? (Array.isArray(state.schedule.timeItems) ? state.schedule.timeItems : [])
         : (Array.isArray(state.schedule.loopItems) ? state.schedule.loopItems : []);
@@ -2453,6 +2467,10 @@
     }
 
     function readScheduleBuilderToState() {
+      if (!scheduleRowsEl || !powerSaverEnabledInputEl || !scheduleFallbackAppInputEl
+          || !screenOffStartInputEl || !screenOnStartInputEl) {
+        return;
+      }
       const mode = state.schedule.mode === "loop" ? "loop" : "time";
       const enabled = !!state.schedule.enabled;
       const base = mode === "time"
@@ -2496,6 +2514,9 @@
     }
 
     function readPowerSaverToState() {
+      if (!powerSaverEnabledInputEl || !screenOffStartInputEl || !screenOnStartInputEl) {
+        return;
+      }
       state.schedule = {
         ...state.schedule,
         powerSaverEnabled: !!powerSaverEnabledInputEl.checked,
@@ -3458,8 +3479,8 @@
         fwVersionTagEl.textContent = "Version " + (fwVersion ? fwVersion : "--");
       }
       const brightnessUi = brightnessRawToUi(status?.display?.brightness ?? 64);
-      brightnessSliderEl.value = String(brightnessUi);
-      brightnessValueEl.textContent = String(brightnessUi);
+      if (brightnessSliderEl) brightnessSliderEl.value = String(brightnessUi);
+      if (brightnessValueEl) brightnessValueEl.textContent = String(brightnessUi);
       if (firmwareAutoOtaInputEl) {
         firmwareAutoOtaInputEl.checked = !!status?.firmware?.auto_ota_enabled;
       }
@@ -3467,14 +3488,16 @@
       const totalBytes = Number(status?.storage?.total_bytes || 0);
       const usedBytes = Number(status?.storage?.used_bytes || 0);
       const usedPct = clampPercent(status?.storage?.used_pct ?? (totalBytes > 0 ? (usedBytes * 100) / totalBytes : 0));
-      storagePercentEl.textContent = totalBytes > 0 ? usedPct + "%" : "--%";
-      storageUsageEl.textContent = totalBytes > 0 ? formatBytes(usedBytes) + " / " + formatBytes(totalBytes) : "-- / --";
-      storageBarEl.style.width = (totalBytes > 0 ? usedPct : 0) + "%";
-      storageMetaEl.textContent = totalBytes > 0
-        ? formatBytes(usedBytes) + " used in app storage."
-        : "Storage usage is unavailable.";
+      if (storagePercentEl) storagePercentEl.textContent = totalBytes > 0 ? usedPct + "%" : "--%";
+      if (storageUsageEl) storageUsageEl.textContent = totalBytes > 0 ? formatBytes(usedBytes) + " / " + formatBytes(totalBytes) : "-- / --";
+      if (storageBarEl) storageBarEl.style.width = (totalBytes > 0 ? usedPct : 0) + "%";
+      if (storageMetaEl) {
+        storageMetaEl.textContent = totalBytes > 0
+          ? formatBytes(usedBytes) + " used in app storage."
+          : "Storage usage is unavailable.";
+      }
 
-      if (!wifiSsidEl.value && status?.wifi?.saved_ssid) {
+      if (wifiSsidEl && !wifiSsidEl.value && status?.wifi?.saved_ssid) {
         wifiSsidEl.value = status.wifi.saved_ssid;
       }
       if (wifiScanStatusEl) {
@@ -3498,6 +3521,9 @@
     }
 
     function renderWifiScan(aps) {
+      if (!wifiScanListEl || !wifiScanStatusEl) {
+        return;
+      }
       wifiScanListEl.innerHTML = "";
       state.wifiScannedMap.clear();
       if (!aps || !aps.length) {
@@ -3529,8 +3555,8 @@
         item.type = "button";
         item.innerHTML = wifiRowHtml(ap);
         item.onclick = () => {
-          wifiSsidEl.value = String(ap.ssid || "");
-          wifiPasswordEl.focus();
+          if (wifiSsidEl) wifiSsidEl.value = String(ap.ssid || "");
+          if (wifiPasswordEl) wifiPasswordEl.focus();
           log("selected SSID " + String(ap.ssid || ""), "status-ok");
         };
         wifiScanListEl.appendChild(item);
@@ -4014,6 +4040,9 @@
     }
 
     async function loadLocaleSettings() {
+      if (!timezoneSelectEl || !cityNameInputEl || !cityIdInputEl) {
+        return;
+      }
       const json = await apiJson("GET", "/api/system/settings");
       const items = json && json.items ? json.items : {};
 
@@ -4034,6 +4063,9 @@
     }
 
     async function saveLocaleSettings() {
+      if (!timezoneSelectEl || !cityNameInputEl || !cityIdInputEl) {
+        return;
+      }
       const timezone = String(timezoneSelectEl.value || "UTC+08:00").trim();
       const offsetHours = utcOffsetTextToHours(timezone);
       const cityName = String(cityNameInputEl.value || "").trim();
@@ -4054,6 +4086,9 @@
     }
 
     async function loadDefaultAppSetting() {
+      if (!startupAppSelectEl) {
+        return;
+      }
       startupAppSelectEl.innerHTML = '<option value="">-- Loading... --</option>';
 
       let apps = [];
@@ -4088,6 +4123,9 @@
     }
 
     async function saveDefaultAppSetting() {
+      if (!startupAppSelectEl) {
+        return;
+      }
       const appId = String(startupAppSelectEl.value || "").trim();
       await apiJson("POST", "/api/system/settings", {
         key: "startup.app_id",
@@ -4206,7 +4244,10 @@
       setUninstallMode(false);
     }
 
-    async function installApp(item, ui = {}) {
+    let installQueue = Promise.resolve();
+    let installQueueDepth = 0;
+
+    async function installAppNow(item, ui = {}) {
       let phase = "init";
       let id = String(item.id || item.app_id || "").trim();
       try {
@@ -4413,7 +4454,36 @@
       }
     }
 
+    function enqueueInstallTask(task, ui = {}) {
+      const queuedBefore = installQueueDepth;
+      installQueueDepth += 1;
+      const setAction = typeof ui.setAction === "function" ? ui.setAction : null;
+      if (queuedBefore > 0 && setAction) {
+        setAction("Queued (" + queuedBefore + ")", true);
+      }
+
+      const run = installQueue
+        .catch(() => {})
+        .then(async () => {
+          return await task();
+        });
+
+      installQueue = run.catch(() => {});
+      return run.finally(() => {
+        installQueueDepth = Math.max(0, installQueueDepth - 1);
+      });
+    }
+
+    async function installApp(item, ui = {}) {
+      return enqueueInstallTask(() => installAppNow(item, ui), ui);
+    }
+
     function bindEvents() {
+      const bindClickById = (id, fn) => {
+        const el = document.getElementById(id);
+        if (el) el.onclick = fn;
+      };
+
       document.querySelectorAll(".tab-btn").forEach((btn) => {
         btn.addEventListener("click", () => setTab(btn.dataset.tab));
       });
@@ -4421,12 +4491,15 @@
         btn.addEventListener("click", () => setAppsTab(btn.dataset.appsTab));
       });
 
-      brightnessSliderEl.addEventListener("input", () => {
-        brightnessValueEl.textContent = brightnessSliderEl.value;
-      });
+      if (brightnessSliderEl && brightnessValueEl) {
+        brightnessSliderEl.addEventListener("input", () => {
+          brightnessValueEl.textContent = brightnessSliderEl.value;
+        });
+      }
 
-      document.getElementById("scanWifiBtn").onclick = async () => {
+      bindClickById("scanWifiBtn", async () => {
         const btn = document.getElementById("scanWifiBtn");
+        if (!btn) return;
         const originalText = btn.textContent;
         btn.disabled = true;
         btn.textContent = "Scanning...";
@@ -4438,9 +4511,9 @@
           btn.disabled = false;
           btn.textContent = originalText || "Scan";
         }
-      };
+      });
 
-      document.getElementById("saveWifiBtn").onclick = async () => {
+      bindClickById("saveWifiBtn", async () => {
         try {
           await saveWifi(true);
         } catch (error) {
@@ -4448,39 +4521,41 @@
           showToast(msg);
           log(msg, "status-bad");
         }
-      };
+      });
 
-      document.getElementById("saveDefaultAppBtn").onclick = async () => {
+      bindClickById("saveDefaultAppBtn", async () => {
         try {
           await saveDefaultAppSetting();
         } catch (error) {
           log(String(error.message || error), "status-bad");
         }
-      };
+      });
 
-      document.getElementById("saveLocaleBtn").onclick = async () => {
+      bindClickById("saveLocaleBtn", async () => {
         try {
           await saveLocaleSettings();
         } catch (error) {
           log(String(error.message || error), "status-bad");
         }
-      };
+      });
 
-      document.getElementById("applyBrightnessBtn").onclick = async () => {
+      bindClickById("applyBrightnessBtn", async () => {
         try {
           await applyBrightness();
         } catch (error) {
           log(String(error.message || error), "status-bad");
         }
-      };
+      });
 
-      uploadFirmwareBtnEl.onclick = async () => {
-        try {
-          await uploadFirmware();
-        } catch (error) {
-          log(String(error.message || error), "status-bad");
-        }
-      };
+      if (uploadFirmwareBtnEl) {
+        uploadFirmwareBtnEl.onclick = async () => {
+          try {
+            await uploadFirmware();
+          } catch (error) {
+            log(String(error.message || error), "status-bad");
+          }
+        };
+      }
 
       if (firmwareAutoOtaInputEl) {
         firmwareAutoOtaInputEl.onchange = async () => {
@@ -4497,35 +4572,39 @@
         };
       }
 
-
-      document.getElementById("refreshInstalledBtn").onclick = async () => {
+      bindClickById("refreshInstalledBtn", async () => {
         try {
           await refreshInstalledApps();
         } catch (error) {
           log(String(error.message || error), "status-bad");
         }
-      };
+      });
 
-      uninstallModeBtnEl.onclick = () => {
-        setUninstallMode(!state.uninstallMode);
-      };
+      if (uninstallModeBtnEl) {
+        uninstallModeBtnEl.onclick = () => {
+          setUninstallMode(!state.uninstallMode);
+        };
+      }
 
-      deleteSelectedBtnEl.onclick = async () => {
-        try {
-          await uninstallSelectedApps(state.uninstallSelected);
-        } catch (error) {
-          log(String(error.message || error), "status-bad");
-        }
-      };
+      if (deleteSelectedBtnEl) {
+        deleteSelectedBtnEl.onclick = async () => {
+          try {
+            await uninstallSelectedApps(state.uninstallSelected);
+          } catch (error) {
+            log(String(error.message || error), "status-bad");
+          }
+        };
+      }
 
-      document.getElementById("loadStoreBtn").onclick = async () => {
+      bindClickById("loadStoreBtn", async () => {
         try {
           await loadStoreIndex({ force: true });
         } catch (error) {
           log(String(error.message || error), "status-bad");
         }
-      };
-      document.getElementById("askNewAppBtn").onclick = () => {
+      });
+
+      bindClickById("askNewAppBtn", () => {
         const subjectText = "Ask for New App";
         const bodyText =
           "Hi GeekMagic team,\n\n" +
@@ -4556,9 +4635,9 @@
         } catch (_error) {
           window.prompt("Mail fallback (copy):", tip);
         }
-      };
+      });
 
-      document.getElementById("scheduleAddBtn").onclick = () => {
+      bindClickById("scheduleAddBtn", () => {
         readScheduleBuilderToState();
         const mode = state.schedule.mode === "loop" ? "loop" : "time";
         state.schedule.mode = mode;
@@ -4575,9 +4654,9 @@
           state.schedule.loopItems = next;
         }
         renderScheduleBuilder();
-      };
+      });
 
-      document.getElementById("scheduleApplyBtn").onclick = () => {
+      bindClickById("scheduleApplyBtn", () => {
         (async () => {
           readScheduleBuilderToState();
           try {
@@ -4595,8 +4674,9 @@
           }
           saveScheduleConfig();
         })();
-      };
-      document.getElementById("savePowerSaverBtn").onclick = async () => {
+      });
+
+      bindClickById("savePowerSaverBtn", async () => {
         try {
           readPowerSaverToState();
           const err = validatePowerSaverConfig(state.schedule);
@@ -4610,8 +4690,9 @@
         } catch (error) {
           log("Power saver save failed: " + String(error.message || error), "status-bad");
         }
-      };
-      document.getElementById("scheduleRunBtn").onclick = async () => {
+      });
+
+      bindClickById("scheduleRunBtn", async () => {
         readScheduleBuilderToState();
         const err = validateSchedule(state.schedule);
         if (err) {
@@ -4628,8 +4709,9 @@
         } catch (error) {
           scheduleStatus("Run failed: " + String(error.message || error), true);
         }
-      };
-      document.getElementById("scheduleStopBtn").onclick = async () => {
+      });
+
+      bindClickById("scheduleStopBtn", async () => {
         try {
           await apiJson("POST", "/api/scheduler/stop", {});
         } catch (error) {
@@ -4640,78 +4722,94 @@
         } catch (error) {
         }
         stopScheduler();
-      };
-
-      scheduleTimeCardEl.onclick = () => {
-        readScheduleBuilderToState();
-        state.schedule.mode = "time";
-        renderScheduleBuilder();
-      };
-
-      scheduleLoopCardEl.onclick = () => {
-        readScheduleBuilderToState();
-        state.schedule.mode = "loop";
-        renderScheduleBuilder();
-      };
-
-      scheduleRowsEl.addEventListener("click", (event) => {
-        const btn = event.target.closest("button[data-k='del']");
-        if (!btn) return;
-        const idx = Number(btn.dataset.i);
-        readScheduleBuilderToState();
-        if (state.schedule.mode === "time") {
-          state.schedule.timeItems.splice(idx, 1);
-        } else {
-          state.schedule.loopItems.splice(idx, 1);
-        }
-        renderScheduleBuilder();
       });
 
-      scheduleRowsEl.addEventListener("change", (event) => {
-        const el = event.target;
-        if (!(el instanceof HTMLElement)) return;
-        if (!el.getAttribute("data-k")) return;
-        readScheduleBuilderToState();
-        renderSchedulePreview();
-        if (el instanceof HTMLInputElement && el.type === "time") {
-          window.setTimeout(() => el.blur(), 0);
-        }
-      });
+      if (scheduleTimeCardEl) {
+        scheduleTimeCardEl.onclick = () => {
+          readScheduleBuilderToState();
+          state.schedule.mode = "time";
+          renderScheduleBuilder();
+        };
+      }
 
-      scheduleRowsEl.addEventListener("input", (event) => {
-        const el = event.target;
-        if (!(el instanceof HTMLElement)) return;
-        if (!el.getAttribute("data-k")) return;
-        readScheduleBuilderToState();
-        renderSchedulePreview();
-      });
+      if (scheduleLoopCardEl) {
+        scheduleLoopCardEl.onclick = () => {
+          readScheduleBuilderToState();
+          state.schedule.mode = "loop";
+          renderScheduleBuilder();
+        };
+      }
 
-      appSettingsCloseBtnEl.onclick = () => {
-        closeAppSettings();
-      };
+      if (scheduleRowsEl) {
+        scheduleRowsEl.addEventListener("click", (event) => {
+          const btn = event.target.closest("button[data-k='del']");
+          if (!btn) return;
+          const idx = Number(btn.dataset.i);
+          readScheduleBuilderToState();
+          if (state.schedule.mode === "time") {
+            state.schedule.timeItems.splice(idx, 1);
+          } else {
+            state.schedule.loopItems.splice(idx, 1);
+          }
+          renderScheduleBuilder();
+        });
 
-      appSettingsSaveBtnEl.onclick = async () => {
-        try {
-          await saveAppSettings(false);
-        } catch (error) {
-          log(String(error.message || error), "status-bad");
-        }
-      };
+        scheduleRowsEl.addEventListener("change", (event) => {
+          const el = event.target;
+          if (!(el instanceof HTMLElement)) return;
+          if (!el.getAttribute("data-k")) return;
+          readScheduleBuilderToState();
+          renderSchedulePreview();
+          if (el instanceof HTMLInputElement && el.type === "time") {
+            window.setTimeout(() => el.blur(), 0);
+          }
+        });
 
-      appSettingsRunBtnEl.onclick = async () => {
-        try {
-          await saveAppSettings(true);
-        } catch (error) {
-          log(String(error.message || error), "status-bad");
-        }
-      };
+        scheduleRowsEl.addEventListener("input", (event) => {
+          const el = event.target;
+          if (!(el instanceof HTMLElement)) return;
+          if (!el.getAttribute("data-k")) return;
+          readScheduleBuilderToState();
+          renderSchedulePreview();
+        });
+      }
 
-      appSettingsOverlayEl.addEventListener("click", (event) => {
-        if (event.target === appSettingsOverlayEl) {
+      if (appSettingsCloseBtnEl) {
+        appSettingsCloseBtnEl.onclick = () => {
           closeAppSettings();
-        }
-      });
-      appSettingsCloseXEl.addEventListener("click", closeAppSettings);
+        };
+      }
+
+      if (appSettingsSaveBtnEl) {
+        appSettingsSaveBtnEl.onclick = async () => {
+          try {
+            await saveAppSettings(false);
+          } catch (error) {
+            log(String(error.message || error), "status-bad");
+          }
+        };
+      }
+
+      if (appSettingsRunBtnEl) {
+        appSettingsRunBtnEl.onclick = async () => {
+          try {
+            await saveAppSettings(true);
+          } catch (error) {
+            log(String(error.message || error), "status-bad");
+          }
+        };
+      }
+
+      if (appSettingsOverlayEl) {
+        appSettingsOverlayEl.addEventListener("click", (event) => {
+          if (event.target === appSettingsOverlayEl) {
+            closeAppSettings();
+          }
+        });
+      }
+      if (appSettingsCloseXEl) {
+        appSettingsCloseXEl.addEventListener("click", closeAppSettings);
+      }
     }
 
     async function init() {

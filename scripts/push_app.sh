@@ -148,6 +148,8 @@ for path in sorted(src.rglob("*")):
     rel = path.relative_to(src)
     if any(part.startswith(".") for part in rel.parts):
         continue
+    if rel.suffix.lower() in {".md", ".markdown"} or any(part.lower() in {"doc", "docs"} for part in rel.parts):
+        continue
     if rel.name == "settings.html":
         gz = path.with_name(path.name + ".gz")
         if not gz.exists():
@@ -162,6 +164,7 @@ else
   echo "==> Staging bytecode app with compiler: ${LUA_COMPILER}"
   python3 - "${APP_DIR}" "${STAGE_APP_DIR}" "${LUA_COMPILER}" <<'PY'
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -178,14 +181,72 @@ if not manifest_path.exists():
 if not main_lua.exists():
     raise SystemExit(f"missing main.lua: {main_lua}")
 
+def validate_lua_forward_calls(lua_path: Path) -> None:
+    """
+    Guard against a common runtime crash pattern:
+    calling a local function before it is defined, without a prior local declaration.
+    """
+    text = lua_path.read_text(encoding="utf-8")
+    lines = text.splitlines()
+
+    local_func_def = re.compile(r"^\s*local\s+function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(")
+    local_decl = re.compile(r"^\s*local\s+(.+)$")
+    func_call = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\(")
+
+    def_line = {}
+    for i, ln in enumerate(lines, start=1):
+        m = local_func_def.match(ln)
+        if m:
+            name = m.group(1)
+            def_line.setdefault(name, i)
+
+    declared_before = set()
+    for i, ln in enumerate(lines, start=1):
+        m = local_decl.match(ln)
+        if not m:
+            continue
+        body = m.group(1).strip()
+        if body.startswith("function "):
+            continue
+        left = body.split("=", 1)[0]
+        for part in left.split(","):
+            n = part.strip()
+            if re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", n):
+                declared_before.add((n, i))
+
+    def has_prior_local_decl(name: str, line_no: int) -> bool:
+        for n, i in declared_before:
+            if n == name and i < line_no:
+                return True
+        return False
+
+    for name, dline in sorted(def_line.items(), key=lambda kv: kv[1]):
+        for i in range(1, dline):
+            ln = lines[i - 1]
+            if re.search(rf"\b(local\s+function|function)\s+{re.escape(name)}\s*\(", ln):
+                continue
+            if re.search(rf"\b{re.escape(name)}\s*\(", ln):
+                if not has_prior_local_decl(name, i):
+                    raise SystemExit(
+                        f"{lua_path.name}:{i}: local function '{name}' is called before definition "
+                        f"(defined at line {dline}) without prior 'local {name}' declaration"
+                    )
+
+validate_lua_forward_calls(main_lua)
+
 def is_hidden(rel: Path) -> bool:
     return any(part.startswith(".") for part in rel.parts)
+
+def is_forbidden_payload_asset(rel: Path) -> bool:
+    return rel.suffix.lower() in {".md", ".markdown"} or any(part.lower() in {"doc", "docs"} for part in rel.parts)
 
 for path in sorted(src.rglob("*")):
     if path.is_dir():
         continue
     rel = path.relative_to(src)
     if is_hidden(rel):
+        continue
+    if is_forbidden_payload_asset(rel):
         continue
     if rel.name == "settings.html":
         gz = path.with_name(path.name + ".gz")

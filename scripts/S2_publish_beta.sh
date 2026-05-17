@@ -107,7 +107,7 @@ else
   echo "github worktree synced; pass --push to commit and push"
 fi
 
-if [[ "${UPLOAD_OTA_INDEX}" == "1" ]]; then
+if [[ "${UPLOAD_OTA_INDEX}" == "1" && "${DO_PUSH}" == "1" ]]; then
   REMOTE="${PIXEL_STORE_REMOTE:-root@111.229.177.3:/www/wwwroot/ota.geekmagic.cc/store_data/${BOARD}/beta}"
   SSH_PORT="${PIXEL_STORE_SSH_PORT:-22}"
   IDENTITY="${PIXEL_STORE_SSH_IDENTITY:-$HOME/.ssh/t20260309.pem}"
@@ -125,4 +125,6 @@ if [[ "${UPLOAD_OTA_INDEX}" == "1" ]]; then
     "${ROOT}/dist/store/${BOARD}/beta/apps-index.json" \
     "${ROOT}/dist/store/${BOARD}/beta/apps-index.json.gz" \
     "${REMOTE_LOGIN}:${REMOTE_PATH}/"
+else
+  echo "Skipping OTA upload because --push was not passed (or --no-ota-index). Pass --push to upload the index to ota.geekmagic.cc."
 fi

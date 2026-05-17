@@ -65,8 +65,6 @@
     </div>
   </div>
   <div class="actions">
-    <button id="test" class="ghost" type="button">Test Setup</button>
-    <button id="save" type="button">Save</button>
     <button id="saveRun" class="primary" type="button">Save & Run</button>
   </div>
   <div id="status" class="status"></div>
@@ -74,44 +72,7 @@
   <script>
     const APP_ID = "hockey_scoreboard";
     const FORCED_SPORT = "hockey";
-    const teamCache = new Map();
-    const TEAM_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-    const TEAM_CACHE_PREFIX = "sports:teams:v2:";
-    const CFG = {
-      soccer: {
-        label: "Soccer",
-        leagues: [
-          { code: "eng.1", name: "Premier League", teams: [["ARS", "Arsenal"], ["CHE", "Chelsea"], ["LIV", "Liverpool"], ["MCI", "Manchester City"], ["MUN", "Manchester United"], ["NEW", "Newcastle"], ["TOT", "Tottenham"]] },
-          { code: "esp.1", name: "La Liga", teams: [["BAR", "Barcelona"], ["RMA", "Real Madrid"], ["ATM", "Atletico Madrid"], ["SEV", "Sevilla"], ["VAL", "Valencia"]] },
-          { code: "ger.1", name: "Bundesliga", teams: [["BAY", "Bayern Munich"], ["BVB", "Dortmund"], ["RBL", "Leipzig"], ["LEV", "Leverkusen"]] },
-          { code: "ita.1", name: "Serie A", teams: [["INT", "Inter"], ["JUV", "Juventus"], ["MIL", "AC Milan"], ["NAP", "Napoli"], ["ROM", "Roma"]] }
-        ]
-      },
-      basketball: {
-        label: "Basketball",
-        leagues: [
-          { code: "nba", name: "NBA", teams: [["LAL", "Lakers"], ["BOS", "Celtics"], ["GSW", "Warriors"], ["PHX", "Suns"], ["MIA", "Heat"], ["MIL", "Bucks"], ["DEN", "Nuggets"]] }
-        ]
-      },
-      football: {
-        label: "Football",
-        leagues: [
-          { code: "nfl", name: "NFL", teams: [["KC", "Chiefs"], ["BUF", "Bills"], ["SF", "49ers"], ["DAL", "Cowboys"], ["PHI", "Eagles"], ["BAL", "Ravens"]] }
-        ]
-      },
-      baseball: {
-        label: "Baseball",
-        leagues: [
-          { code: "mlb", name: "MLB", teams: [["NYY", "Yankees"], ["LAD", "Dodgers"], ["BOS", "Red Sox"], ["HOU", "Astros"], ["ATL", "Braves"], ["CHC", "Cubs"]] }
-        ]
-      },
-      hockey: {
-        label: "Hockey",
-        leagues: [
-          { code: "nhl", name: "NHL", teams: [["BOS", "Bruins"], ["NYR", "Rangers"], ["TOR", "Maple Leafs"], ["VGK", "Golden Knights"], ["COL", "Avalanche"], ["EDM", "Oilers"]] }
-        ]
-      }
-    };
+    const LEAGUES = [{"code":"nhl","name":"NHL","teams":[["ANA","Anaheim Ducks","25"],["BOS","Boston Bruins","1"],["BUF","Buffalo Sabres","2"],["CGY","Calgary Flames","3"],["CAR","Carolina Hurricanes","7"],["CHI","Chicago Blackhawks","4"],["COL","Colorado Avalanche","17"],["CBJ","Columbus Blue Jackets","29"],["DAL","Dallas Stars","9"],["DET","Detroit Red Wings","5"],["EDM","Edmonton Oilers","6"],["FLA","Florida Panthers","26"],["LA","Los Angeles Kings","8"],["MIN","Minnesota Wild","30"],["MTL","Montreal Canadiens","10"],["NSH","Nashville Predators","27"],["NJ","New Jersey Devils","11"],["NYI","New York Islanders","12"],["NYR","New York Rangers","13"],["OTT","Ottawa Senators","14"],["PHI","Philadelphia Flyers","15"],["PIT","Pittsburgh Penguins","16"],["SJ","San Jose Sharks","18"],["SEA","Seattle Kraken","124292"],["STL","St. Louis Blues","19"],["TB","Tampa Bay Lightning","20"],["TOR","Toronto Maple Leafs","21"],["UTAH","Utah Mammoth","129764"],["VAN","Vancouver Canucks","22"],["VGK","Vegas Golden Knights","37"],["WSH","Washington Capitals","23"],["WPG","Winnipeg Jets","28"]]}];
 
     const el = {
       sport: document.getElementById("sport"),
@@ -120,12 +81,8 @@
       rotateSec: document.getElementById("rotateSec"),
       autoPage: document.getElementById("autoPage"),
       refreshSec: document.getElementById("refreshSec"),
-      customLeague: document.getElementById("customLeague"),
-      customTeam: document.getElementById("customTeam"),
       teamId: document.getElementById("teamId"),
       eventId: document.getElementById("eventId"),
-      test: document.getElementById("test"),
-      save: document.getElementById("save"),
       saveRun: document.getElementById("saveRun"),
       status: document.getElementById("status")
     };
@@ -158,6 +115,7 @@
         const opt = document.createElement("option");
         opt.value = item.value;
         opt.textContent = item.label;
+        if (item.teamId) opt.teamId = item.teamId;
         node.appendChild(opt);
       }
       if (value != null && value !== "") node.value = value;
@@ -171,22 +129,17 @@
     }
 
 function selectedSportDef() {
-      return CFG[el.sport.value] || CFG.soccer;
+      return { leagues: LEAGUES };
     }
 
     function selectedLeagueDef() {
       const sportDef = selectedSportDef();
-      const code = el.league.value;
+      const code = fieldValue(el.league, "nhl");
       for (const l of sportDef.leagues) {
         if (l.code === code) return l;
       }
       return sportDef.leagues[0];
     }
-
-    async function fetchLeagueTeams(sport, league) {
-      return [];
-    }
-
 
     async function rebuildLeague(preferredLeague, preferredTeam) {
       const sportDef = selectedSportDef();
@@ -210,14 +163,20 @@ function selectedSportDef() {
 
     async function rebuildTeamOptions(preferredTeam) {
       const leagueDef = selectedLeagueDef();
-      const dynamicTeams = await fetchLeagueTeams(FORCED_SPORT, leagueDef.code || "eng.1");
-      const sourceTeams = Array.isArray(dynamicTeams) && dynamicTeams.length > 0 ? dynamicTeams : (leagueDef.teams || []);
+      const sourceTeams = leagueDef.teams || [];
       const options = [{ value: "", label: "Auto Pick Best Game" }];
       for (const t of sourceTeams) {
-        options.push({ value: t[0], label: t[0] + " - " + t[1] });
+        options.push({ value: t[0], label: t[0] + " - " + t[1], teamId: t[2] || "" });
       }
-      options.push({ value: "__custom__", label: "Custom..." });
       setSelectOptions(el.team, options, preferredTeam || "");
+      const current = sourceTeams.find(function (x) { return x[0] === fieldValue(el.team); });
+      if (el.team && el.team.dataset) el.team.dataset.teamId = current && current[2] ? current[2] : "";
+    }
+
+    function selectedTeamId() {
+      const option = el.team && el.team.options ? el.team.options[el.team.selectedIndex] : null;
+      if (option && option.teamId) return option.teamId;
+      return el.team && el.team.dataset ? (el.team.dataset.teamId || "") : "";
     }
 
     function normalizeInt(value, min, max, fallback) {
@@ -229,25 +188,24 @@ function selectedSportDef() {
       return v;
     }
 
+    function fieldValue(node, fallback) {
+      if (!node) return fallback == null ? "" : String(fallback);
+      return String(node.value == null ? "" : node.value);
+    }
+
     function collectItems() {
       const sport = FORCED_SPORT;
-      const league = (el.customLeague.value || "").trim() || el.league.value || "eng.1";
-      let team = "";
-      if (el.team.value === "__custom__") {
-        team = (el.customTeam.value || "").trim().toUpperCase();
-      } else {
-        team = (el.team.value || "").trim().toUpperCase();
-      }
+      const league = fieldValue(el.league, "nhl") || "nhl";      const team = fieldValue(el.team).trim().toUpperCase();
 
       return {
         "hockey_scoreboard.sport": sport,
         "hockey_scoreboard.league": league,
         "hockey_scoreboard.team": team || null,
-        "hockey_scoreboard.team_id": (el.teamId.value || "").trim() || null,
-        "hockey_scoreboard.event_id": (el.eventId.value || "").trim() || null,
-        "hockey_scoreboard.auto_page": el.autoPage.value === "0" ? "0" : "1",
-        "hockey_scoreboard.rotate_sec": normalizeInt(el.rotateSec.value, 1, 20, 4),
-        "hockey_scoreboard.refresh_sec": normalizeInt(el.refreshSec.value, 10, 600, 60)
+        "hockey_scoreboard.team_id": fieldValue(el.teamId).trim() || selectedTeamId() || null,
+        "hockey_scoreboard.event_id": fieldValue(el.eventId).trim() || null,
+        "hockey_scoreboard.auto_page": fieldValue(el.autoPage, "1") === "0" ? "0" : "1",
+        "hockey_scoreboard.rotate_sec": normalizeInt(fieldValue(el.rotateSec, "4"), 1, 20, 4),
+        "hockey_scoreboard.refresh_sec": normalizeInt(fieldValue(el.refreshSec, "60"), 10, 600, 60)
       };
     }
 
@@ -265,9 +223,7 @@ function selectedSportDef() {
     }
 
     async function save(runAfter) {
-      el.save.disabled = true;
-      el.saveRun.disabled = true;
-      el.test.disabled = true;
+      if (el.saveRun) el.saveRun.disabled = true;
       try {
         const items = collectItems();
         setStatus("Saving...");
@@ -277,9 +233,7 @@ function selectedSportDef() {
       } catch (e) {
         setStatus(String(e && e.message || e), "bad");
       } finally {
-        el.save.disabled = false;
-        el.saveRun.disabled = false;
-        el.test.disabled = false;
+        if (el.saveRun) el.saveRun.disabled = false;
       }
     }
 
@@ -287,7 +241,7 @@ function selectedSportDef() {
       const json = await api("GET", "/api/system/settings");
       const items = json && typeof json.items === "object" ? json.items : {};
 
-      const sportOptions = Object.keys(CFG).map(function (k) { return { value: k, label: CFG[k].label }; });
+      const sportOptions = [{ value: FORCED_SPORT, label: "Hockey" }];
       setSelectOptions(el.sport, sportOptions, FORCED_SPORT);
       lockSportField();
       await rebuildLeagueOptions(String(items["hockey_scoreboard.league"] || ""), String(items["hockey_scoreboard.team"] || ""));
@@ -296,22 +250,15 @@ function selectedSportDef() {
       if (el.refreshSec) el.refreshSec.value = String(items["hockey_scoreboard.refresh_sec"] || "60");
       if (el.teamId) el.teamId.value = String(items["hockey_scoreboard.team_id"] || "");
       if (el.eventId) el.eventId.value = String(items["hockey_scoreboard.event_id"] || "");
-      if (el.customLeague) el.customLeague.value = "";
-      if (el.customTeam) el.customTeam.value = "";
     }
 
     el.sport.onchange = function () { rebuildLeagueOptions("", "").catch(function () {}); };
     el.league.onchange = function () { rebuildTeamOptions("").catch(function () {}); };
-    el.test.onclick = function () {
-      try {
-        const items = collectItems();
-        setStatus("Setup looks good.\n" + explain(items), "ok");
-      } catch (e) {
-        setStatus(String(e && e.message || e), "bad");
-      }
+    el.team.onchange = function () {
+      const option = el.team.options[el.team.selectedIndex];
+      if (el.team.dataset) el.team.dataset.teamId = option && option.teamId ? option.teamId : "";
     };
-    el.save.onclick = function () { save(false); };
-    el.saveRun.onclick = function () { save(true); };
+    if (el.saveRun) el.saveRun.onclick = function () { save(true); };
 
     load().then(function () { setStatus("Loaded.", "ok"); }).catch(function (e) { setStatus(String(e && e.message || e), "bad"); });
   </script>

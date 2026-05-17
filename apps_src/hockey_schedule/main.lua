@@ -63,7 +63,7 @@ local state = {
   payload = nil,
   boot_started_ms = 0,
   disable_team_schedule = false,
-  empty_label = "NO EVENTS",
+  empty_label = "NO GAME",
 }
 
 local function dbg(msg)
@@ -222,6 +222,42 @@ local function kickoff_label_local(iso)
   return compact_text(string.format("%s %d %02d:%02d", MONTHS[mo] or "DAY", day, h, m), 16)
 end
 
+local function local_date_hm_from_iso(iso)
+  local utc_epoch = parse_iso_utc_epoch(iso)
+  local offset = local_utc_offset_sec()
+  if not utc_epoch or not offset then return nil, nil, nil end
+  local local_epoch = utc_epoch + offset
+  local minute_of_day = math.floor(local_epoch / 60) % 1440
+  if minute_of_day < 0 then minute_of_day = minute_of_day + 1440 end
+  local h = math.floor(minute_of_day / 60)
+  local mi = minute_of_day % 60
+  local days_since_epoch = math.floor(local_epoch / 86400)
+  local y = 1970
+  local dleft = days_since_epoch
+  while true do
+    local leap = ((y % 4 == 0 and y % 100 ~= 0) or (y % 400 == 0))
+    local yd = leap and 366 or 365
+    if dleft >= yd then
+      dleft = dleft - yd
+      y = y + 1
+    else
+      break
+    end
+  end
+  local mo = 1
+  while true do
+    local md = days_in_month(y, mo)
+    if dleft >= md then
+      dleft = dleft - md
+      mo = mo + 1
+    else
+      break
+    end
+  end
+  local day = dleft + 1
+  return mo, day, string.format("%02d:%02d", h, mi)
+end
+
 local function extract_hm(text)
   local s = tostring(text or "")
   local hh, mm = string.match(s, "(%d?%d):(%d%d)")
@@ -232,12 +268,21 @@ local function extract_hm(text)
 end
 
 local function kickoff_line(item)
-  local y, mo, d = iso_date(item and item.date_raw or "")
+  local raw_iso = item and item.date_raw or ""
+  local local_mo, local_d, local_hm = local_date_hm_from_iso(raw_iso)
   local date_part = ""
-  if mo and d then
-    date_part = tostring(tonumber(mo) or mo) .. "/" .. tostring(tonumber(d) or d)
+  if local_mo and local_d then
+    date_part = tostring(local_mo) .. "/" .. tostring(local_d)
   else
-    date_part = date_label(item and item.date_raw or "")
+    local _, mo, d = iso_date(raw_iso)
+    if mo and d then
+      date_part = tostring(tonumber(mo) or mo) .. "/" .. tostring(tonumber(d) or d)
+    else
+      date_part = date_label(raw_iso)
+    end
+  end
+  if local_hm and date_part ~= "" then
+    return compact_text(date_part .. " " .. local_hm, 16)
   end
   local local_line = kickoff_label_local(item and item.date_raw or "")
   if string.find(local_line, "%d%d:%d%d") then
@@ -540,9 +585,9 @@ local function normalize_schedule_event_any(event)
     id = tostring(event.id or ""),
     date_raw = tostring((event and event.date) or (competition and competition.date) or ""),
     state = st,
-    opp = abbr_from_team(away and away.team),
-    mine = abbr_from_team(home and home.team),
-    home = true,
+    opp = abbr_from_team(home and home.team),
+    mine = abbr_from_team(away and away.team),
+    home = false,
     date_label = date_label((event and event.date) or (competition and competition.date)),
     time_label = compact_text(detail ~= "" and detail or hm_label((event and event.date) or (competition and competition.date)), 12),
     detail = compact_text(detail, 12),
@@ -555,9 +600,16 @@ local function is_upcoming_item(item)
   if type(item) ~= "table" then return false end
   local st = tostring(item.state or "")
   if st == "in" or st == "post" then return false end
-  if st == "pre" then return true end
+
   local now_s = now_unix_sec()
   local ts = parse_iso_utc_epoch(item.date_raw or "")
+
+  -- Some leagues keep stale "pre" labels after kickoff; guard with absolute time.
+  if st == "pre" then
+    if now_s and ts then return ts > now_s end
+    return (item.date_raw or "") ~= ""
+  end
+
   if now_s and ts then
     return ts > now_s
   end
@@ -709,7 +761,7 @@ local function handle_teams_response(status, body)
       state.err = nil
       state.last_ok_ms = now_ms()
     else
-      state.err = "NO EVENTS"
+      state.err = "NO GAME"
     end
   end
 
@@ -746,20 +798,26 @@ local function handle_scoreboard_response(status, body)
   if string.find(phase, "OFF", 1, true) and string.find(phase, "SEASON", 1, true) then
     state.empty_label = "OFF SEASON"
   else
-    state.empty_label = "NO EVENTS"
+    state.empty_label = "NO GAME"
   end
   state.payload = build_schedule_model({ team = { abbreviation = TEAM }, events = obj.events or {} })
   local p = state.payload
   local has_frames = (type(p) == "table") and (type(p.next_games) == "table" and #p.next_games > 0)
   dbg("scoreboard fallback has_frames=" .. tostring(has_frames) .. " next_games=" .. tostring((p and p.next_games and #p.next_games) or 0))
   if not has_frames then
-    local league_payload = build_league_upcoming_from_scoreboard(obj)
-    local league_has = type(league_payload.next_games) == "table" and #league_payload.next_games > 0
-    dbg("league fallback next_games=" .. tostring((league_payload.next_games and #league_payload.next_games) or 0))
-    if league_has then
-      state.payload = league_payload
+    local no_focus = (TEAM == "" and TEAM_ID == "" and tostring(state.resolved_team_id or "") == "")
+    if no_focus then
+      local league_payload = build_league_upcoming_from_scoreboard(obj)
+      local league_has = type(league_payload.next_games) == "table" and #league_payload.next_games > 0
+      dbg("league fallback next_games=" .. tostring((league_payload.next_games and #league_payload.next_games) or 0))
+      if league_has then
+        state.payload = league_payload
+      else
+        state.err = "NO GAME"
+        return
+      end
     else
-      state.err = "NO EVENTS"
+      state.err = "NO GAME"
       return
     end
   end
@@ -781,7 +839,7 @@ local function handle_team_schedule_response(status, body)
   local p = state.payload
   local has_frames = (type(p) == "table") and (type(p.next_games) == "table" and #p.next_games > 0)
   if not has_frames then
-    state.err = "NO EVENTS"
+    state.err = "NO GAME"
     return
   end
   state.err = nil
@@ -861,7 +919,7 @@ function app.init()
   state.payload = build_mock_payload()
   state.resolved_team_id = TEAM_ID
   state.disable_team_schedule = false
-  state.empty_label = "NO EVENTS"
+  state.empty_label = "NO GAME"
   if state.payload then
     state.last_ok_ms = now_ms()
     return
@@ -936,7 +994,7 @@ function app.render_fb(fb)
   end
   if #frames == 0 then
     fb:text_box(0, Y_HEADER, 64, 8, "SCHEDULE", C_ACCENT, FONT, 8, "center", false)
-    fb:text_box(0, Y_ERR_BODY, 64, 8, state.empty_label or "NO EVENTS", C_MUTED, FONT, 8, "center", false)
+    fb:text_box(0, Y_ERR_BODY, 64, 8, state.empty_label or "NO GAME", C_MUTED, FONT, 8, "center", false)
     return
   end
 

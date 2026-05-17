@@ -1,7 +1,7 @@
 {
   "app_id": "owm_wind_dial",
   "name": "Wind Dial",
-  "version": "1.0.27",
+  "version": "1.0.31",
   "min_fw": "0.0.0",
   "min_api": "1.0",
   "entry": "app.bin",

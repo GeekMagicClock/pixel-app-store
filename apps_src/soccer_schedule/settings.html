@@ -64,7 +64,6 @@
   </div>
 
   <div class="actions">
-    <button id="save" type="button">Save</button>
     <button id="saveRun" class="primary" type="button">Save & Run</button>
   </div>
   <div id="status" class="status"></div>
@@ -72,44 +71,7 @@
   <script>
     const APP_ID = "soccer_schedule";
     const FORCED_SPORT = "soccer";
-    const teamCache = new Map();
-    const TEAM_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-    const TEAM_CACHE_PREFIX = "sports:teams:v2:";
-    const CFG = {
-      soccer: {
-        label: "Soccer",
-        leagues: [
-          { code: "eng.1", name: "Premier League", teams: [["ARS", "Arsenal"], ["CHE", "Chelsea"], ["LIV", "Liverpool"], ["MCI", "Manchester City"], ["MUN", "Manchester United"], ["NEW", "Newcastle"], ["TOT", "Tottenham"]] },
-          { code: "esp.1", name: "La Liga", teams: [["BAR", "Barcelona"], ["RMA", "Real Madrid"], ["ATM", "Atletico Madrid"], ["SEV", "Sevilla"], ["VAL", "Valencia"]] },
-          { code: "ger.1", name: "Bundesliga", teams: [["BAY", "Bayern"], ["BVB", "Dortmund"], ["RBL", "Leipzig"], ["LEV", "Leverkusen"]] },
-          { code: "ita.1", name: "Serie A", teams: [["INT", "Inter"], ["JUV", "Juventus"], ["MIL", "AC Milan"], ["NAP", "Napoli"], ["ROM", "Roma"]] }
-        ]
-      },
-      basketball: {
-        label: "Basketball",
-        leagues: [
-          { code: "nba", name: "NBA", teams: [["LAL", "Lakers"], ["BOS", "Celtics"], ["GSW", "Warriors"], ["PHX", "Suns"], ["MIA", "Heat"], ["MIL", "Bucks"], ["DEN", "Nuggets"], ["NYK", "Knicks"]] }
-        ]
-      },
-      football: {
-        label: "Football",
-        leagues: [
-          { code: "nfl", name: "NFL", teams: [["KC", "Chiefs"], ["BUF", "Bills"], ["SF", "49ers"], ["DAL", "Cowboys"], ["PHI", "Eagles"], ["BAL", "Ravens"], ["MIA", "Dolphins"]] }
-        ]
-      },
-      baseball: {
-        label: "Baseball",
-        leagues: [
-          { code: "mlb", name: "MLB", teams: [["NYY", "Yankees"], ["LAD", "Dodgers"], ["BOS", "Red Sox"], ["HOU", "Astros"], ["ATL", "Braves"], ["CHC", "Cubs"]] }
-        ]
-      },
-      hockey: {
-        label: "Hockey",
-        leagues: [
-          { code: "nhl", name: "NHL", teams: [["BOS", "Bruins"], ["NYR", "Rangers"], ["TOR", "Maple Leafs"], ["VGK", "Golden Knights"], ["COL", "Avalanche"], ["EDM", "Oilers"]] }
-        ]
-      }
-    };
+    const LEAGUES = [{"code":"eng.1","name":"Premier League","teams":[["BOU","AFC Bournemouth","349"],["ARS","Arsenal","359"],["AVL","Aston Villa","362"],["BRE","Brentford","337"],["BHA","Brighton & Hove Albion","331"],["BUR","Burnley","379"],["CHE","Chelsea","363"],["CRY","Crystal Palace","384"],["EVE","Everton","368"],["FUL","Fulham","370"],["LEE","Leeds United","357"],["LIV","Liverpool","364"],["MNC","Manchester City","382"],["MAN","Manchester United","360"],["NEW","Newcastle United","361"],["NFO","Nottingham Forest","393"],["SUN","Sunderland","366"],["TOT","Tottenham Hotspur","367"],["WHU","West Ham United","371"],["WOL","Wolverhampton Wanderers","380"]]},{"code":"esp.1","name":"La Liga","teams":[["ALA","Alavés","96"],["ATH","Athletic Club","93"],["ATM","Atlético Madrid","1068"],["BAR","Barcelona","83"],["CEL","Celta Vigo","85"],["ELC","Elche","3751"],["ESP","Espanyol","88"],["GET","Getafe","2922"],["GIR","Girona","9812"],["LEV","Levante","1538"],["MLL","Mallorca","84"],["OSA","Osasuna","97"],["RAY","Rayo Vallecano","101"],["BET","Real Betis","244"],["RMA","Real Madrid","86"],["OVI","Real Oviedo","92"],["RSO","Real Sociedad","89"],["SEV","Sevilla","243"],["VAL","Valencia","94"],["VIL","Villarreal","102"]]},{"code":"ger.1","name":"Bundesliga","teams":[["HDH","1. FC Heidenheim 1846","6418"],["FCU","1. FC Union Berlin","598"],["B04","Bayer Leverkusen","131"],["MUN","Bayern Munich","132"],["DOR","Borussia Dortmund","124"],["BMG","Borussia Mönchengladbach","268"],["SGE","Eintracht Frankfurt","125"],["FCA","FC Augsburg","3841"],["KOE","FC Cologne","122"],["HSV","Hamburg SV","127"],["M05","Mainz","2950"],["RBL","RB Leipzig","11420"],["SCF","SC Freiburg","126"],["STP","St. Pauli","270"],["TSG","TSG Hoffenheim","7911"],["VFB","VfB Stuttgart","134"],["WOB","VfL Wolfsburg","138"],["SVW","Werder Bremen","137"]]},{"code":"ita.1","name":"Serie A","teams":[["MIL","AC Milan","103"],["ROMA","AS Roma","104"],["ATA","Atalanta","105"],["BOL","Bologna","107"],["CAG","Cagliari","2925"],["COMO","Como","2572"],["CRE","Cremonese","4050"],["FIO","Fiorentina","109"],["GEN","Genoa","3263"],["VER","Hellas Verona","119"],["INT","Internazionale","110"],["JUV","Juventus","111"],["LAZ","Lazio","112"],["LEC","Lecce","113"],["NAP","Napoli","114"],["PAR","Parma","115"],["PIS","Pisa","3956"],["SAS","Sassuolo","3997"],["TOR","Torino","239"],["UDI","Udinese","118"]]}];
 
     const el = {
       sport: document.getElementById("sport"),
@@ -118,7 +80,6 @@
       count: document.getElementById("count"),
       rotateSec: document.getElementById("rotateSec"),
       refreshSec: document.getElementById("refreshSec"),
-      save: document.getElementById("save"),
       saveRun: document.getElementById("saveRun"),
       status: document.getElementById("status")
     };
@@ -151,6 +112,7 @@
         const opt = document.createElement("option");
         opt.value = item.value;
         opt.textContent = item.label;
+        if (item.teamId) opt.teamId = item.teamId;
         node.appendChild(opt);
       }
       if (value != null && value !== "") node.value = value;
@@ -165,7 +127,7 @@
     }
 
 function sportDef() {
-      return CFG[el.sport.value] || CFG.soccer;
+      return { leagues: LEAGUES };
     }
 
     function selectedSportDef() {
@@ -180,17 +142,9 @@ function sportDef() {
       }
       return sport.leagues[0];
     }
-
-    async function fetchLeagueTeams(sport, league) {
-      return [];
-    }
-
     async function rebuildTeam(preferredTeam) {
       const league = leagueDef();
-      const dynamicTeams = await fetchLeagueTeams(FORCED_SPORT, league.code || "eng.1");
-      const sourceTeams = Array.isArray(dynamicTeams) && dynamicTeams.length > 0
-        ? dynamicTeams
-        : (league.teams || []).map(function (x) { return [x[0], x[1], ""]; });
+      const sourceTeams = (league.teams || []).map(function (x) { return [x[0], x[1], ""]; });
       const options = [{ value: "", label: "No Team Focus" }];
       for (const t of sourceTeams) {
         options.push({ value: t[0], label: t[0] + " - " + t[1], teamId: t[2] || "" });
@@ -235,8 +189,7 @@ function sportDef() {
     }
 
     async function saveNow() {
-      el.save.disabled = true;
-      el.saveRun.disabled = true;
+      if (el.saveRun) el.saveRun.disabled = true;
       try {
         const t0 = Date.now();
         setStatus("Saving...");
@@ -247,8 +200,7 @@ function sportDef() {
       } catch (e) {
         setStatus(String(e && e.message || e), "bad");
       } finally {
-        el.save.disabled = false;
-        el.saveRun.disabled = false;
+        if (el.saveRun) el.saveRun.disabled = false;
       }
     }
 
@@ -271,7 +223,7 @@ function sportDef() {
       const json = await api("GET", "/api/system/settings");
       const items = json && typeof json.items === "object" ? json.items : {};
 
-      const sportOptions = Object.keys(CFG).map(function (k) { return { value: k, label: CFG[k].label }; });
+      const sportOptions = [{ value: FORCED_SPORT, label: "Soccer" }];
       setOptions(el.sport, sportOptions, FORCED_SPORT);
       lockSportField();
       await rebuildLeague(String(items["soccer_schedule.league"] || ""), String(items["soccer_schedule.team"] || ""));
@@ -288,8 +240,7 @@ function sportDef() {
       const option = el.team.options[el.team.selectedIndex];
       el.team.dataset.teamId = option && option.teamId ? option.teamId : "";
     });
-    el.save.addEventListener("click", saveNow);
-    el.saveRun.addEventListener("click", saveNow);
+    if (el.saveRun) el.saveRun.addEventListener("click", saveNow);
 
     load().catch(function (e) { setStatus(String(e && e.message || e), "bad"); });
   </script>

@@ -30,6 +30,7 @@
 #include "esp_http_server.h"
 #include "esp_log.h"
 #include "esp_system.h"
+#include "nvs.h"
 #if defined(CONFIG_MBEDTLS_CERTIFICATE_BUNDLE)
 #include "esp_crt_bundle.h"
 #endif
@@ -61,6 +62,8 @@ static const char* kFirmwareStableManifestUrl =
 static const char* kFirmwareBetaManifestUrl =
     "https://ota.geekmagic.cc/firmware/pixel64x32V2/beta/firmware.json";
 static const char* kStoreChannelKey = "store.channel";
+static const char* kStoreChannelNvsNamespace = "pixel_store";
+static const char* kStoreChannelNvsKey = "channel";
 static const char* kFirmwareAutoOtaKey = "firmware.auto_ota";
 static const char* kLuaDataDir = "/littlefs/.sys";
 static const char* kAppDataPath = "/littlefs/.sys/app_data.json";
@@ -592,18 +595,64 @@ static std::string NormalizeStoreChannel(const std::string& value) {
   return trimmed == "beta" ? "beta" : "stable";
 }
 
+static bool ReadStoreChannelFromNvs(std::string* out_channel) {
+  if (out_channel) out_channel->clear();
+  nvs_handle_t handle = 0;
+  esp_err_t err = nvs_open(kStoreChannelNvsNamespace, NVS_READONLY, &handle);
+  if (err != ESP_OK) return false;
+
+  char buf[16] = {};
+  size_t len = sizeof(buf);
+  err = nvs_get_str(handle, kStoreChannelNvsKey, buf, &len);
+  nvs_close(handle);
+  if (err != ESP_OK) return false;
+
+  const std::string normalized = NormalizeStoreChannel(buf);
+  if (out_channel) *out_channel = normalized;
+  return true;
+}
+
+static bool WriteStoreChannelToNvs(const std::string& channel, std::string* out_err) {
+  nvs_handle_t handle = 0;
+  esp_err_t err = nvs_open(kStoreChannelNvsNamespace, NVS_READWRITE, &handle);
+  if (err != ESP_OK) {
+    if (out_err) *out_err = std::string("nvs open failed: ") + esp_err_to_name(err);
+    return false;
+  }
+
+  const std::string normalized = NormalizeStoreChannel(channel);
+  err = nvs_set_str(handle, kStoreChannelNvsKey, normalized.c_str());
+  if (err == ESP_OK) err = nvs_commit(handle);
+  nvs_close(handle);
+  if (err != ESP_OK) {
+    if (out_err) *out_err = std::string("nvs write failed: ") + esp_err_to_name(err);
+    return false;
+  }
+  return true;
+}
+
 static std::string GetStoreChannel() {
+  std::string channel;
+  if (ReadStoreChannelFromNvs(&channel)) return channel;
+
   cJSON* root = LoadLuaDataRootForHttp();
   if (!root) return "stable";
   const cJSON* v = cJSON_GetObjectItemCaseSensitive(root, kStoreChannelKey);
   const char* s = cJSON_IsString(v) ? v->valuestring : nullptr;
-  const std::string channel = NormalizeStoreChannel(s ? s : "stable");
+  const bool has_legacy_channel = s && s[0];
+  channel = NormalizeStoreChannel(s ? s : "stable");
   cJSON_Delete(root);
+  if (has_legacy_channel) {
+    std::string ignored;
+    (void)WriteStoreChannelToNvs(channel, &ignored);
+  }
   return channel;
 }
 
 static bool SetStoreChannel(const std::string& channel, std::string* out_err) {
   const std::string normalized = NormalizeStoreChannel(channel);
+  if (!WriteStoreChannelToNvs(normalized, out_err)) return false;
+
   cJSON* root = LoadLuaDataRootForHttp();
   if (!root) {
     if (out_err) *out_err = "load app data failed";
@@ -611,9 +660,11 @@ static bool SetStoreChannel(const std::string& channel, std::string* out_err) {
   }
   cJSON_DeleteItemFromObjectCaseSensitive(root, kStoreChannelKey);
   cJSON_AddStringToObject(root, kStoreChannelKey, normalized.c_str());
-  const bool ok = SaveLuaDataRootForHttp(root, out_err);
+  std::string ignored;
+  (void)SaveLuaDataRootForHttp(root, &ignored);
   cJSON_Delete(root);
-  return ok;
+  if (out_err) out_err->clear();
+  return true;
 }
 
 static bool GetFirmwareAutoOtaEnabled() {
