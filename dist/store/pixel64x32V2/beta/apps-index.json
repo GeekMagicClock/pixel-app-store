@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-05-21T08:46:28.843679+00:00",
+  "generated_at": "2026-05-21T09:42:16.809808+00:00",
   "channel": "beta",
   "category_order": [
     "art",
@@ -416,20 +416,6 @@
       "min_fw": "0.0.0"
     },
     {
-      "id": "basketball_scoreboard",
-      "name": "Basketball Scoreboard",
-      "version": "1.0.19",
-      "category": "sports",
-      "description": "",
-      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/basketball_scoreboard-1.0.19.zip",
-      "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/thumbs/basketball_scoreboard.png?v=f3b09e14c597",
-      "thumbnail_sha256": "f3b09e14c5974fa3008dbcc485b0240b6e3b15a9c35e72bd0d9761a538109926",
-      "crc32": "d0e1bbf8",
-      "size": 20144,
-      "entry": "app.bin",
-      "min_fw": "0.0.0"
-    },
-    {
       "id": "basketball_standings",
       "name": "Basketball Standings",
       "version": "1.0.13",
@@ -524,6 +510,20 @@
       "thumbnail_sha256": "16259da8c51705d94de8d97b2c47d92ec69f5c937508728137e16af822391354",
       "crc32": "dc657bb8",
       "size": 12024,
+      "entry": "app.bin",
+      "min_fw": "0.0.0"
+    },
+    {
+      "id": "basketball_scoreboard",
+      "name": "NBA Scores",
+      "version": "1.0.20",
+      "category": "sports",
+      "description": "",
+      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/basketball_scoreboard-1.0.20.zip",
+      "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/thumbs/basketball_scoreboard.png?v=f3b09e14c597",
+      "thumbnail_sha256": "f3b09e14c5974fa3008dbcc485b0240b6e3b15a9c35e72bd0d9761a538109926",
+      "crc32": "0c71559a",
+      "size": 20146,
       "entry": "app.bin",
       "min_fw": "0.0.0"
     },
