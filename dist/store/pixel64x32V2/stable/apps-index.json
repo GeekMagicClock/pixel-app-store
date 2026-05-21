@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-05-21T08:46:28.843679+00:00",
+  "generated_at": "2026-05-21T10:31:58.641966+00:00",
   "channel": "stable",
   "category_order": [
     "art",
@@ -402,20 +402,6 @@
       "min_fw": "0.0.0"
     },
     {
-      "id": "basketball_schedule",
-      "name": "Basketball Schedule",
-      "version": "1.0.18",
-      "category": "sports",
-      "description": "",
-      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/stable/basketball_schedule-1.0.18.zip",
-      "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/stable/thumbs/basketball_schedule.png?v=9ead74abe97c",
-      "thumbnail_sha256": "9ead74abe97cb5b61cc4d5e74388fc8d6d605411de17f902e562b020535d2014",
-      "crc32": "95987e8c",
-      "size": 19566,
-      "entry": "app.bin",
-      "min_fw": "0.0.0"
-    },
-    {
       "id": "basketball_scoreboard",
       "name": "Basketball Scoreboard",
       "version": "1.0.19",
@@ -426,20 +412,6 @@
       "thumbnail_sha256": "f3b09e14c5974fa3008dbcc485b0240b6e3b15a9c35e72bd0d9761a538109926",
       "crc32": "d0e1bbf8",
       "size": 20144,
-      "entry": "app.bin",
-      "min_fw": "0.0.0"
-    },
-    {
-      "id": "basketball_standings",
-      "name": "Basketball Standings",
-      "version": "1.0.13",
-      "category": "sports",
-      "description": "",
-      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/stable/basketball_standings-1.0.13.zip",
-      "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/stable/thumbs/basketball_standings.png?v=eaa8bcd71703",
-      "thumbnail_sha256": "eaa8bcd71703bf2764c94f0880fbc33dee5e62e633d36e4529c2f1ca345cd16f",
-      "crc32": "d72ba282",
-      "size": 12052,
       "entry": "app.bin",
       "min_fw": "0.0.0"
     },
@@ -524,6 +496,34 @@
       "thumbnail_sha256": "16259da8c51705d94de8d97b2c47d92ec69f5c937508728137e16af822391354",
       "crc32": "dc657bb8",
       "size": 12024,
+      "entry": "app.bin",
+      "min_fw": "0.0.0"
+    },
+    {
+      "id": "basketball_schedule",
+      "name": "NBA Schedule",
+      "version": "1.0.20",
+      "category": "sports",
+      "description": "",
+      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/stable/basketball_schedule-1.0.20.zip",
+      "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/stable/thumbs/basketball_schedule.png?v=30e8b9a422f4",
+      "thumbnail_sha256": "30e8b9a422f4b6c9adc838660aa115a6a276d453713bb2671de0f4c436e1f719",
+      "crc32": "1228caf0",
+      "size": 23161,
+      "entry": "app.bin",
+      "min_fw": "0.0.0"
+    },
+    {
+      "id": "basketball_standings",
+      "name": "NBA Standings",
+      "version": "1.0.15",
+      "category": "sports",
+      "description": "",
+      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/stable/basketball_standings-1.0.15.zip",
+      "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/stable/thumbs/basketball_standings.png?v=ec82c85f8df8",
+      "thumbnail_sha256": "ec82c85f8df8de8ea6b9c730ee12938410f7a3b20a6eacbe404585a4e1f058a1",
+      "crc32": "7ff58f54",
+      "size": 15531,
       "entry": "app.bin",
       "min_fw": "0.0.0"
     },
