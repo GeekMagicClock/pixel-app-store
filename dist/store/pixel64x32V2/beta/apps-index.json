@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-05-21T09:42:16.809808+00:00",
+  "generated_at": "2026-05-21T09:44:23.774120+00:00",
   "channel": "beta",
   "category_order": [
     "art",
@@ -516,13 +516,13 @@
     {
       "id": "basketball_scoreboard",
       "name": "NBA Scores",
-      "version": "1.0.20",
+      "version": "1.0.21",
       "category": "sports",
       "description": "",
-      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/basketball_scoreboard-1.0.20.zip",
+      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/basketball_scoreboard-1.0.21.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/thumbs/basketball_scoreboard.png?v=f3b09e14c597",
       "thumbnail_sha256": "f3b09e14c5974fa3008dbcc485b0240b6e3b15a9c35e72bd0d9761a538109926",
-      "crc32": "0c71559a",
+      "crc32": "36c7fd28",
       "size": 20146,
       "entry": "app.bin",
       "min_fw": "0.0.0"
