@@ -1293,11 +1293,10 @@ class CachedHttpMgr {
       return true;
     }
 
-    // Stale/missing. If already inflight, reuse it and optionally return stale body.
+    // Stale/missing. If already inflight, return only the request id so callers
+    // poll it and let CachedPoll refresh the cache entry.
     if (e.inflight_id > 0) {
       if (out_req_id) *out_req_id = e.inflight_id;
-      if (has_body && out_body) *out_body = e.body;
-      if (has_body && out_age_ms) *out_age_ms = age;
       Unlock();
       return true;
     }
@@ -1320,11 +1319,7 @@ class CachedHttpMgr {
     if (owner != 0) e2.owner = owner;
     inflight_url_[id] = url;
     inflight_owner_[id] = owner;
-    const bool has_body2 = !e2.body.empty() && e2.updated_ms > 0;
-    const int age2 = has_body2 ? static_cast<int>(now - e2.updated_ms) : 0;
     if (out_req_id) *out_req_id = id;
-    if (has_body2 && out_body) *out_body = e2.body;
-    if (has_body2 && out_age_ms) *out_age_ms = age2;
     Unlock();
     return true;
   }

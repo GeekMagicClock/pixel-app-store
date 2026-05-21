@@ -817,18 +817,25 @@ local function start_request(kind)
     handle_request_error(kind, err)
     return
   end
+  if id then
+    state.req_id = id
+    state.req_kind = kind
+    state.last_req_ms = now_ms()
+    if body and not state.payload then
+      if kind == "scoreboard" then
+        handle_scoreboard_response(200, body)
+      else
+        handle_summary_response(200, body)
+      end
+    end
+    return
+  end
   if body then
     if kind == "scoreboard" then
       handle_scoreboard_response(200, body)
     else
       handle_summary_response(200, body)
     end
-    state.last_req_ms = now_ms()
-    return
-  end
-  if id then
-    state.req_id = id
-    state.req_kind = kind
     state.last_req_ms = now_ms()
     return
   end

@@ -1946,7 +1946,7 @@
         <div class="apps-tabs" role="tablist" aria-label="Apps sections">
           <button class="apps-tab-btn active" data-apps-tab="installed" type="button">Installed Apps</button>
           <button class="apps-tab-btn" data-apps-tab="automation" type="button">Schedule</button>
-          <button class="apps-tab-btn" data-apps-tab="store" type="button">Apps Store</button>
+          <button class="apps-tab-btn" data-apps-tab="store" type="button">App Store</button>
         </div>
 
         <section class="apps-subpanel active" data-apps-panel="installed">
@@ -3766,7 +3766,7 @@
         state.installedLazyObserver = null;
       }
       if (!state.installedApps.length) {
-        installedAppsGridEl.innerHTML = '<div class="muted">No installed apps. Install one from Apps Store to start playback.</div>';
+        installedAppsGridEl.innerHTML = '<div class="muted">No installed apps. Install one from App Store to start playback.</div>';
         renderScheduleBuilder();
         return;
       }

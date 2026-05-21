@@ -1926,12 +1926,22 @@ static esp_err_t HandlePutAppFile(httpd_req_t* req) {
     return ESP_OK;
   }
 
-  if (g_install_session_app_id.empty() || g_install_session_stage_dir.empty() || g_install_session_app_id != app_id) {
+  const bool has_install_session =
+      !g_install_session_app_id.empty() && !g_install_session_stage_dir.empty() && g_install_session_app_id == app_id;
+  const bool asset_update = filename.rfind("assets/", 0) == 0 && filename.size() > strlen("assets/");
+  if (!has_install_session && !asset_update) {
     SendJson(req, "409 Conflict", "{\"ok\":false,\"error\":\"install session required; call /api/apps/install/begin?app_id=<id>\"}");
     return ESP_OK;
   }
 
-  std::string app_dir = g_install_session_stage_dir;
+  std::string app_dir = has_install_session ? g_install_session_stage_dir : (std::string("/littlefs/apps/") + app_id);
+  if (!has_install_session) {
+    struct stat st = {};
+    if (stat(app_dir.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)) {
+      SendJson(req, "404 Not Found", "{\"ok\":false,\"error\":\"app not found\"}");
+      return ESP_OK;
+    }
+  }
   if (!EnsureDir(app_dir.c_str())) {
     SendJson(req, "500 Internal Server Error", "{\"ok\":false,\"error\":\"mkdir app dir failed\"}");
     return ESP_OK;

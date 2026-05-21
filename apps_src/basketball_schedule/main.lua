@@ -47,7 +47,7 @@ local TEAM_SCHEDULE_MAX_BODY = tonumber(data.get("basketball_schedule.team_sched
 local TEAMS_CACHE_TTL_MS = tonumber(data.get("basketball_schedule.teams_cache_ttl_ms") or (24 * 60 * 60 * 1000)) or (24 * 60 * 60 * 1000)
 local TIMEOUT_MS = tonumber(data.get("basketball_schedule.timeout_ms") or 30000) or 30000
 local ERR_RETRY_MS = tonumber(data.get("basketball_schedule.err_retry_ms") or 15000) or 15000
-local APP_NAME = tostring(data.get("basketball_schedule.app_name") or "Basketball Schedule")
+local APP_NAME = tostring(data.get("basketball_schedule.app_name") or "NBA Schedule")
 -- ESPN team schedule endpoint can return very large season payloads on multiple sports.
 -- Keep it disabled to avoid repeated >500KB gzip decode failures on device.
 local USE_TEAM_SCHEDULE_ENDPOINT = false

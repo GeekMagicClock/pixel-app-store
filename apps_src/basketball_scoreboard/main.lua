@@ -54,7 +54,7 @@ local MAX_BODY = tonumber(data.get("basketball_scoreboard.max_body") or data.get
 local SCOREBOARD_MAX_BODY = tonumber(data.get("basketball_scoreboard.scoreboard_max_body") or data.get("game_summary.scoreboard_max_body") or 458752) or 458752
 local SCOREBOARD_MAX_BODY_HARD = 524288
 local TIMEOUT_MS = tonumber(data.get("basketball_scoreboard.timeout_ms") or data.get("game_summary.timeout_ms") or 8000) or 8000
-local APP_NAME = tostring(data.get("basketball_scoreboard.app_name") or "Basketball Scoreboard")
+local APP_NAME = tostring(data.get("basketball_scoreboard.app_name") or "NBA Scores")
 if ROTATE_MS < 1000 then ROTATE_MS = 1000 end
 if TTL_MS < 10000 then TTL_MS = 10000 end
 if MAX_BODY < 16384 then MAX_BODY = 16384 end
@@ -851,18 +851,25 @@ local function start_request(kind)
     handle_request_error(kind, err)
     return
   end
+  if id then
+    state.req_id = id
+    state.req_kind = kind
+    state.last_req_ms = now_ms()
+    if body and not state.payload then
+      if kind == "scoreboard" then
+        handle_scoreboard_response(200, body)
+      else
+        handle_summary_response(200, body)
+      end
+    end
+    return
+  end
   if body then
     if kind == "scoreboard" then
       handle_scoreboard_response(200, body)
     else
       handle_summary_response(200, body)
     end
-    state.last_req_ms = now_ms()
-    return
-  end
-  if id then
-    state.req_id = id
-    state.req_kind = kind
     state.last_req_ms = now_ms()
     return
   end

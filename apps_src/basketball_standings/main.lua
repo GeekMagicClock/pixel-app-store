@@ -48,7 +48,7 @@ local ROWS_PER_PAGE = math.max(1, math.min(4, tonumber(data.get("basketball_stan
 local TTL_MS = tonumber(data.get("basketball_standings.ttl_ms") or 10 * 60 * 1000) or (10 * 60 * 1000)
 local MAX_BODY = tonumber(data.get("basketball_standings.max_body") or 393216) or 393216
 local TIMEOUT_MS = tonumber(data.get("basketball_standings.timeout_ms") or 8000) or 8000
-local APP_NAME = tostring(data.get("basketball_standings.app_name") or "Basketball Standings")
+local APP_NAME = tostring(data.get("basketball_standings.app_name") or "NBA Standings")
 
 local state = {
   req_id = nil,
