@@ -17,6 +17,7 @@
 #include "freertos/event_groups.h"
 #include "nvs_flash.h"
 #include "app/captive_dns.h"
+#include "lwip/inet.h"
 
 static const char *kTag = "wifi_mgr";
 
@@ -44,6 +45,7 @@ static constexpr uint32_t kStaReconnectMaxAttempts = 30;
 static bool g_sta_connecting_window = false;
 static uint32_t g_sta_reconnect_attempts = 0;
 static int64_t g_sta_last_reconnect_ms = 0;
+static bool g_sta_auto_reconnect_enabled = true;
 
 static const char* AuthModeName(wifi_auth_mode_t authmode) {
   switch (authmode) {
@@ -139,7 +141,9 @@ static void WifiEventHandler(void *arg, esp_event_base_t event_base, int32_t eve
              e ? static_cast<int>(e->rssi) : 0);
     if (g_evt) xEventGroupClearBits(g_evt, kBitGotIp | kBitStaConnected);
     wifi_mode_t mode = WIFI_MODE_NULL;
-    if (esp_wifi_get_mode(&mode) == ESP_OK && mode == WIFI_MODE_STA && g_sta_connecting_window) {
+    if (esp_wifi_get_mode(&mode) == ESP_OK &&
+        (mode == WIFI_MODE_STA || mode == WIFI_MODE_APSTA) &&
+        g_sta_auto_reconnect_enabled) {
       const int64_t now_ms = esp_timer_get_time() / 1000;
       if (g_sta_reconnect_attempts < kStaReconnectMaxAttempts &&
           (g_sta_last_reconnect_ms == 0 || (now_ms - g_sta_last_reconnect_ms) >= kStaReconnectMinIntervalMs)) {
@@ -246,6 +250,25 @@ static void FillStatusString(char* dst, size_t dst_sz, const char* src) {
   snprintf(dst, dst_sz, "%s", src ? src : "");
 }
 
+static void LogDnsServer(const char* label, esp_netif_t* netif, esp_netif_dns_type_t dns_type) {
+  if (!label) label = "dns";
+  if (!netif) {
+    ESP_LOGW(kTag, "%s: netif missing", label);
+    return;
+  }
+
+  esp_netif_dns_info_t dns = {};
+  const esp_err_t ret = esp_netif_get_dns_info(netif, dns_type, &dns);
+  if (ret != ESP_OK) {
+    ESP_LOGW(kTag, "%s: dns type=%d get failed: %s", label, static_cast<int>(dns_type), esp_err_to_name(ret));
+    return;
+  }
+
+  char buf[64] = {};
+  const char* ip = ipaddr_ntoa_r(reinterpret_cast<const ip_addr_t*>(&dns.ip), buf, sizeof(buf));
+  ESP_LOGI(kTag, "%s: dns type=%d ip=%s", label, static_cast<int>(dns_type), ip ? ip : "--");
+}
+
 }  // namespace
 
 bool WifiManagerInit() {
@@ -329,6 +352,7 @@ bool WifiManagerConnectSta(uint32_t timeout_ms, WifiStaInfo *sta_out) {
 
   xEventGroupClearBits(g_evt, kBitGotIp | kBitStaConnected);
   g_sta_connecting_window = true;
+  g_sta_auto_reconnect_enabled = true;
   g_sta_reconnect_attempts = 0;
   g_sta_last_reconnect_ms = 0;
 
@@ -427,6 +451,8 @@ bool WifiManagerStartSetupAp(WifiApInfo *ap_out) {
   }
 
   if (!WifiManagerInit()) return false;
+
+  g_sta_auto_reconnect_enabled = false;
 
   char ap_ssid[33] = {};
   MakeSetupSsid(ap_ssid);
@@ -597,6 +623,56 @@ int WifiManagerScanNetworks(WifiScanResult* out_results, int max_results, uint32
 
 void *WifiManagerGetStaNetif() {
   return g_sta_netif;
+}
+
+bool WifiManagerRecoverStaNetwork(const char* reason) {
+  if (!WifiManagerInit()) return false;
+
+  g_sta_auto_reconnect_enabled = true;
+
+  WifiStatusInfo st = {};
+  (void)WifiManagerGetStatus(&st);
+
+  wifi_mode_t mode = WIFI_MODE_NULL;
+  if (esp_wifi_get_mode(&mode) != ESP_OK) {
+    mode = WIFI_MODE_NULL;
+  }
+
+  char mode_buf[8] = {};
+  FillStatusString(mode_buf, sizeof(mode_buf), st.mode[0] ? st.mode : "unknown");
+  ESP_LOGW(kTag,
+           "sta recover begin reason=%s mode=%s sta_connected=%d sta_ip=%s ap_active=%d ap_ip=%s",
+           reason ? reason : "unknown",
+           mode_buf,
+           st.sta_connected ? 1 : 0,
+           st.sta_ip[0] ? st.sta_ip : "--",
+           st.ap_active ? 1 : 0,
+           st.ap_ip[0] ? st.ap_ip : "--");
+  LogDnsServer("sta dns before main", g_sta_netif, ESP_NETIF_DNS_MAIN);
+  LogDnsServer("sta dns before backup", g_sta_netif, ESP_NETIF_DNS_BACKUP);
+
+  if (mode == WIFI_MODE_NULL) {
+    ESP_LOGW(kTag, "sta recover skipped: wifi mode is null");
+    return false;
+  }
+
+  esp_err_t rc = esp_wifi_disconnect();
+  if (rc != ESP_OK && rc != ESP_ERR_WIFI_NOT_CONNECT && rc != ESP_ERR_WIFI_NOT_STARTED) {
+    ESP_LOGW(kTag, "sta recover disconnect failed: %s", esp_err_to_name(rc));
+  } else {
+    ESP_LOGI(kTag, "sta recover disconnect rc=%s", esp_err_to_name(rc));
+  }
+
+  vTaskDelay(pdMS_TO_TICKS(150));
+
+  rc = esp_wifi_connect();
+  if (rc != ESP_OK) {
+    ESP_LOGW(kTag, "sta recover reconnect failed: %s", esp_err_to_name(rc));
+    return false;
+  }
+
+  ESP_LOGI(kTag, "sta recover reconnect ok");
+  return true;
 }
 
 bool WifiManagerSaveStaCredentials(const char* ssid, const char* password) {

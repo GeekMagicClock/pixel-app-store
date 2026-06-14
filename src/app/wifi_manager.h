@@ -62,6 +62,10 @@ int WifiManagerScanNetworks(WifiScanResult *out_results, int max_results, uint32
 // Saves STA credentials to NVS-backed Wi-Fi config for future boots.
 bool WifiManagerSaveStaCredentials(const char *ssid, const char *password);
 
+// Best-effort STA recovery for transient network/DNS failures.
+// Logs current Wi-Fi/DNS state and triggers a STA reconnect cycle.
+bool WifiManagerRecoverStaNetwork(const char* reason);
+
 // Returns the STA esp_netif pointer for mDNS or other protocol services.
 // May return null before WifiManagerInit().
 void *WifiManagerGetStaNetif();

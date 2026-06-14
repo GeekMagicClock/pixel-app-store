@@ -1,0 +1,14 @@
+/Users/ifeng-macmini/develop/project/esp32-pixel/tools/lvgl_simulator/build_local/CMakeFiles/lvgl_pixel_sim.dir
+/Users/ifeng-macmini/develop/project/esp32-pixel/tools/lvgl_simulator/build_local/CMakeFiles/edit_cache.dir
+/Users/ifeng-macmini/develop/project/esp32-pixel/tools/lvgl_simulator/build_local/CMakeFiles/rebuild_cache.dir
+/Users/ifeng-macmini/develop/project/esp32-pixel/tools/lvgl_simulator/build_local/CMakeFiles/list_install_components.dir
+/Users/ifeng-macmini/develop/project/esp32-pixel/tools/lvgl_simulator/build_local/CMakeFiles/install.dir
+/Users/ifeng-macmini/develop/project/esp32-pixel/tools/lvgl_simulator/build_local/CMakeFiles/install/local.dir
+/Users/ifeng-macmini/develop/project/esp32-pixel/tools/lvgl_simulator/build_local/CMakeFiles/install/strip.dir
+/Users/ifeng-macmini/develop/project/esp32-pixel/tools/lvgl_simulator/build_local/lvgl/CMakeFiles/lvgl.dir
+/Users/ifeng-macmini/develop/project/esp32-pixel/tools/lvgl_simulator/build_local/lvgl/CMakeFiles/edit_cache.dir
+/Users/ifeng-macmini/develop/project/esp32-pixel/tools/lvgl_simulator/build_local/lvgl/CMakeFiles/rebuild_cache.dir
+/Users/ifeng-macmini/develop/project/esp32-pixel/tools/lvgl_simulator/build_local/lvgl/CMakeFiles/list_install_components.dir
+/Users/ifeng-macmini/develop/project/esp32-pixel/tools/lvgl_simulator/build_local/lvgl/CMakeFiles/install.dir
+/Users/ifeng-macmini/develop/project/esp32-pixel/tools/lvgl_simulator/build_local/lvgl/CMakeFiles/install/local.dir
+/Users/ifeng-macmini/develop/project/esp32-pixel/tools/lvgl_simulator/build_local/lvgl/CMakeFiles/install/strip.dir

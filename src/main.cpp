@@ -35,6 +35,7 @@ extern "C" {
 #include "app/user_button.h"
 #include "app/wifi_manager.h"
 #include "esp_netif.h"
+#include "esp_heap_caps.h"
 #include "esp_netif_net_stack.h"
 #include "ui/lvgl_boot_wifi_screen.h"
 #include "ui/lvgl_hub75_port.h"
@@ -43,7 +44,7 @@ extern "C" {
 #include "ui/lvgl_smoke_test.h"
 
 static const char *kTag = "app";
-static constexpr bool kEnableHeapLogTask = false;
+static constexpr bool kEnableHeapLogTask = true;
 static constexpr bool kDebugBootLvglOnly = false;
 static constexpr bool kDebugDisableLuaStartup = false;
 static constexpr bool kDebugDisableOtaServer = false;
@@ -176,10 +177,45 @@ static void RequestSwitchLuaAppOnLvglThread(const char* app_id, unsigned app_id_
 static void HeapLogTask(void *arg) {
   (void)arg;
   while (true) {
-    const uint32_t free_heap = esp_get_free_heap_size();
-    const uint32_t min_free_heap = esp_get_minimum_free_heap_size();
-    ESP_LOGI(kTag, "heap free=%u min=%u", static_cast<unsigned>(free_heap), static_cast<unsigned>(min_free_heap));
-    vTaskDelay(pdMS_TO_TICKS(2000));
+    const uint32_t free8 = static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_8BIT));
+    const uint32_t min8 = static_cast<uint32_t>(heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
+    const uint32_t largest8 = static_cast<uint32_t>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+    const uint32_t free_internal =
+        static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+    const uint32_t min_internal =
+        static_cast<uint32_t>(heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+    const uint32_t largest_internal =
+        static_cast<uint32_t>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+    const uint32_t free_spiram =
+        static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    const uint32_t min_spiram =
+        static_cast<uint32_t>(heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    const uint32_t largest_spiram =
+        static_cast<uint32_t>(heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+
+    WifiStatusInfo wifi = {};
+    const bool wifi_ok = WifiManagerGetStatus(&wifi);
+    const bool online = wifi_ok && wifi.sta_connected && wifi.sta_ip[0] && strcmp(wifi.sta_ip, "--") != 0;
+    ESP_LOGI(
+        kTag,
+        "sys mon mem free8=%u min8=%u largest8=%u free_internal=%u min_internal=%u largest_internal=%u free_spiram=%u min_spiram=%u largest_spiram=%u wifi_ok=%d mode=%s sta_connected=%d sta_ip=%s ap_active=%d ap_ip=%s online=%d",
+        static_cast<unsigned>(free8),
+        static_cast<unsigned>(min8),
+        static_cast<unsigned>(largest8),
+        static_cast<unsigned>(free_internal),
+        static_cast<unsigned>(min_internal),
+        static_cast<unsigned>(largest_internal),
+        static_cast<unsigned>(free_spiram),
+        static_cast<unsigned>(min_spiram),
+        static_cast<unsigned>(largest_spiram),
+        wifi_ok ? 1 : 0,
+        wifi.mode[0] ? wifi.mode : "unknown",
+        wifi.sta_connected ? 1 : 0,
+        wifi.sta_ip[0] ? wifi.sta_ip : "--",
+        wifi.ap_active ? 1 : 0,
+        wifi.ap_ip[0] ? wifi.ap_ip : "--",
+        online ? 1 : 0);
+    vTaskDelay(pdMS_TO_TICKS(5000));
   }
 }
 
@@ -726,7 +762,7 @@ extern "C" void app_main(void) {
   xTaskCreatePinnedToCore(BootFlowTask, "boot_flow", 6144, nullptr, 4, nullptr, 1);
 
   if (kEnableHeapLogTask) {
-  xTaskCreatePinnedToCore(HeapLogTask, "heap_log", 3072, nullptr, 1, nullptr, 0);
+    xTaskCreatePinnedToCore(HeapLogTask, "heap_log", 4096, nullptr, 1, nullptr, 0);
   }
 
   while (true) {

@@ -4,12 +4,17 @@
 #include "ui/lvgl_mem_utils.h"
 
 #include <atomic>
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>
 #include <memory>
 #include <string>
 #include <vector>
+
+#include <dirent.h>
+#include <sys/stat.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/idf_additions.h"
@@ -38,6 +43,7 @@ static lv_font_t* g_font = nullptr;
 static constexpr uint32_t kTickMsText = 200;
 static constexpr uint32_t kTickMsFb = 33;
 static constexpr uint32_t kAppNameOverlayMs = 2000;
+static constexpr uint32_t kAppSwitchDelayMs = 50;
 
 enum class WidgetType {
   kText,
@@ -67,11 +73,14 @@ struct ScreenState {
   lv_obj_t* scr = nullptr;
   lv_obj_t* root = nullptr;
   lv_obj_t* canvas = nullptr;
+  lv_obj_t* switch_overlay = nullptr;
+  lv_obj_t* switch_label = nullptr;
   lv_obj_t* ota_overlay = nullptr;
   lv_obj_t* ota_title = nullptr;
   lv_obj_t* ota_percent = nullptr;
   lv_obj_t* ota_bar = nullptr;
   lv_obj_t* app_name_overlay = nullptr;
+  lv_obj_t* app_name_index = nullptr;
   uint32_t app_name_overlay_until_ms = 0;
   lv_draw_buf_t* canvas_buf = nullptr;
   lv_timer_t* timer = nullptr;
@@ -191,9 +200,77 @@ static std::string SplitNameForTwoLines(const std::string& name) {
   return left + "\n" + right;
 }
 
+static bool IsDir(const std::string& path) {
+  struct stat st {};
+  if (stat(path.c_str(), &st) != 0) return false;
+  return S_ISDIR(st.st_mode);
+}
+
+static bool IsFile(const std::string& path) {
+  struct stat st {};
+  if (stat(path.c_str(), &st) != 0) return false;
+  return S_ISREG(st.st_mode);
+}
+
+static void ClearAppNameOverlayWidgets() {
+  g_state.app_name_index = nullptr;
+}
+
+static void ClearSwitchOverlayWidgets() {
+  g_state.switch_label = nullptr;
+}
+
+static bool ParseHexColor(const char* s, lv_color_t* out);
+static lv_text_align_t ParseAlign(const char* s);
+
+static bool ResolveAppSequenceInfo(const std::string& app_dir, int* out_index_1based, int* out_total) {
+  if (out_index_1based) *out_index_1based = 0;
+  if (out_total) *out_total = 0;
+  if (app_dir.empty()) return false;
+
+  const std::string app_id = [&]() {
+    const char* slash = strrchr(app_dir.c_str(), '/');
+    return (slash && slash[1]) ? std::string(slash + 1) : app_dir;
+  }();
+
+  std::vector<std::string> app_ids;
+  const char* root = "/littlefs/apps";
+  DIR* d = opendir(root);
+  if (!d) return false;
+
+  while (true) {
+    struct dirent* e = readdir(d);
+    if (!e) break;
+    const char* name = e->d_name;
+    if (!name || !*name || name[0] == '.') continue;
+
+    const std::string dir = std::string(root) + "/" + name;
+    if (!IsDir(dir)) continue;
+    if (!IsFile(dir + "/app.bin")) continue;
+    app_ids.emplace_back(name);
+  }
+  closedir(d);
+
+  if (app_ids.empty()) return false;
+  std::sort(app_ids.begin(), app_ids.end());
+  if (out_total) *out_total = static_cast<int>(app_ids.size());
+
+  for (size_t i = 0; i < app_ids.size(); ++i) {
+    if (app_ids[i] == app_id) {
+      if (out_index_1based) *out_index_1based = static_cast<int>(i) + 1;
+      return true;
+    }
+  }
+
+  return false;
+}
+
 static void EnsureFontLoaded() {
   (void)g_font;
 }
+
+static lv_timer_t* g_switch_timer = nullptr;
+static char g_pending_switch_app_dir[96] = {};
 
 static void FreeFrameBuffers() {
   if (g_state.fb_front) {
@@ -207,26 +284,6 @@ static void FreeFrameBuffers() {
   g_state.fb_bytes = 0;
   g_state.fb_stride = 0;
   g_state.fb_buffer_ready = false;
-}
-
-static bool EnsureFrameBuffers() {
-  constexpr uint32_t kStride = 64 * 2;
-  constexpr size_t kBytes = static_cast<size_t>(kStride) * 32u;
-  if (g_state.fb_front && g_state.fb_back && g_state.fb_bytes == kBytes && g_state.fb_stride == kStride) return true;
-
-  FreeFrameBuffers();
-  g_state.fb_front = static_cast<uint8_t*>(LvglAllocPreferPsram(kBytes));
-  g_state.fb_back = static_cast<uint8_t*>(LvglAllocPreferPsram(kBytes));
-  if (!g_state.fb_front || !g_state.fb_back) {
-    FreeFrameBuffers();
-    return false;
-  }
-
-  memset(g_state.fb_front, 0, kBytes);
-  memset(g_state.fb_back, 0, kBytes);
-  g_state.fb_bytes = kBytes;
-  g_state.fb_stride = kStride;
-  return true;
 }
 
 static void StopFbTask() {
@@ -247,93 +304,6 @@ static void StopFbTask() {
   FreeFrameBuffers();
 }
 
-static void FbRenderTask(void* arg) {
-  (void)arg;
-  while (true) {
-    if (!g_state.fb_mode || !g_state.app) {
-      vTaskDelay(pdMS_TO_TICKS(20));
-      continue;
-    }
-
-    if (!g_state.fb_request_pending) {
-      vTaskDelay(pdMS_TO_TICKS(5));
-      continue;
-    }
-
-    if (!g_state.fb_back || g_state.fb_stride == 0 || g_state.fb_bytes == 0) {
-      g_state.fb_faulted = true;
-      g_state.fb_error = "fb buffers missing";
-      g_state.fb_request_pending = false;
-      vTaskDelay(pdMS_TO_TICKS(20));
-      continue;
-    }
-
-    const uint32_t dt_ms = g_state.fb_request_dt_ms;
-    g_state.fb_request_pending = false;
-
-    const int64_t t0_us = esp_timer_get_time();
-    if (g_state.fb_mutex) xSemaphoreTake(g_state.fb_mutex, portMAX_DELAY);
-    g_state.app->Tick(dt_ms);
-    memset(g_state.fb_back, 0, g_state.fb_bytes);
-    const bool ok = g_state.app->RenderFrameBufferTo(64, 32, g_state.fb_back, g_state.fb_stride, nullptr, FontOrFallback());
-    g_state.app->ClearFrameBufferTemps();
-    if (ok) {
-      std::swap(g_state.fb_front, g_state.fb_back);
-      g_state.fb_buffer_ready = true;
-      g_state.fb_faulted = false;
-      g_state.fb_error.clear();
-    } else {
-      g_state.fb_faulted = true;
-      const char* err = g_state.app->last_error();
-      g_state.fb_error = err ? err : "render_fb failed";
-    }
-    if (g_state.fb_mutex) xSemaphoreGive(g_state.fb_mutex);
-    const uint32_t render_ms = static_cast<uint32_t>((esp_timer_get_time() - t0_us) / 1000);
-    if (render_ms > 100) {
-  ESP_LOGW(kTag, "app_fb render slow: %lu ms app=%s", static_cast<unsigned long>(render_ms),
-               g_state.app_dir.c_str());
-    }
-    taskYIELD();
-  }
-}
-
-static bool StartFbTaskIfNeeded() {
-  if (!g_state.fb_mode) return true;
-  if (!EnsureFrameBuffers()) {
-    g_state.fb_faulted = true;
-    g_state.fb_error = "alloc fb buffers failed";
-    return false;
-  }
-  if (!g_state.fb_mutex) {
-    g_state.fb_mutex = xSemaphoreCreateMutex();
-    if (!g_state.fb_mutex) {
-      g_state.fb_faulted = true;
-      g_state.fb_error = "fb mutex failed";
-      return false;
-    }
-  }
-  if (g_state.fb_task) return true;
-
-  BaseType_t rc = xTaskCreatePinnedToCoreWithCaps(FbRenderTask,
-                                                  "app_fb",
-                                                  8192,
-                                                  nullptr,
-                                                  4,
-                                                  &g_state.fb_task,
-                                                  kLuaFbTaskCore,
-                                                  MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-  if (rc != pdPASS) {
-    rc = xTaskCreatePinnedToCore(FbRenderTask, "app_fb", 8192, nullptr, 4, &g_state.fb_task, kLuaFbTaskCore);
-  }
-  if (rc != pdPASS) {
-    g_state.fb_task = nullptr;
-    g_state.fb_faulted = true;
-    g_state.fb_error = "fb task create failed";
-    return false;
-  }
-  ESP_LOGI(kTag, "app_fb task started on core %ld", static_cast<long>(kLuaFbTaskCore));
-  return true;
-}
 
 static void StopTimer() {
   if (!g_state.timer) return;
@@ -364,6 +334,9 @@ static void ClearRootChildren() {
   while (true) {
     lv_obj_t* child = lv_obj_get_child(g_state.root, 0);
     if (!child) break;
+    // We are already running on the LVGL task here. Delete synchronously so the
+    // child is removed from the tree immediately; async delete would leave it
+    // in place until the next handler pass and can loop forever here.
     lv_obj_delete(child);
   }
   g_state.ota_overlay = nullptr;
@@ -371,7 +344,61 @@ static void ClearRootChildren() {
   g_state.ota_percent = nullptr;
   g_state.ota_bar = nullptr;
   g_state.app_name_overlay = nullptr;
+  g_state.switch_overlay = nullptr;
+  ClearAppNameOverlayWidgets();
+  ClearSwitchOverlayWidgets();
   g_state.app_name_overlay_until_ms = 0;
+}
+
+static void ShowAppNameOverlay(const std::string& app_dir) {
+  EnsureRootContainer();
+  if (!g_state.root || !lv_obj_is_valid(g_state.root)) return;
+
+  if (g_state.app_name_overlay && lv_obj_is_valid(g_state.app_name_overlay)) {
+    lv_obj_delete(g_state.app_name_overlay);
+    g_state.app_name_overlay = nullptr;
+  }
+
+  g_state.app_name_overlay = lv_obj_create(g_state.root);
+  lv_obj_remove_style_all(g_state.app_name_overlay);
+  lv_obj_set_size(g_state.app_name_overlay, 64, 32);
+  lv_obj_center(g_state.app_name_overlay);
+  lv_obj_set_style_bg_color(g_state.app_name_overlay, lv_color_black(), 0);
+  lv_obj_set_style_bg_opa(g_state.app_name_overlay, LV_OPA_COVER, 0);
+  lv_obj_set_style_pad_all(g_state.app_name_overlay, 0, 0);
+  lv_obj_set_style_border_width(g_state.app_name_overlay, 0, 0);
+
+  lv_obj_t* name = lv_label_create(g_state.app_name_overlay);
+  std::string display_name = ReadAppDisplayName(app_dir);
+  if (display_name.empty()) {
+    const char* slash = strrchr(app_dir.c_str(), '/');
+    display_name = (slash && slash[1]) ? (slash + 1) : app_dir;
+  }
+  const std::string multi_line_name = SplitNameForTwoLines(display_name);
+  lv_label_set_text(name, multi_line_name.c_str());
+  lv_obj_set_style_text_color(name, lv_color_hex(0x00FFFF), 0);
+  lv_obj_set_style_text_align(name, LV_TEXT_ALIGN_CENTER, 0);
+  lv_label_set_long_mode(name, LV_LABEL_LONG_WRAP);
+  lv_obj_set_width(name, 62);
+  lv_obj_center(name);
+
+  int app_index = 0;
+  int app_total = 0;
+  if (ResolveAppSequenceInfo(app_dir, &app_index, &app_total) && app_index > 0 && app_total > 0) {
+    g_state.app_name_index = lv_label_create(g_state.app_name_overlay);
+    lv_obj_set_style_text_font(g_state.app_name_index, FontOrFallback(), 0);
+    lv_obj_set_style_text_color(g_state.app_name_index, lv_color_hex(0xFFCC66), 0);
+    char seq_buf[16];
+    snprintf(seq_buf, sizeof(seq_buf), "#%d", app_index);
+    lv_label_set_text(g_state.app_name_index, seq_buf);
+    lv_obj_align(g_state.app_name_index, LV_ALIGN_TOP_RIGHT, -1, -2);
+  } else {
+    g_state.app_name_index = nullptr;
+  }
+
+  lv_obj_move_foreground(g_state.app_name_overlay);
+  g_state.app_name_overlay_until_ms = lv_tick_get() + kAppNameOverlayMs;
+  lv_obj_invalidate(g_state.app_name_overlay);
 }
 
 static uint32_t OtaProgressPercent(uint32_t written, uint32_t total) {
@@ -491,15 +518,113 @@ static void StopScreen() {
   g_state.bind_keys.clear();
   g_state.bind_values.clear();
   g_state.prev_bind_values.clear();
+  g_state.switch_overlay = nullptr;
+  g_state.switch_label = nullptr;
   SetCurrentAppInfo(nullptr);
   if (g_state.app) {
-    g_state.app->FullGcNow();
     ESP_LOGI(kTag,
-             "app exit full gc free=%u min=%u",
+             "app exit detach free=%u min=%u",
              static_cast<unsigned>(esp_get_free_heap_size()),
              static_cast<unsigned>(esp_get_minimum_free_heap_size()));
   }
   g_state.app.reset();
+}
+
+static bool ParseWidgetsFromUiJson(const std::string& app_dir, std::vector<WidgetSpec>* out_widgets) {
+  if (out_widgets) out_widgets->clear();
+  if (!out_widgets) return false;
+
+  std::string json;
+  const std::string path = app_dir + "/ui.json";
+  if (!ReadFileToString(path, &json)) {
+    ESP_LOGW(kTag, "ui.json missing (%s), fallback to default layout", path.c_str());
+    return true;
+  }
+
+  cJSON* root = cJSON_ParseWithLength(json.c_str(), json.size());
+  if (!root) {
+    ESP_LOGW(kTag, "ui.json parse failed (%s)", path.c_str());
+    return false;
+  }
+
+  cJSON* widgets = cJSON_GetObjectItem(root, "widgets");
+  if (!cJSON_IsArray(widgets)) {
+    cJSON_Delete(root);
+    ESP_LOGW(kTag, "ui.json invalid widgets[] (%s)", path.c_str());
+    return false;
+  }
+
+  const int n = cJSON_GetArraySize(widgets);
+  for (int i = 0; i < n; i++) {
+    cJSON* w = cJSON_GetArrayItem(widgets, i);
+    if (!cJSON_IsObject(w)) continue;
+
+    const cJSON* type = cJSON_GetObjectItem(w, "type");
+    if (!cJSON_IsString(type)) continue;
+
+    WidgetSpec spec;
+
+    const cJSON* x = cJSON_GetObjectItem(w, "x");
+    const cJSON* y = cJSON_GetObjectItem(w, "y");
+    const cJSON* ww = cJSON_GetObjectItem(w, "w");
+    const cJSON* hh = cJSON_GetObjectItem(w, "h");
+    if (cJSON_IsNumber(x)) spec.x = static_cast<int>(x->valuedouble);
+    if (cJSON_IsNumber(y)) spec.y = static_cast<int>(y->valuedouble);
+    if (cJSON_IsNumber(ww)) spec.w = static_cast<int>(ww->valuedouble);
+    if (cJSON_IsNumber(hh)) spec.h = static_cast<int>(hh->valuedouble);
+
+    if (strcmp(type->valuestring, "text") == 0) {
+      spec.type = WidgetType::kText;
+
+      const cJSON* bind = cJSON_GetObjectItem(w, "bind");
+      if (cJSON_IsString(bind)) spec.bind = bind->valuestring;
+
+      const cJSON* color_bind = cJSON_GetObjectItem(w, "color_bind");
+      if (cJSON_IsString(color_bind)) spec.color_bind = color_bind->valuestring;
+
+      const cJSON* font = cJSON_GetObjectItem(w, "font");
+      if (cJSON_IsString(font)) spec.font = font->valuestring;
+
+      const cJSON* color = cJSON_GetObjectItem(w, "color");
+      if (cJSON_IsString(color)) (void)ParseHexColor(color->valuestring, &spec.color);
+
+      const cJSON* align = cJSON_GetObjectItem(w, "align");
+      if (cJSON_IsString(align)) spec.align = ParseAlign(align->valuestring);
+
+      if (!spec.bind.empty()) out_widgets->push_back(std::move(spec));
+    } else if (strcmp(type->valuestring, "image") == 0) {
+      spec.type = WidgetType::kImage;
+
+      const cJSON* src = cJSON_GetObjectItem(w, "src");
+      if (cJSON_IsString(src)) spec.src = src->valuestring;
+
+      const cJSON* src_bind = cJSON_GetObjectItem(w, "src_bind");
+      if (cJSON_IsString(src_bind)) spec.src_bind = src_bind->valuestring;
+
+      if (!spec.src.empty() || !spec.src_bind.empty()) out_widgets->push_back(std::move(spec));
+    }
+  }
+
+  cJSON_Delete(root);
+  return true;
+}
+
+static void PrepareBindKeys(const std::vector<WidgetSpec>& widgets, std::vector<std::string>* bind_keys) {
+  if (!bind_keys) return;
+  bind_keys->clear();
+  auto add_key = [&](const std::string& key) {
+    if (key.empty()) return;
+    if (std::find(bind_keys->begin(), bind_keys->end(), key) != bind_keys->end()) return;
+    bind_keys->push_back(key);
+  };
+  for (const auto& w : widgets) {
+    if (w.type == WidgetType::kText) {
+      add_key(w.bind);
+      add_key(w.color_bind);
+    } else if (w.type == WidgetType::kImage) {
+      add_key(w.src_bind);
+    }
+  }
 }
 
 static bool EnsureAppLoaded(const std::string& app_dir) {
@@ -595,88 +720,10 @@ static void LoadWidgetsFromUiJson(const std::string& app_dir) {
   g_state.bind_keys.clear();
   g_state.bind_values.clear();
   g_state.prev_bind_values.clear();
-
-  std::string json;
-  const std::string path = app_dir + "/ui.json";
-  if (!ReadFileToString(path, &json)) {
-    ESP_LOGW(kTag, "ui.json missing (%s), fallback to default layout", path.c_str());
-    return;
-  }
-
-  cJSON* root = cJSON_ParseWithLength(json.c_str(), json.size());
-  if (!root) {
-    ESP_LOGW(kTag, "ui.json parse failed (%s)", path.c_str());
-    return;
-  }
-
-  cJSON* widgets = cJSON_GetObjectItem(root, "widgets");
-  if (!cJSON_IsArray(widgets)) {
-    cJSON_Delete(root);
-    ESP_LOGW(kTag, "ui.json invalid widgets[] (%s)", path.c_str());
-    return;
-  }
-
-  const int n = cJSON_GetArraySize(widgets);
-  for (int i = 0; i < n; i++) {
-    cJSON* w = cJSON_GetArrayItem(widgets, i);
-    if (!cJSON_IsObject(w)) continue;
-
-    const cJSON* type = cJSON_GetObjectItem(w, "type");
-    if (!cJSON_IsString(type)) continue;
-
-    WidgetSpec spec;
-
-    const cJSON* x = cJSON_GetObjectItem(w, "x");
-    const cJSON* y = cJSON_GetObjectItem(w, "y");
-    const cJSON* ww = cJSON_GetObjectItem(w, "w");
-    const cJSON* hh = cJSON_GetObjectItem(w, "h");
-    if (cJSON_IsNumber(x)) spec.x = static_cast<int>(x->valuedouble);
-    if (cJSON_IsNumber(y)) spec.y = static_cast<int>(y->valuedouble);
-    if (cJSON_IsNumber(ww)) spec.w = static_cast<int>(ww->valuedouble);
-    if (cJSON_IsNumber(hh)) spec.h = static_cast<int>(hh->valuedouble);
-
-    if (strcmp(type->valuestring, "text") == 0) {
-      spec.type = WidgetType::kText;
-
-      const cJSON* bind = cJSON_GetObjectItem(w, "bind");
-      if (cJSON_IsString(bind)) spec.bind = bind->valuestring;
-
-      const cJSON* color_bind = cJSON_GetObjectItem(w, "color_bind");
-      if (cJSON_IsString(color_bind)) spec.color_bind = color_bind->valuestring;
-
-      const cJSON* font = cJSON_GetObjectItem(w, "font");
-      if (cJSON_IsString(font)) spec.font = font->valuestring;
-
-      const cJSON* color = cJSON_GetObjectItem(w, "color");
-      if (cJSON_IsString(color)) (void)ParseHexColor(color->valuestring, &spec.color);
-
-      const cJSON* align = cJSON_GetObjectItem(w, "align");
-      if (cJSON_IsString(align)) spec.align = ParseAlign(align->valuestring);
-
-      if (!spec.bind.empty()) g_state.widgets.push_back(std::move(spec));
-    } else if (strcmp(type->valuestring, "image") == 0) {
-      spec.type = WidgetType::kImage;
-
-      const cJSON* src = cJSON_GetObjectItem(w, "src");
-      if (cJSON_IsString(src)) spec.src = src->valuestring;
-
-      const cJSON* src_bind = cJSON_GetObjectItem(w, "src_bind");
-      if (cJSON_IsString(src_bind)) spec.src_bind = src_bind->valuestring;
-
-      if (!spec.src.empty() || !spec.src_bind.empty()) g_state.widgets.push_back(std::move(spec));
-    }
-  }
-
-  cJSON_Delete(root);
-}
-
-static int GetOrAddKeyIndex(const std::string& key) {
-  if (key.empty()) return -1;
-  for (int i = 0; i < static_cast<int>(g_state.bind_keys.size()); i++) {
-    if (g_state.bind_keys[i] == key) return i;
-  }
-  g_state.bind_keys.push_back(key);
-  return static_cast<int>(g_state.bind_keys.size()) - 1;
+  std::vector<WidgetSpec> widgets;
+  if (!ParseWidgetsFromUiJson(app_dir, &widgets)) return;
+  g_state.widgets = std::move(widgets);
+  PrepareBindKeys(g_state.widgets, &g_state.bind_keys);
 }
 
 static int FindKeyIndex(const std::string& key) {
@@ -685,18 +732,6 @@ static int FindKeyIndex(const std::string& key) {
     if (g_state.bind_keys[i] == key) return i;
   }
   return -1;
-}
-
-static void PrepareBindKeys() {
-  g_state.bind_keys.clear();
-  for (const auto& w : g_state.widgets) {
-    if (w.type == WidgetType::kText) {
-      (void)GetOrAddKeyIndex(w.bind);
-      (void)GetOrAddKeyIndex(w.color_bind);
-    } else if (w.type == WidgetType::kImage) {
-      (void)GetOrAddKeyIndex(w.src_bind);
-    }
-  }
 }
 
 static void DrawTextWidget(lv_layer_t* layer, const WidgetSpec& w, const char* text) {
@@ -767,6 +802,7 @@ static void RenderFrame(uint32_t dt_ms) {
       } else {
         // Framebuffer apps may call fb.text()/fb.image(), which require a real LVGL layer.
         // Keep this path on the LVGL task so text and PNG rendering remain valid.
+        const int64_t render_t0_us = esp_timer_get_time();
         const size_t canvas_bytes =
             static_cast<size_t>(g_state.canvas_buf->header.stride) * static_cast<size_t>(g_state.canvas_buf->header.h);
         memset(g_state.canvas_buf->data, 0, canvas_bytes);
@@ -781,10 +817,21 @@ static void RenderFrame(uint32_t dt_ms) {
         g_state.app->ClearFrameBufferTemps();
 
         if (ok) {
+          const uint32_t render_ms = static_cast<uint32_t>((esp_timer_get_time() - render_t0_us) / 1000);
+          if (render_ms > 20) {
+            //ESP_LOGI(kTag, "render_fb frame cost=%lu ms app=%s", static_cast<unsigned long>(render_ms),
+            //         g_state.app_dir.c_str());
+          }
           lv_obj_invalidate(g_state.canvas);
           g_state.first_frame_drawn = true;
           SyncOtaOverlay();
           return;
+        }
+
+        const uint32_t render_ms = static_cast<uint32_t>((esp_timer_get_time() - render_t0_us) / 1000);
+        if (render_ms > 20) {
+          ESP_LOGI(kTag, "render_fb frame failed after %lu ms app=%s", static_cast<unsigned long>(render_ms),
+                   g_state.app_dir.c_str());
         }
 
         const char* err = g_state.app->last_error();
@@ -799,9 +846,15 @@ static void RenderFrame(uint32_t dt_ms) {
         return;
       }
     } else if (!g_state.widgets.empty()) {
+      const int64_t render_t0_us = esp_timer_get_time();
       g_state.app->Tick(dt_ms);
       g_state.bind_values.clear();
       if (!g_state.app->RenderBinds(g_state.bind_keys, &g_state.bind_values)) {
+        const uint32_t render_ms = static_cast<uint32_t>((esp_timer_get_time() - render_t0_us) / 1000);
+        if (render_ms > 20) {
+          ESP_LOGI(kTag, "render_binds failed after %lu ms app=%s", static_cast<unsigned long>(render_ms),
+                   g_state.app_dir.c_str());
+        }
         const char* err = g_state.app->last_error();
         ESP_LOGE(kTag, "app render binds failed app=%s err=%s", g_state.app_dir.c_str(), err ? err : "unknown");
         g_state.prev_bind_values.clear();
@@ -823,11 +876,22 @@ static void RenderFrame(uint32_t dt_ms) {
         }
         g_state.prev_bind_values = g_state.bind_values;
       }
+      const uint32_t render_ms = static_cast<uint32_t>((esp_timer_get_time() - render_t0_us) / 1000);
+      if (render_ms > 20) {
+        ESP_LOGI(kTag, "render_binds frame cost=%lu ms app=%s", static_cast<unsigned long>(render_ms),
+                 g_state.app_dir.c_str());
+      }
     } else {
+      const int64_t render_t0_us = esp_timer_get_time();
       g_state.prev_bind_values.clear();
       g_state.app->Tick(dt_ms);
       g_state.lines.clear();
       if (!g_state.app->Render(&g_state.lines)) {
+        const uint32_t render_ms = static_cast<uint32_t>((esp_timer_get_time() - render_t0_us) / 1000);
+        if (render_ms > 20) {
+          ESP_LOGI(kTag, "render_text failed after %lu ms app=%s", static_cast<unsigned long>(render_ms),
+                   g_state.app_dir.c_str());
+        }
         const char* err = g_state.app->last_error();
         ESP_LOGE(kTag, "app render text failed app=%s err=%s", g_state.app_dir.c_str(), err ? err : "unknown");
         if (g_state.first_frame_drawn) {
@@ -838,6 +902,11 @@ static void RenderFrame(uint32_t dt_ms) {
         lv_obj_invalidate(g_state.canvas);
         SyncOtaOverlay();
         return;
+      }
+      const uint32_t render_ms = static_cast<uint32_t>((esp_timer_get_time() - render_t0_us) / 1000);
+      if (render_ms > 20) {
+        ESP_LOGI(kTag, "render_text frame cost=%lu ms app=%s", static_cast<unsigned long>(render_ms),
+                 g_state.app_dir.c_str());
       }
     }
   }
@@ -927,42 +996,43 @@ static void TickCb(lv_timer_t* t) {
   if (g_state.fb_mode) vTaskDelay(pdMS_TO_TICKS(1));
 }
 
-static void ShowApp(const std::string& app_dir) {
-  ESP_LOGI(kTag, "ShowApp begin (%s)", app_dir.c_str());
-  StopScreen();
-  ESP_LOGI(kTag, "ShowApp after StopScreen");
-  if (!EnsureAppLoaded(app_dir)) return;
-  ESP_LOGI(kTag, "ShowApp after EnsureAppLoaded fb_mode=%d", g_state.fb_mode ? 1 : 0);
-  LvglHub75SetFlushEnabled(false);
-  ESP_LOGI(kTag, "ShowApp flush gated");
+static bool AttachPreparedAppScreen(const std::string& app_dir) {
   EnsureFontLoaded();
-  if (!g_state.fb_mode) {
-    LoadWidgetsFromUiJson(app_dir);
-    PrepareBindKeys();
-  } else {
-    g_state.widgets.clear();
-    g_state.bind_keys.clear();
-    g_state.bind_values.clear();
-  }
+  LvglHub75SetFlushEnabled(false);
 
   EnsureRootContainer();
   if (!g_state.scr || !g_state.root) {
-    ESP_LOGE(kTag, "ShowApp root container unavailable");
+    ESP_LOGE(kTag, "app screen root container unavailable");
     LvglHub75SetFlushEnabled(true);
-    return;
+    return false;
   }
-  ESP_LOGI(kTag, "ShowApp using active screen=%p root=%p", static_cast<void*>(g_state.scr), static_cast<void*>(g_state.root));
+
+  g_state.scr = lv_screen_active();
+  if (g_state.canvas_buf) {
+    LvglDestroyDrawBufferPreferPsram(g_state.canvas_buf);
+    g_state.canvas_buf = nullptr;
+  }
+
+  ClearRootChildren();
+  g_state.canvas = nullptr;
+  g_state.app_name_overlay = nullptr;
+  g_state.switch_overlay = nullptr;
+  g_state.switch_label = nullptr;
 
   g_state.canvas_buf = LvglCreateDrawBufferPreferPsram(64, 32, LV_COLOR_FORMAT_RGB565, LV_STRIDE_AUTO);
   if (!g_state.canvas_buf) {
     ESP_LOGE(kTag, "Failed to create canvas buffer");
-    StopScreen();
-    return;
+    LvglHub75SetFlushEnabled(true);
+    return false;
   }
-  ESP_LOGI(kTag, "ShowApp canvas buffer ready stride=%u", static_cast<unsigned>(g_state.canvas_buf->header.stride));
+  ESP_LOGI(kTag, "app screen canvas buffer ready stride=%u", static_cast<unsigned>(g_state.canvas_buf->header.stride));
 
   g_state.canvas = lv_canvas_create(g_state.root);
-  ESP_LOGI(kTag, "ShowApp canvas object created");
+  if (!g_state.canvas) {
+    ESP_LOGE(kTag, "Failed to create canvas object");
+    LvglHub75SetFlushEnabled(true);
+    return false;
+  }
   lv_canvas_set_draw_buf(g_state.canvas, g_state.canvas_buf);
   lv_obj_clear_flag(g_state.canvas, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_style_pad_all(g_state.canvas, 0, 0);
@@ -976,47 +1046,130 @@ static void ShowApp(const std::string& app_dir) {
     g_state.fb_request_dt_ms = 0;
     g_state.fb_request_pending = true;
   }
-  // Draw a frame BEFORE loading the screen, to avoid a "garbage flash" from an uninitialized draw buffer.
-  ESP_LOGI(kTag, "ShowApp before initial RenderFrame");
+
+  const int64_t initial_frame_t0_us = esp_timer_get_time();
   RenderFrame(0);
-  ESP_LOGI(kTag, "ShowApp after initial RenderFrame");
+  ESP_LOGI(kTag, "initial render cost=%lu ms", static_cast<unsigned long>((esp_timer_get_time() - initial_frame_t0_us) / 1000));
   g_state.first_frame_drawn = true;
   g_state.timer = lv_timer_create(TickCb, g_state.fb_mode ? kTickMsFb : kTickMsText, nullptr);
-  ESP_LOGI(kTag, "ShowApp timer created period=%u", static_cast<unsigned>(g_state.fb_mode ? kTickMsFb : kTickMsText));
 
   if (g_state.app_name_overlay && lv_obj_is_valid(g_state.app_name_overlay)) {
-    lv_obj_delete(g_state.app_name_overlay);
-    g_state.app_name_overlay = nullptr;
+    lv_obj_move_foreground(g_state.app_name_overlay);
+  } else {
+    g_state.app_name_overlay = lv_obj_create(g_state.root);
+    lv_obj_remove_style_all(g_state.app_name_overlay);
+    lv_obj_set_size(g_state.app_name_overlay, 64, 32);
+    lv_obj_center(g_state.app_name_overlay);
+    lv_obj_set_style_bg_color(g_state.app_name_overlay, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(g_state.app_name_overlay, LV_OPA_COVER, 0);
+    lv_obj_set_style_pad_all(g_state.app_name_overlay, 0, 0);
+    lv_obj_set_style_border_width(g_state.app_name_overlay, 0, 0);
+    lv_obj_t* name = lv_label_create(g_state.app_name_overlay);
+    std::string display_name = ReadAppDisplayName(app_dir);
+    if (display_name.empty()) {
+      const char* slash = strrchr(app_dir.c_str(), '/');
+      display_name = (slash && slash[1]) ? (slash + 1) : app_dir;
+    }
+    const std::string multi_line_name = SplitNameForTwoLines(display_name);
+    lv_label_set_text(name, multi_line_name.c_str());
+    lv_obj_set_style_text_color(name, lv_color_hex(0x00FFFF), 0);
+    lv_obj_set_style_text_align(name, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_long_mode(name, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(name, 62);
+    lv_obj_center(name);
+
+    int app_index = 0;
+    int app_total = 0;
+    if (ResolveAppSequenceInfo(app_dir, &app_index, &app_total) && app_index > 0 && app_total > 0) {
+      g_state.app_name_index = lv_label_create(g_state.app_name_overlay);
+      lv_obj_set_style_text_font(g_state.app_name_index, FontOrFallback(), 0);
+      lv_obj_set_style_text_color(g_state.app_name_index, lv_color_hex(0xFFCC66), 0);
+      char seq_buf[16];
+      snprintf(seq_buf, sizeof(seq_buf), "#%d", app_index);
+      lv_label_set_text(g_state.app_name_index, seq_buf);
+      lv_obj_align(g_state.app_name_index, LV_ALIGN_TOP_RIGHT, -1, -2);
+    }
   }
-  g_state.app_name_overlay = lv_obj_create(g_state.root);
-  lv_obj_remove_style_all(g_state.app_name_overlay);
-  lv_obj_set_size(g_state.app_name_overlay, 64, 32);
-  lv_obj_center(g_state.app_name_overlay);
-  lv_obj_set_style_bg_color(g_state.app_name_overlay, lv_color_black(), 0);
-  lv_obj_set_style_bg_opa(g_state.app_name_overlay, LV_OPA_COVER, 0);
-  lv_obj_set_style_pad_all(g_state.app_name_overlay, 0, 0);
-  lv_obj_set_style_border_width(g_state.app_name_overlay, 0, 0);
-  lv_obj_t* name = lv_label_create(g_state.app_name_overlay);
-  std::string display_name = ReadAppDisplayName(app_dir);
-  if (display_name.empty()) {
-    const char* slash = strrchr(app_dir.c_str(), '/');
-    display_name = (slash && slash[1]) ? (slash + 1) : app_dir;
-  }
-  const std::string multi_line_name = SplitNameForTwoLines(display_name);
-  lv_label_set_text(name, multi_line_name.c_str());
-  lv_obj_set_style_text_color(name, lv_color_hex(0x00FFFF), 0);
-  lv_obj_set_style_text_align(name, LV_TEXT_ALIGN_CENTER, 0);
-  lv_label_set_long_mode(name, LV_LABEL_LONG_WRAP);
-  lv_obj_set_width(name, 62);
-  lv_obj_center(name);
   lv_obj_move_foreground(g_state.app_name_overlay);
   g_state.app_name_overlay_until_ms = lv_tick_get() + kAppNameOverlayMs;
 
   LvglHub75SetFlushEnabled(true);
-  ESP_LOGI(kTag, "ShowApp flush ungated");
   lv_obj_invalidate(g_state.root);
-  ESP_LOGI(kTag, "ShowApp root container invalidated");
   ESP_LOGI(kTag, "screen shown (%s)", app_dir.c_str());
+  return true;
+}
+
+static bool ShowAppBlocking(const std::string& app_dir) {
+  const int64_t show_t0_us = esp_timer_get_time();
+  StopScreen();
+  ESP_LOGI(kTag, "ShowAppBlocking after StopScreen cost=%lu ms",
+           static_cast<unsigned long>((esp_timer_get_time() - show_t0_us) / 1000));
+  if (!EnsureAppLoaded(app_dir)) return false;
+  if (!g_state.fb_mode) {
+    LoadWidgetsFromUiJson(app_dir);
+  } else {
+    g_state.widgets.clear();
+    g_state.bind_keys.clear();
+    g_state.bind_values.clear();
+    g_state.prev_bind_values.clear();
+  }
+  PrepareBindKeys(g_state.widgets, &g_state.bind_keys);
+  return AttachPreparedAppScreen(app_dir);
+}
+
+static void ShowSwitchDelayCb(lv_timer_t* t) {
+  (void)t;
+  g_switch_timer = nullptr;
+  char app_dir[sizeof(g_pending_switch_app_dir)] = {};
+  memcpy(app_dir, g_pending_switch_app_dir, sizeof(app_dir));
+  g_pending_switch_app_dir[0] = '\0';
+  if (!app_dir[0]) return;
+  (void)ShowAppBlocking(app_dir);
+}
+
+static void StartAppSwitchDeferred(const std::string& app_dir) {
+  if (app_dir.empty()) return;
+
+  if (g_switch_timer) {
+    lv_timer_del(g_switch_timer);
+    g_switch_timer = nullptr;
+  }
+
+  snprintf(g_pending_switch_app_dir, sizeof(g_pending_switch_app_dir), "%s", app_dir.c_str());
+  ShowAppNameOverlay(app_dir);
+
+  StopTimer();
+  StopFbTask();
+
+  g_state.lines.clear();
+  g_state.bind_values.clear();
+  g_state.prev_bind_values.clear();
+  g_state.first_frame_drawn = false;
+  g_state.fb_mode = false;
+  g_state.fb_request_pending = false;
+  g_state.fb_buffer_ready = false;
+  g_state.fb_faulted = false;
+  g_state.fb_request_dt_ms = 0;
+  g_state.fb_error.clear();
+  SetCurrentAppInfo(nullptr);
+
+  if (!g_switch_timer) {
+    g_switch_timer = lv_timer_create(ShowSwitchDelayCb, kAppSwitchDelayMs, nullptr);
+    if (!g_switch_timer) {
+      g_pending_switch_app_dir[0] = '\0';
+      ESP_LOGW(kTag, "switch delay timer create failed, falling back to direct show");
+      (void)ShowAppBlocking(app_dir);
+      return;
+    }
+    lv_timer_set_repeat_count(g_switch_timer, 1);
+    lv_timer_set_auto_delete(g_switch_timer, true);
+  }
+
+  lv_obj_invalidate(g_state.root);
+}
+
+static void ShowApp(const std::string& app_dir) {
+  StartAppSwitchDeferred(app_dir);
 }
 
 }  // namespace

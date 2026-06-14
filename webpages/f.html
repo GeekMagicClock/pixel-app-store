@@ -3953,6 +3953,9 @@
       state.categoryLabels = json?.category_labels && typeof json.category_labels === "object" ? json.category_labels : {};
       state.storeAppsLoaded = true;
       renderStoreApps();
+      if (state.installedAppsLoaded) {
+        renderInstalledApps();
+      }
       if (source === "network") {
         log("catalog loaded: " + state.storeApps.length + " apps", "status-ok");
       }

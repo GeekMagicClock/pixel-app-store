@@ -4,11 +4,13 @@ extern "C" {
 }
 #include "app/lua_app_runtime.h"
 #include "app/buzzer.h"
+#include "app/wifi_manager.h"
 
 #include <cstdio>
 #include <ctime>
 #include <cstring>
 #include <strings.h>
+#include <atomic>
 #include <cstdint>
 #include <climits>
 #include <cerrno>
@@ -16,6 +18,7 @@ extern "C" {
 #include <unordered_map>
 #include <vector>
 #include <algorithm>
+#include <mutex>
 #include <dirent.h>
 #include <cstdlib>
 #include <cctype>
@@ -71,7 +74,7 @@ static constexpr const char* kLuaDataDir = "/littlefs/.sys";
 static constexpr const char* kAppDataPath = "/littlefs/.sys/app_data.json";
 // Allow larger ESPN payloads (scoreboard/standings/schedule) while still capping
 // request memory to a safe bound for this device class.
-static constexpr int kLuaHttpMaxBodyBytes = 1024 * 1024;
+static constexpr int kLuaHttpMaxBodyBytes = 3 * 1024 * 1024;
 static void ReleaseGifPlayerForState(lua_State* L);
 
 static bool NeedsHttpUrlSanitize(const std::string& url) {
@@ -111,6 +114,73 @@ static bool IsHttpsUrl(const std::string& url) {
          (s[2] == 't' || s[2] == 'T') &&
          (s[3] == 'p' || s[3] == 'P') &&
          (s[4] == 's' || s[4] == 'S') && s[5] == ':' && s[6] == '/' && s[7] == '/';
+}
+
+static std::string HttpErrLabel(esp_err_t err, int saved_errno) {
+  if (err == ESP_ERR_HTTP_CONNECT) {
+    switch (saved_errno) {
+      case EAI_NONAME:
+      case EAI_AGAIN:
+      case EAI_FAIL:
+#ifdef EAI_NODATA
+      case EAI_NODATA:
+#endif
+        return "DNS ERR";
+      case ETIMEDOUT:
+      case ECONNREFUSED:
+      case ENETUNREACH:
+      case EHOSTUNREACH:
+      case ECONNRESET:
+      case ECONNABORTED:
+        return "NETWORK ERR";
+      default:
+        return "NETWORK ERR";
+    }
+  }
+
+  if (err == ESP_ERR_TIMEOUT) return "NETWORK ERR";
+
+  return "HTTP ERR";
+}
+
+static std::atomic<uint32_t> g_dns_fail_streak{0};
+static std::atomic<int64_t> g_dns_last_recover_ms{0};
+static constexpr uint32_t kDnsRecoverThreshold = 3;
+static constexpr int64_t kDnsRecoverCooldownMs = 30000;
+
+static void MaybeRecoverNetworkAfterDnsFailure(const std::string& url, const std::string& err_label, int saved_errno) {
+  if (err_label != "DNS ERR") {
+    g_dns_fail_streak.store(0, std::memory_order_relaxed);
+    return;
+  }
+
+  const uint32_t streak = g_dns_fail_streak.fetch_add(1, std::memory_order_relaxed) + 1;
+  const int64_t now_ms = esp_timer_get_time() / 1000;
+  const int64_t last_recover_ms = g_dns_last_recover_ms.load(std::memory_order_relaxed);
+  ESP_LOGW(kTag,
+           "dns failure streak=%u url=%s errno=%d(%s) last_recover_ms=%lld",
+           static_cast<unsigned>(streak),
+           url.c_str(),
+           saved_errno,
+           strerror(saved_errno),
+           static_cast<long long>(last_recover_ms));
+
+  if (streak < kDnsRecoverThreshold) return;
+  if (last_recover_ms != 0 && (now_ms - last_recover_ms) < kDnsRecoverCooldownMs) {
+    ESP_LOGW(kTag,
+             "dns recovery skipped by cooldown remaining_ms=%lld",
+             static_cast<long long>(kDnsRecoverCooldownMs - (now_ms - last_recover_ms)));
+    return;
+  }
+
+  g_dns_last_recover_ms.store(now_ms, std::memory_order_relaxed);
+  g_dns_fail_streak.store(0, std::memory_order_relaxed);
+  ESP_LOGW(kTag, "dns recovery trigger url=%s streak=%u", url.c_str(), static_cast<unsigned>(streak));
+  if (!WifiManagerRecoverStaNetwork("dns failure streak")) {
+    ESP_LOGW(kTag, "dns recovery attempt failed url=%s", url.c_str());
+  } else {
+    ESP_LOGI(kTag, "dns recovery attempt started url=%s", url.c_str());
+  }
 }
 
 static bool ParseGzipHeader(const uint8_t* src, size_t src_len, size_t* out_payload_off) {
@@ -291,7 +361,37 @@ static bool WriteStringToFile(const char* path, const std::string& text, std::st
   return true;
 }
 
-static cJSON* LoadLuaDataRoot() {
+struct LuaDataCache {
+  bool valid = false;
+  bool exists = false;
+  off_t size = 0;
+  time_t mtime = 0;
+  cJSON* root = nullptr;
+};
+
+static LuaDataCache& GetLuaDataCache() {
+  static LuaDataCache cache;
+  return cache;
+}
+
+static std::mutex& GetLuaDataCacheMutex() {
+  static std::mutex mu;
+  return mu;
+}
+
+static void ClearLuaDataCacheLocked() {
+  LuaDataCache& cache = GetLuaDataCache();
+  if (cache.root) {
+    cJSON_Delete(cache.root);
+    cache.root = nullptr;
+  }
+  cache.valid = false;
+  cache.exists = false;
+  cache.size = 0;
+  cache.mtime = 0;
+}
+
+static cJSON* LoadLuaDataRootFresh() {
   std::string text;
   if (!ReadFileToString(kAppDataPath, &text) || text.empty()) {
     return cJSON_CreateObject();
@@ -304,6 +404,42 @@ static cJSON* LoadLuaDataRoot() {
     return cJSON_CreateObject();
   }
   return root;
+}
+
+static cJSON* LoadLuaDataRootCached() {
+  struct stat st {};
+  const bool exists = (stat(kAppDataPath, &st) == 0);
+  std::lock_guard<std::mutex> lock(GetLuaDataCacheMutex());
+  LuaDataCache& cache = GetLuaDataCache();
+  if (cache.valid && cache.exists == exists) {
+    if (!exists || (cache.size == st.st_size && cache.mtime == st.st_mtime && cache.root)) {
+      return cache.root ? cache.root : cJSON_CreateObject();
+    }
+  }
+
+  if (cache.root) {
+    cJSON_Delete(cache.root);
+    cache.root = nullptr;
+  }
+
+  cache.valid = true;
+  cache.exists = exists;
+  if (!exists) {
+    cache.size = 0;
+    cache.mtime = 0;
+    cache.root = cJSON_CreateObject();
+    return cache.root;
+  }
+
+  cache.size = st.st_size;
+  cache.mtime = st.st_mtime;
+  cache.root = LoadLuaDataRootFresh();
+  return cache.root ? cache.root : cJSON_CreateObject();
+}
+
+static void InvalidateLuaDataCache() {
+  std::lock_guard<std::mutex> lock(GetLuaDataCacheMutex());
+  ClearLuaDataCacheLocked();
 }
 
 static bool SaveLuaDataRoot(cJSON* root, std::string* out_err) {
@@ -354,7 +490,7 @@ static bool LoadMockStateForApp(const std::string& app_id, cJSON** out_root, cJS
   if (out_data) *out_data = nullptr;
   if (app_id.empty()) return false;
 
-  cJSON* root = LoadLuaDataRoot();
+  cJSON* root = LoadLuaDataRootFresh();
   if (!root) return false;
 
   const std::string enabled_key = MockEnabledKeyForApp(app_id);
@@ -850,6 +986,9 @@ class HttpClientMgr {
     const int timeout_ms = req->timeout_ms;
     const int max_body_bytes = req->max_body_bytes;
     const int64_t request_start_ms = NowMs();
+    auto finish_abandoned = [&]() {
+      HttpMgr().FinishById(req_id, 0, "abandoned");
+    };
     auto mem_snapshot = [](const char* stage) {
       multi_heap_info_t ih = {};
       heap_caps_get_info(&ih, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
@@ -902,10 +1041,15 @@ class HttpClientMgr {
 
     int64_t queue_wait_ms = 0;
     if (!HttpMgr().TakeRunSlot(req, &queue_wait_ms)) {
-      HttpMgr().FinishById(req_id, 0, "abandoned");
+      finish_abandoned();
       return;
     }
     run_slot.held = true;
+
+    if (req->abandoned) {
+      finish_abandoned();
+      return;
+    }
 
     // Make HTTP safe even if WiFi boot flow is skipped (e.g. debug UI simulation).
     // If WiFi isn't started/connected, the request will still fail, but should not crash.
@@ -915,6 +1059,11 @@ class HttpClientMgr {
       if (loop_ret != ESP_OK && loop_ret != ESP_ERR_INVALID_STATE) {
         // Keep going; HTTP will likely fail anyway.
       }
+    }
+
+    if (req->abandoned) {
+      finish_abandoned();
+      return;
     }
 
     const std::string request_url = SanitizeHttpUrl(url);
@@ -984,9 +1133,20 @@ class HttpClientMgr {
 
     esp_http_client_handle_t client = esp_http_client_init(&cfg);
     if (!client) {
+      if (req->abandoned) {
+        finish_abandoned();
+        return;
+      }
       ESP_LOGW(kTag, "http init failed url=%s timeout=%d max_body=%d", request_url.c_str(), timeout_ms, max_body_bytes);
       mem_snapshot("http_init_fail");
       HttpMgr().FinishById(req_id, 0, "http init failed");
+      return;
+    }
+
+    if (req->abandoned) {
+      (void)esp_http_client_close(client);
+      esp_http_client_cleanup(client);
+      finish_abandoned();
       return;
     }
 
@@ -1003,10 +1163,17 @@ class HttpClientMgr {
 
     esp_err_t err = esp_http_client_open(client, 0);
     if (err != ESP_OK) {
+      if (req->abandoned) {
+        (void)esp_http_client_close(client);
+        esp_http_client_cleanup(client);
+        finish_abandoned();
+        return;
+      }
       const int saved_errno = errno;
+      const std::string err_label = HttpErrLabel(err, saved_errno);
       ESP_LOGW(kTag,
                "http open failed err=%s(0x%x) errno=%d(%s) url=%s timeout=%d max_body=%d total_elapsed_ms=%lld",
-               esp_err_to_name(err),
+               err_label.c_str(),
                static_cast<unsigned>(err),
                saved_errno,
                strerror(saved_errno),
@@ -1018,9 +1185,10 @@ class HttpClientMgr {
         ESP_LOGW(kTag, "http fd exhausted (EMFILE): sockets/files reached limit, forcing close+cleanup");
       }
       mem_snapshot("http_open_fail");
+      MaybeRecoverNetworkAfterDnsFailure(request_url, err_label, saved_errno);
       (void)esp_http_client_close(client);
       esp_http_client_cleanup(client);
-      HttpMgr().FinishById(req_id, 0, esp_err_to_name(err));
+      HttpMgr().FinishById(req_id, 0, err_label);
       return;
     }
 
@@ -1028,6 +1196,12 @@ class HttpClientMgr {
     const int http_status = esp_http_client_get_status_code(client);
     const int64_t content_len = esp_http_client_get_content_length(client);
     const bool chunked = esp_http_client_is_chunked_response(client);
+    if (req->abandoned) {
+      (void)esp_http_client_close(client);
+      esp_http_client_cleanup(client);
+      finish_abandoned();
+      return;
+    }
     ESP_LOGI(kTag,
              "http req headers id=%d fetch_ret=%d status=%d content_len=%lld chunked=%d elapsed_ms=%lld",
              req_id,
@@ -1037,26 +1211,28 @@ class HttpClientMgr {
              chunked ? 1 : 0,
              static_cast<long long>(NowMs() - request_start_ms));
     if (fetch_ret < 0 && http_status <= 0) {
+      const std::string err_label = HttpErrLabel(static_cast<esp_err_t>(-fetch_ret), errno);
       ESP_LOGW(kTag,
                "http fetch headers failed id=%d err=%s(%d) url=%s",
                req_id,
-               esp_err_to_name(static_cast<esp_err_t>(fetch_ret)),
+               err_label.c_str(),
                fetch_ret,
                url.c_str());
       mem_snapshot("runtime_fail");
+      MaybeRecoverNetworkAfterDnsFailure(request_url, err_label, errno);
       (void)esp_http_client_close(client);
       esp_http_client_cleanup(client);
-      HttpMgr().FinishById(req_id, 0, esp_err_to_name(static_cast<esp_err_t>(fetch_ret)));
+      HttpMgr().FinishById(req_id, 0, err_label);
       return;
     }
 
-    int cap = (max_body_bytes > 0) ? max_body_bytes : 256;
-    if (content_len > 0 && content_len < cap) {
-      cap = static_cast<int>(content_len);
+    size_t cap = (max_body_bytes > 0) ? static_cast<size_t>(max_body_bytes) : 256U;
+    if (content_len > 0 && static_cast<size_t>(content_len) < cap) {
+      cap = static_cast<size_t>(content_len);
     }
-    char* body = static_cast<char*>(LvglAllocPreferPsram(static_cast<size_t>(cap) + 1));
+    char* body = static_cast<char*>(LvglAllocPreferPsram(cap + 1));
     if (!body) {
-      ESP_LOGW(kTag, "http body alloc failed cap=%d url=%s", cap, url.c_str());
+      ESP_LOGW(kTag, "http body alloc failed cap=%u url=%s", static_cast<unsigned>(cap), url.c_str());
       mem_snapshot("runtime_fail");
       (void)esp_http_client_close(client);
       esp_http_client_cleanup(client);
@@ -1065,10 +1241,47 @@ class HttpClientMgr {
     }
     body[0] = '\0';
 
+    // Large ESPN JSON responses are often chunked and can drift a few KB past the
+    // initial cap. For large requests we grow on demand instead of failing right
+    // at the boundary, while still honoring the global hard ceiling.
+    const bool allow_body_growth = chunked || max_body_bytes >= 64 * 1024;
+    static constexpr size_t kBodyGrowStep = 64U * 1024U;
+    const size_t body_hard_cap = static_cast<size_t>(kLuaHttpMaxBodyBytes);
+
+    auto grow_body = [&](size_t min_needed) -> bool {
+      if (!allow_body_growth) return false;
+      if (cap >= body_hard_cap) return false;
+      size_t next_cap = cap + kBodyGrowStep;
+      if (next_cap < min_needed) next_cap = min_needed;
+      if (next_cap > body_hard_cap) next_cap = body_hard_cap;
+      if (next_cap <= cap) return false;
+      char* next = static_cast<char*>(heap_caps_realloc(body, next_cap + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+      if (!next) {
+        next = static_cast<char*>(heap_caps_realloc(body, next_cap + 1, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+      }
+      if (!next) return false;
+      body = next;
+      cap = next_cap;
+      ESP_LOGW(kTag,
+               "http body grow id=%d new_cap=%u min_needed=%u url=%s",
+               req_id,
+               static_cast<unsigned>(cap),
+               static_cast<unsigned>(min_needed),
+               url.c_str());
+      return true;
+    };
+
     char buf[1024];
     int total = 0;
     while (true) {
       const int r = esp_http_client_read(client, buf, sizeof(buf));
+      if (req->abandoned) {
+        LvglFreePreferPsram(body);
+        (void)esp_http_client_close(client);
+        esp_http_client_cleanup(client);
+        finish_abandoned();
+        return;
+      }
       if (r < 0) {
         ESP_LOGW(kTag, "http read failed id=%d url=%s", req_id, url.c_str());
         mem_snapshot("runtime_fail");
@@ -1080,14 +1293,17 @@ class HttpClientMgr {
       }
       if (r == 0) break;
 
-      if (total + r > cap) {
-        ESP_LOGW(kTag, "http body too large cap=%d need=%d url=%s", cap, total + r, url.c_str());
-        mem_snapshot("runtime_fail");
-        LvglFreePreferPsram(body);
-        (void)esp_http_client_close(client);
-        esp_http_client_cleanup(client);
-        HttpMgr().FinishById(req_id, 0, "body too large");
-        return;
+      if (static_cast<size_t>(total + r) > cap) {
+        const size_t need = static_cast<size_t>(total + r);
+        if (!grow_body(need)) {
+          ESP_LOGW(kTag, "http body too large cap=%u need=%u url=%s", static_cast<unsigned>(cap), static_cast<unsigned>(need), url.c_str());
+          mem_snapshot("runtime_fail");
+          LvglFreePreferPsram(body);
+          (void)esp_http_client_close(client);
+          esp_http_client_cleanup(client);
+          HttpMgr().FinishById(req_id, 0, "body too large");
+          return;
+        }
       }
 
       memcpy(body + total, buf, static_cast<size_t>(r));
@@ -1100,6 +1316,13 @@ class HttpClientMgr {
     static constexpr size_t kGzipDecodeCapMax = 1024U * 1024U;
     static constexpr size_t kGzipDecodeCapStep = 64U * 1024U;
     if (total >= 18 && static_cast<uint8_t>(body[0]) == 0x1f && static_cast<uint8_t>(body[1]) == 0x8b) {
+      if (req->abandoned) {
+        LvglFreePreferPsram(body);
+        (void)esp_http_client_close(client);
+        esp_http_client_cleanup(client);
+        finish_abandoned();
+        return;
+      }
       size_t decode_cap = static_cast<size_t>(cap);
       if (decode_cap < 256U) decode_cap = 256U;
       if (decode_cap > kGzipDecodeCapMax) decode_cap = kGzipDecodeCapMax;
@@ -1165,6 +1388,12 @@ class HttpClientMgr {
     (void)esp_http_client_close(client);
     esp_http_client_cleanup(client);
 
+    if (req->abandoned) {
+      LvglFreePreferPsram(body);
+      finish_abandoned();
+      return;
+    }
+
     static constexpr int kLogFullBodyBytes = 1024;
     if (total <= kLogFullBodyBytes) {
       ESP_LOGI(kTag,
@@ -1186,6 +1415,7 @@ class HttpClientMgr {
     }
     req->resp_set_cookie = resp_meta.set_cookie;
     HttpMgr().FinishBodyById(req_id, http_status, body, static_cast<size_t>(total));
+    g_dns_fail_streak.store(0, std::memory_order_relaxed);
     body = nullptr;
   }
 
@@ -2113,12 +2343,10 @@ void* LuaAppRuntime::LuaAllocPreferPsram(void* ud, void* ptr, size_t osize, size
   void* next = nullptr;
   if (!ptr) {
     next = heap_caps_malloc(nsize, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (!next) next = heap_caps_malloc(nsize, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
     return next;
   }
 
   next = heap_caps_realloc(ptr, nsize, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-  if (!next) next = heap_caps_realloc(ptr, nsize, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
   return next;
 }
 
@@ -2132,14 +2360,14 @@ bool LuaAppRuntime::CreateState() {
   }
 
   static bool logged_abi = false;
-  if (!logged_abi) {
+    if (!logged_abi) {
     logged_abi = true;
     ESP_LOGI(kTag,
              "script abi: ver=%s int_bytes=%u num_bytes=%u",
              LUA_RELEASE,
              static_cast<unsigned>(sizeof(lua_Integer)),
              static_cast<unsigned>(sizeof(lua_Number)));
-    ESP_LOGI(kTag, "script allocator: PSRAM preferred, internal fallback");
+    ESP_LOGI(kTag, "script allocator: PSRAM only");
   }
 
   // Store runtime pointer for C callbacks (framebuffer helpers).
@@ -2190,11 +2418,11 @@ bool LuaAppRuntime::CreateState() {
 
 void LuaAppRuntime::DestroyState() {
   if (L_) {
-    // Best-effort final collection before closing Lua state.
-    lua_gc(L_, LUA_GCCOLLECT, 0);
     ReleaseNetResourcesForState(L_);
     // GIF player is allocated per Lua state on demand; release it before closing Lua.
     ReleaseGifPlayerForState(L_);
+    // One final collection before the state disappears.
+    lua_gc(L_, LUA_GCCOLLECT, 0);
     lua_close(L_);
     L_ = nullptr;
   }
@@ -2316,6 +2544,7 @@ bool LuaAppRuntime::PushAppTable(std::string* out_err) {
 
 void LuaAppRuntime::EnsureInited() {
   if (!L_ || inited_ || !loaded_) return;
+  const int64_t init_t0_us = esp_timer_get_time();
 
   std::string err;
   if (!PushAppTable(&err)) {
@@ -2337,6 +2566,11 @@ void LuaAppRuntime::EnsureInited() {
   if (ret != LUA_OK) {
     SetErrorFromTop();
     ESP_LOGE(kTag, "init error: %s", last_error_.c_str());
+  }
+
+  const uint32_t init_ms = static_cast<uint32_t>((esp_timer_get_time() - init_t0_us) / 1000);
+  if (init_ms > 0) {
+    ESP_LOGI(kTag, "init cost=%lu ms app=%s", static_cast<unsigned long>(init_ms), app_dir_.c_str());
   }
 
   lua_pop(L_, 1);  // app table
@@ -2391,6 +2625,7 @@ void LuaAppRuntime::FullGcNow() {
 bool LuaAppRuntime::Render(std::vector<std::string>* out_lines) {
   if (out_lines) out_lines->clear();
   if (!L_ || !loaded_ || !out_lines) return false;
+  const int64_t render_t0_us = esp_timer_get_time();
   EnsureInited();
 
   std::string err;
@@ -2578,6 +2813,10 @@ bool LuaAppRuntime::Render(std::vector<std::string>* out_lines) {
   }
 
   lua_pop(L_, 2);  // lines/render table, app table
+  const uint32_t render_ms = static_cast<uint32_t>((esp_timer_get_time() - render_t0_us) / 1000);
+  if (render_ms > 20) {
+    ESP_LOGI(kTag, "Render() cost=%lu ms app=%s", static_cast<unsigned long>(render_ms), app_dir_.c_str());
+  }
   return true;
 }
 
@@ -2585,6 +2824,7 @@ bool LuaAppRuntime::RenderBinds(const std::vector<std::string>& keys, std::vecto
   if (out_values) out_values->clear();
   if (!out_values) return false;
   if (!L_ || !loaded_) return false;
+  const int64_t render_t0_us = esp_timer_get_time();
   EnsureInited();
 
   std::string err;
@@ -2661,6 +2901,10 @@ bool LuaAppRuntime::RenderBinds(const std::vector<std::string>& keys, std::vecto
   }
 
   lua_pop(L_, 2);  // table, app table
+  const uint32_t render_ms = static_cast<uint32_t>((esp_timer_get_time() - render_t0_us) / 1000);
+  if (render_ms > 20) {
+    ESP_LOGI(kTag, "RenderBinds() cost=%lu ms app=%s", static_cast<unsigned long>(render_ms), app_dir_.c_str());
+  }
   return true;
 }
 
@@ -3573,6 +3817,7 @@ bool LuaAppRuntime::RenderFrameBufferTo(int w,
                                         const lv_font_t* default_font) {
   if (!out_rgb565) return false;
   if (!L_ || !loaded_) return false;
+  const int64_t render_t0_us = esp_timer_get_time();
   EnsureInited();
   fb_tmp_strings_.clear();
 
@@ -3621,6 +3866,11 @@ bool LuaAppRuntime::RenderFrameBufferTo(int w,
       }
     }
     lua_pop(L_, 2);  // result, app table
+    const uint32_t render_ms = static_cast<uint32_t>((esp_timer_get_time() - render_t0_us) / 1000);
+    if (render_ms > 20) {
+      ESP_LOGI(kTag, "RenderFrameBufferTo() cost=%lu ms app=%s", static_cast<unsigned long>(render_ms),
+               app_dir_.c_str());
+    }
     return true;
   }
 
@@ -3657,6 +3907,11 @@ bool LuaAppRuntime::RenderFrameBufferTo(int w,
   }
 
   lua_pop(L_, 2);  // result, app table
+  const uint32_t render_ms = static_cast<uint32_t>((esp_timer_get_time() - render_t0_us) / 1000);
+  if (render_ms > 20) {
+    ESP_LOGI(kTag, "RenderFrameBufferTo() legacy cost=%lu ms app=%s", static_cast<unsigned long>(render_ms),
+             app_dir_.c_str());
+  }
   return true;
 }
 
@@ -3792,15 +4047,13 @@ int LuaAppRuntime::LuaDataGet(lua_State* L) {
     return 1;
   }
 
-  cJSON* root = LoadLuaDataRoot();
+  cJSON* root = LoadLuaDataRootCached();
   if (root) {
     cJSON* item = cJSON_GetObjectItemCaseSensitive(root, key);
     if (item) {
       JsonToLua(L, item, 0);
-      cJSON_Delete(root);
       return 1;
     }
-    cJSON_Delete(root);
   }
 
   if (PushBuiltInLuaDefault(L, key)) return 1;
@@ -3817,7 +4070,7 @@ int LuaAppRuntime::LuaDataSet(lua_State* L) {
     return 2;
   }
 
-  cJSON* root = LoadLuaDataRoot();
+  cJSON* root = LoadLuaDataRootFresh();
   if (!root) {
     lua_pushboolean(L, 0);
     lua_pushstring(L, "load store failed");
@@ -3845,6 +4098,7 @@ int LuaAppRuntime::LuaDataSet(lua_State* L) {
     lua_pushstring(L, err.empty() ? "save failed" : err.c_str());
     return 2;
   }
+  InvalidateLuaDataCache();
   return 1;
 }
 

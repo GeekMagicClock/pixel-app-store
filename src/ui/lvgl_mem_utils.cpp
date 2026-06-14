@@ -14,7 +14,7 @@ void *LvglAllocPreferPsram(size_t size_bytes) {
 
   void *ptr = heap_caps_malloc(size_bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
   if (ptr) {
-    ESP_LOGI(kTag, "alloc %u bytes in PSRAM", static_cast<unsigned>(size_bytes));
+    //ESP_LOGI(kTag, "alloc %u bytes in PSRAM", static_cast<unsigned>(size_bytes));
     return ptr;
   }
 

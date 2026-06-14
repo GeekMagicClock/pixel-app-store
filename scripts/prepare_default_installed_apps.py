@@ -24,6 +24,7 @@ def _build_installed_entry(app_id: str) -> dict:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     name = str(manifest.get("name") or app_id).strip() or app_id
     version = str(manifest.get("version") or "").strip()
+    category = str(manifest.get("category") or "").strip()
 
     has_thumb = (src / "thumbnail.png").is_file()
     has_settings = (src / "settings.html").is_file() or (src / "settings.html.gz").is_file()
@@ -32,6 +33,7 @@ def _build_installed_entry(app_id: str) -> dict:
         "id": app_id,
         "name": name,
         "version": version,
+        "category": category,
         "has_thumbnail": has_thumb,
         "thumbnail_url": f"/api/apps/thumbnail/{app_id}" if has_thumb else "",
         "has_settings_page": has_settings,

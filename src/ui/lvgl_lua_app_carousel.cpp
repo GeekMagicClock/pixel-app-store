@@ -90,6 +90,21 @@ static void Show(int idx) {
   LvglShowLuaAppDirScreen(g_app_dirs[idx].c_str());
 }
 
+static bool SyncIndexFromCurrentApp() {
+  char app_dir[96] = {};
+  if (!LvglGetCurrentLuaAppInfo(nullptr, 0, app_dir, sizeof(app_dir))) return false;
+  if (!app_dir[0]) return false;
+
+  for (size_t i = 0; i < g_app_dirs.size(); ++i) {
+    if (g_app_dirs[i] == app_dir) {
+      g_index = static_cast<int>(i);
+      ESP_LOGI(kTag, "sync current app index=%d dir=%s", g_index, app_dir);
+      return true;
+    }
+  }
+  return false;
+}
+
 static void TimerCb(lv_timer_t* t) {
   (void)t;
   if (g_app_dirs.empty()) return;
@@ -157,7 +172,13 @@ void LvglLuaAppCarouselNext() {
 
   const int n = static_cast<int>(g_app_dirs.size());
   int prev = g_index;
-  if (prev < 0 || prev >= n) prev = -1;
+  if (prev < 0 || prev >= n) {
+    if (!SyncIndexFromCurrentApp()) {
+      prev = -1;
+    } else {
+      prev = g_index;
+    }
+  }
   const int next = (prev + 1) % n;
 
   if (prev >= 0) {

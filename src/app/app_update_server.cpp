@@ -69,7 +69,9 @@ static const char* kLuaDataDir = "/littlefs/.sys";
 static const char* kAppDataPath = "/littlefs/.sys/app_data.json";
 static const char* kInstalledAppsIndexPath = "/littlefs/.sys/installed_apps.json";
 static const char* kSchedulerConfigPath = "/littlefs/.sys/scheduler_config.json";
-static constexpr size_t kLogRingSize = 160;
+// Keep the log ring modest so it doesn't crowd out internal RAM needed by TLS
+// and Wi-Fi during app startup.
+static constexpr size_t kLogRingSize = 64;
 static constexpr size_t kLogTextBytes = 256;
 
 struct CapturedLogEntry {
@@ -1567,6 +1569,13 @@ static bool ReadAppName(const std::string& app_id, std::string* out_name) {
   return !out_name->empty();
 }
 
+static bool ReadAppCategory(const std::string& app_id, std::string* out_category) {
+  if (out_category) out_category->clear();
+  if (!out_category || !IsValidAppId(app_id)) return false;
+  if (!ReadAppManifestString(app_id, "category", out_category)) return false;
+  return !out_category->empty();
+}
+
 static bool AppHasThumbnail(const std::string& app_id) {
   if (!IsValidAppId(app_id)) return false;
   const std::string app_dir = std::string("/littlefs/apps/") + app_id;
@@ -1610,6 +1619,8 @@ static cJSON* BuildInstalledAppEntry(const std::string& app_id) {
   (void)ReadAppVersion(app_id, &version);
   std::string display_name;
   if (!ReadAppName(app_id, &display_name)) display_name = app_id;
+  std::string category;
+  (void)ReadAppCategory(app_id, &category);
   const bool has_thumb = AppHasThumbnail(app_id);
   const bool has_settings_page = AppHasSettingsPage(app_id);
 
@@ -1618,6 +1629,7 @@ static cJSON* BuildInstalledAppEntry(const std::string& app_id) {
   if (!cJSON_AddStringToObject(item, "id", app_id.c_str()) ||
       !cJSON_AddStringToObject(item, "name", display_name.c_str()) ||
       !cJSON_AddStringToObject(item, "version", version.c_str()) ||
+      !cJSON_AddStringToObject(item, "category", category.c_str()) ||
       !cJSON_AddBoolToObject(item, "has_thumbnail", has_thumb)) {
     cJSON_Delete(item);
     return nullptr;
@@ -2083,6 +2095,23 @@ static bool PruneMissingInstalledAppsIndex(std::string* body) {
     if (stat(app_dir.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)) {
       cJSON_DeleteItemFromArray(apps, i);
       changed = true;
+      continue;
+    }
+
+    const cJSON* category_item = cJSON_GetObjectItemCaseSensitive(item, "category");
+    const char* category_value = cJSON_IsString(category_item) ? category_item->valuestring : nullptr;
+    if (!category_value || !*category_value) {
+      std::string category;
+      (void)ReadAppCategory(app_id, &category);
+      cJSON* next_category = cJSON_CreateString(category.c_str());
+      if (next_category) {
+        if (category_item) {
+          cJSON_ReplaceItemInObject(item, "category", next_category);
+        } else {
+          cJSON_AddItemToObject(item, "category", next_category);
+        }
+        changed = true;
+      }
     }
   }
 

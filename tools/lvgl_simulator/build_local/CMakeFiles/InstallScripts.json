@@ -1,0 +1,8 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/ifeng-macmini/develop/project/esp32-pixel/tools/lvgl_simulator/build_local/cmake_install.cmake",
+		"/Users/ifeng-macmini/develop/project/esp32-pixel/tools/lvgl_simulator/build_local/lvgl/cmake_install.cmake"
+	],
+	"Parallel" : false
+}
