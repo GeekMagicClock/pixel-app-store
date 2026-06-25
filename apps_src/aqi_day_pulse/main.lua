@@ -3,6 +3,7 @@ local app = {}
 local DEFAULT_CITY = "zhongshangang,cn"
 local DEFAULT_LAT = tonumber(data.get("aqi.lat") or data.get("openmeteo.lat")) or 22.548994
 local DEFAULT_LON = tonumber(data.get("aqi.lon") or data.get("openmeteo.lon")) or 113.459035
+local DEFAULT_REFRESH_MS = 30 * 60 * 1000
 
 local font = "builtin:silkscreen_regular_8"
 
@@ -58,9 +59,16 @@ local function url_encode(s)
 end
 
 local function cfg_city()
-  local city = trim(data.get("aqi_day_pulse.city") or data.get("aqi.city") or DEFAULT_CITY)
+  local city = trim(data.get("owm.city") or DEFAULT_CITY)
   if city == "" then city = DEFAULT_CITY end
   return city
+end
+
+local function cfg_refresh_ms()
+  local n = tonumber(data.get("aqi_day_pulse.refresh_ms") or data.get("aqi_day_pulse.refresh_interval_ms") or DEFAULT_REFRESH_MS) or DEFAULT_REFRESH_MS
+  if n < 15000 then n = 15000 end
+  if n > 3600000 then n = 3600000 end
+  return math.floor(n)
 end
 
 local function set_px_safe(fb, x, y, c)
@@ -225,7 +233,8 @@ local function start_aqi_request()
     "http://air-quality-api.open-meteo.com/v1/air-quality?latitude=%s&longitude=%s&hourly=us_aqi&forecast_days=2&timezone=auto",
     tostring(state.lat), tostring(state.lon)
   )
-  local id, body, age_ms, err = net.cached_get(url, 30 * 60 * 1000, 7000, 8192)
+  local ttl_ms = cfg_refresh_ms()
+  local id, body, age_ms, err = net.cached_get(url, ttl_ms, 7000, 8192)
   if err then
     state.err = err
     return
@@ -351,7 +360,7 @@ function app.tick(dt_ms)
     end
     return
   end
-  local interval = state.err and 30000 or (30 * 60 * 1000)
+  local interval = state.err and 30000 or cfg_refresh_ms()
   if now_ms() - state.last_req_ms >= interval then start_request() end
 end
 

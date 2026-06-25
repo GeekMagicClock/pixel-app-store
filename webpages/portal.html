@@ -341,6 +341,7 @@
             'owm.city': cityName || null
           }
         });
+        await apiJson('POST', '/api/apps/reload', {});
         setStatus(status, 'Saving Wi-Fi and rebooting...', false);
         await apiJson('POST', '/api/system/wifi/config', { ssid: ssid, password: pwd, reboot: true });
         setStatus(status, 'Saved. Device is rebooting and will reconnect to Wi-Fi.', false);

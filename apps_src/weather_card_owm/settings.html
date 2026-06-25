@@ -37,6 +37,11 @@
       gap: 6px;
       margin-bottom: 10px;
     }
+    .note {
+      font-size: 12px;
+      color: var(--muted);
+      margin: 0 0 10px 0;
+    }
     label {
       font-weight: 600;
       font-size: 12px;
@@ -44,7 +49,7 @@
     input, select, button {
       font: inherit;
     }
-    input, select {
+    input, select, .value {
       width: 100%;
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -84,10 +89,10 @@
 <body>
   <div class="card">
     <h1 class="title">Weather Card</h1>
-
+    <p class="note">City comes from the global Timezone & City setting.</p>
     <div class="row">
-      <label for="city">City</label>
-      <input id="city" type="text" placeholder="kuala lumpur,my" />
+      <label>City</label>
+      <div id="city" class="value">--</div>
     </div>
 
     <div class="row">
@@ -113,7 +118,6 @@
   <script>
     const APP_ID = "weather_card_owm";
     const DEFAULTS = {
-      city: "zhongshangang,cn",
       units: "metric",
       refresh_ms: 300000,
     };
@@ -161,18 +165,16 @@
     async function loadValues() {
       const json = await api("GET", "/api/system/settings");
       const items = json && typeof json.items === "object" ? json.items : {};
-      const city = String(items["weather_card_owm.city"] ?? DEFAULTS.city).trim();
       let units = String(items["weather_card_owm.units"] ?? DEFAULTS.units).toLowerCase();
       if (units !== "imperial") units = "metric";
       const refreshMs = Number(items["weather_card_owm.refresh_ms"] ?? DEFAULTS.refresh_ms);
-      cityEl.value = city || DEFAULTS.city;
+      const globalCity = String(items["owm.city"] ?? "zhongshangang,cn").trim();
+      cityEl.textContent = globalCity || "zhongshangang,cn";
       unitsEl.value = units;
       refreshEl.value = String(clamp(Number.isFinite(refreshMs) ? Math.round(refreshMs) : DEFAULTS.refresh_ms, 15000, 3600000));
     }
 
     async function saveValues(runAfterSave) {
-      const city = String(cityEl.value || "").trim();
-      if (!city) throw new Error("City is required");
       const units = unitsEl.value === "imperial" ? "imperial" : "metric";
       const refreshRaw = Number(refreshEl.value || DEFAULTS.refresh_ms);
       if (!Number.isFinite(refreshRaw)) {
@@ -181,7 +183,6 @@
       const refreshMs = clamp(Math.round(refreshRaw), 15000, 3600000);
 
       const items = {
-        "weather_card_owm.city": city,
         "weather_card_owm.units": units,
         "weather_card_owm.refresh_ms": refreshMs,
       };

@@ -304,7 +304,7 @@ local function url_encode(s)
 end
 
 local function current_city()
-  local raw = data.get("owm_hourly_strip.city") or data.get("hourly_weather_strip.city") or data.get("owm.city") or DEFAULT_CITY
+  local raw = data.get("owm.city") or DEFAULT_CITY
   local city = tostring(raw or "")
   city = string.gsub(city, "%s+", " ")
   city = string.gsub(city, "^%s+", "")

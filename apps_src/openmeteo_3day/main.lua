@@ -5,7 +5,7 @@ local DEFAULT_CITY = "zhongshangang,cn"
 local DEFAULT_REFRESH_MS = 5 * 60 * 1000
 
 local function cfg_city()
-  local city = tostring(data.get("openmeteo_3day.city") or data.get("owm.city") or DEFAULT_CITY)
+  local city = tostring(data.get("owm.city") or DEFAULT_CITY)
   city = string.gsub(city, "%s+", " ")
   city = string.gsub(city, "^%s+", "")
   city = string.gsub(city, "%s+$", "")
@@ -24,13 +24,6 @@ local function cfg_refresh_ms()
   if n < 15000 then n = 15000 end
   if n > 3600000 then n = 3600000 end
   return math.floor(n)
-end
-
-local function cfg_coords()
-  local lat = tonumber(data.get("openmeteo_3day.lat") or data.get("openmeteo.lat"))
-  local lon = tonumber(data.get("openmeteo_3day.lon") or data.get("openmeteo.lon"))
-  if lat and lon then return lat, lon end
-  return nil, nil
 end
 
 local function url_encode(s)
@@ -288,7 +281,7 @@ local function handle_response(status, body)
   end
 
   local d = obj.daily
-  if not d or not d.time or not d.weather_code or not d.temperature_2m_max then
+  if not d or not d.time or not d.weather_code or (not d.temperature_2m_mean and not d.temperature_2m_max) then
     state.err = "BAD DATA"
     sys.log("openmeteo_3day data error=BAD DATA")
     return
@@ -298,7 +291,7 @@ local function handle_response(status, body)
     local day = state.days[i]
     local ymd = d.time[i]
     local code = d.weather_code[i]
-    local temp = d.temperature_2m_max[i]
+    local temp = (d.temperature_2m_mean and d.temperature_2m_mean[i]) or (d.temperature_2m_max and d.temperature_2m_max[i])
     day.label = weekday_label(ymd)
     day.code = tonumber(code)
     day.temp = tonumber(temp)
@@ -341,7 +334,7 @@ local function start_forecast_request()
   if state.req_id then return end
 
   local url = string.format(
-    "http://api.open-meteo.com/v1/forecast?latitude=%s&longitude=%s&daily=weather_code,temperature_2m_max&forecast_days=3&timezone=auto&temperature_unit=%s",
+    "http://api.open-meteo.com/v1/forecast?latitude=%s&longitude=%s&daily=weather_code,temperature_2m_mean&forecast_days=3&timezone=auto&temperature_unit=%s",
     tostring(state.lat),
     tostring(state.lon),
     tostring(cfg_temp_unit())
@@ -383,14 +376,6 @@ end
 
 local function start_request()
   if state.req_id then return end
-
-  local lat, lon = cfg_coords()
-  if lat and lon then
-    state.lat = lat
-    state.lon = lon
-    start_forecast_request()
-    return
-  end
 
   if OWM_API_KEY == "" then
     state.err = "NO KEY"

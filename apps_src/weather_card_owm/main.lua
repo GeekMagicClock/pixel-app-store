@@ -2,7 +2,6 @@ local app = {}
 
 -- Config keys:
 --   owm.api_key = "..."
---   weather_card_owm.city    = "kuala lumpur,my"   (fallback: owm.city)
 --   weather_card_owm.units   = "metric" | "imperial" (fallback: owm.units)
 --   weather_card_owm.refresh_ms = 300000            (default: 5 minutes)
 local OWM_API_KEY = data.get("owm.api_key") or "5ce216b488692ef60673d24f9583a873"
@@ -12,7 +11,7 @@ local DEBUG_ICON = data.get("weather_card.debug_icon") or ""
 local DEFAULT_REFRESH_MS = 5 * 60 * 1000
 
 local function cfg_city()
-  local city = tostring(data.get("weather_card_owm.city") or data.get("owm.city") or DEFAULT_CITY)
+  local city = tostring(data.get("owm.city") or DEFAULT_CITY)
   city = string.gsub(city, "%s+", " ")
   city = string.gsub(city, "^%s+", "")
   city = string.gsub(city, "%s+$", "")

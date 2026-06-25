@@ -4085,6 +4085,7 @@
         "owm.city_id": cityIdRaw || null,
       };
       await apiJson("POST", "/api/system/settings", { items });
+      await apiJson("POST", "/api/apps/reload", {});
       log("saved timezone/city settings", "status-ok");
     }
 

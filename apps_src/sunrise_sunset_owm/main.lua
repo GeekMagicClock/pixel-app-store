@@ -6,7 +6,7 @@ local DEFAULT_CITY = "zhongshangang,cn"
 local DEFAULT_REFRESH_MS = 5 * 60 * 1000
 
 local function cfg_city()
-  local city = tostring(data.get("sunrise_sunset_owm.city") or data.get("owm.city") or DEFAULT_CITY)
+  local city = tostring(data.get("owm.city") or DEFAULT_CITY)
   city = string.gsub(city, "%s+", " ")
   city = string.gsub(city, "^%s+", "")
   city = string.gsub(city, "%s+$", "")
