@@ -7,6 +7,7 @@
 #include <string>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <utility>
 
 extern "C" {
 #include "cJSON.h"
@@ -19,6 +20,19 @@ static constexpr const char* kHub75CfgDir = "/littlefs/.sys";
 static constexpr const char* kHub75CfgPath = "/littlefs/.sys/hub75_config.json";
 static const char *kTag = "hub75_cfg";
 static bool g_x_compensation_enabled = false;
+static bool g_cyan_green_compensation_enabled = false;
+static int g_color_remap = 0;
+
+static int NormalizeColorRemap(int remap) {
+  if (remap < 0 || remap > 2) return 0;
+  return remap;
+}
+
+static void ApplyLegacyPanelConfig() {
+  g_x_compensation_enabled = false;
+  g_cyan_green_compensation_enabled = false;
+  g_color_remap = 0;
+}
 
 static bool EnsureDir(const char* path) {
   if (!path || !*path) return false;
@@ -64,11 +78,12 @@ static bool ReadSmallFile(const char* path, std::string* out) {
 
 static void LogPanelConfig(const HUB75_I2S_CFG &cfg) {
   ESP_LOGI(kTag,
-           "panel=%dx%d chain=%d driver=%d clkphase=%d latch_blank=%d min_refresh=%d i2s_hz=%u x_comp=%d",
+           "panel=%dx%d chain=%d driver=%d clkphase=%d latch_blank=%d min_refresh=%d i2s_hz=%u x_comp=%d cyan_comp=%d color_remap=%d",
            cfg.mx_width, cfg.mx_height, cfg.chain_length, static_cast<int>(cfg.driver),
            static_cast<int>(cfg.clkphase), static_cast<int>(cfg.latch_blanking),
            static_cast<int>(cfg.min_refresh_rate), static_cast<unsigned>(cfg.i2sspeed),
-           cfg.x_compensation ? 1 : 0);
+           cfg.x_compensation ? 1 : 0, g_cyan_green_compensation_enabled ? 1 : 0,
+           g_color_remap);
   ESP_LOGI(kTag,
            "pins r1=%d g1=%d b1=%d r2=%d g2=%d b2=%d a=%d b=%d c=%d d=%d e=%d lat=%d oe=%d clk=%d",
            cfg.gpio.r1, cfg.gpio.g1, cfg.gpio.b1, cfg.gpio.r2, cfg.gpio.g2, cfg.gpio.b2,
@@ -112,6 +127,21 @@ HUB75_I2S_CFG MakePanelConfig() {
 #ifndef HUB75_PANEL_DRIVER
 #define HUB75_PANEL_DRIVER HUB75_I2S_CFG::SHIFTREG
 #endif
+  if (g_color_remap == 1) {
+    std::swap(cfg.gpio.r1, cfg.gpio.g1);
+    std::swap(cfg.gpio.r2, cfg.gpio.g2);
+  } else if (g_color_remap == 2) {
+    const int r1 = cfg.gpio.r1;
+    const int g1 = cfg.gpio.g1;
+    const int r2 = cfg.gpio.r2;
+    const int g2 = cfg.gpio.g2;
+    cfg.gpio.r1 = cfg.gpio.b1;
+    cfg.gpio.g1 = r1;
+    cfg.gpio.b1 = g1;
+    cfg.gpio.r2 = cfg.gpio.b2;
+    cfg.gpio.g2 = r2;
+    cfg.gpio.b2 = g2;
+  }
 
   cfg.latch_blanking = HUB75_LATCH_BLANKING;
   cfg.i2sspeed = HUB75_I2S_SPEED;
@@ -129,24 +159,44 @@ void Hub75SetXCompensationEnabled(bool enabled) {
   g_x_compensation_enabled = enabled;
 }
 
+bool Hub75GetCyanGreenCompensationEnabled() { return g_cyan_green_compensation_enabled; }
+
+void Hub75SetCyanGreenCompensationEnabled(bool enabled) {
+  g_cyan_green_compensation_enabled = enabled;
+}
+
+int Hub75GetColorRemap() { return g_color_remap; }
+
+void Hub75SetColorRemap(int remap) {
+  g_color_remap = NormalizeColorRemap(remap);
+}
+
 bool Hub75LoadPersistentConfig() {
   std::string text;
   if (!ReadSmallFile(kHub75CfgPath, &text) || text.empty()) {
-    g_x_compensation_enabled = false;
+    ApplyLegacyPanelConfig();
+    ESP_LOGI(kTag, "hub75 config missing, using legacy-safe panel defaults");
     return false;
   }
 
   cJSON* root = cJSON_ParseWithLength(text.c_str(), text.size());
   if (!root) {
-    g_x_compensation_enabled = false;
+    ApplyLegacyPanelConfig();
+    ESP_LOGW(kTag, "hub75 config invalid, using legacy-safe panel defaults");
     return false;
   }
 
   const cJSON* x_comp = cJSON_GetObjectItemCaseSensitive(root, "x_compensation");
-  const bool enabled = cJSON_IsBool(x_comp) ? cJSON_IsTrue(x_comp) : false;
-  g_x_compensation_enabled = enabled;
+  g_x_compensation_enabled = cJSON_IsBool(x_comp) ? cJSON_IsTrue(x_comp) : false;
+
+  const cJSON* cyan_comp = cJSON_GetObjectItemCaseSensitive(root, "cyan_green_compensation");
+  g_cyan_green_compensation_enabled = cJSON_IsBool(cyan_comp) ? cJSON_IsTrue(cyan_comp) : false;
+
+  const cJSON* color_remap = cJSON_GetObjectItemCaseSensitive(root, "color_remap");
+  g_color_remap = cJSON_IsNumber(color_remap) ? NormalizeColorRemap(color_remap->valueint) : 0;
   cJSON_Delete(root);
-  ESP_LOGI(kTag, "loaded persisted x_compensation=%d", enabled ? 1 : 0);
+  ESP_LOGI(kTag, "loaded persisted x_compensation=%d cyan_green_compensation=%d color_remap=%d",
+           g_x_compensation_enabled ? 1 : 0, g_cyan_green_compensation_enabled ? 1 : 0, g_color_remap);
   return true;
 }
 
@@ -155,6 +205,8 @@ bool Hub75SavePersistentConfig() {
   cJSON* root = cJSON_CreateObject();
   if (!root) return false;
   cJSON_AddBoolToObject(root, "x_compensation", g_x_compensation_enabled);
+  cJSON_AddBoolToObject(root, "cyan_green_compensation", g_cyan_green_compensation_enabled);
+  cJSON_AddNumberToObject(root, "color_remap", g_color_remap);
   char* rendered = cJSON_PrintUnformatted(root);
   cJSON_Delete(root);
   if (!rendered) return false;
@@ -163,7 +215,9 @@ bool Hub75SavePersistentConfig() {
   cJSON_free(rendered);
   const bool ok = SaveTextFileAtomic(kHub75CfgPath, body + "\n");
   if (ok) {
-    ESP_LOGI(kTag, "saved persisted x_compensation=%d", g_x_compensation_enabled ? 1 : 0);
+    ESP_LOGI(kTag, "saved persisted x_compensation=%d cyan_green_compensation=%d color_remap=%d",
+             g_x_compensation_enabled ? 1 : 0, g_cyan_green_compensation_enabled ? 1 : 0,
+             g_color_remap);
   }
   return ok;
 }

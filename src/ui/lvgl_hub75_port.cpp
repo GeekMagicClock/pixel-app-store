@@ -1,5 +1,6 @@
 #include "ui/lvgl_hub75_port.h"
 
+#include "app/hub75_config.h"
 #include "ui/lvgl_mem_utils.h"
 
 #include "esp_heap_caps.h"
@@ -24,10 +25,36 @@ namespace {
 
 static bool g_flush_enabled = true;
 
+#ifndef HUB75_CYAN_GREEN_MAX
+#define HUB75_CYAN_GREEN_MAX 63
+#endif
+
+#ifndef HUB75_CYAN_BLUE_MIN
+#define HUB75_CYAN_BLUE_MIN 24
+#endif
+
+#ifndef HUB75_CYAN_RED_MAX
+#define HUB75_CYAN_RED_MAX 4
+#endif
+
 struct DriverContext {
   MatrixPanel_I2S_DMA *display;
   SemaphoreHandle_t display_mutex;
 };
+
+static uint16_t ApplyPanelColorCompensation(uint16_t c565) {
+#if HUB75_CYAN_GREEN_MAX < 63
+  if (!Hub75GetCyanGreenCompensationEnabled()) return c565;
+  const uint16_t r = (c565 >> 11) & 0x001F;
+  const uint16_t b = c565 & 0x001F;
+  uint16_t g = (c565 >> 5) & 0x003F;
+  if (r <= HUB75_CYAN_RED_MAX && b >= HUB75_CYAN_BLUE_MIN && g > HUB75_CYAN_GREEN_MAX) {
+    g = HUB75_CYAN_GREEN_MAX;
+    c565 = (c565 & 0xF81F) | (g << 5);
+  }
+#endif
+  return c565;
+}
 
 void FlushCb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map) {
   if (!g_flush_enabled) {
@@ -65,7 +92,7 @@ void FlushCb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map) {
   for (int32_t y = clip_y1; y <= clip_y2; y++) {
     int32_t src_idx = (y - area->y1) * src_w + (clip_x1 - area->x1);
     for (int32_t x = clip_x1; x <= clip_x2; x++) {
-      const uint16_t c565 = color_p[src_idx++];
+      const uint16_t c565 = ApplyPanelColorCompensation(color_p[src_idx++]);
       ctx->display->drawPixel(static_cast<int16_t>(x), static_cast<int16_t>(y), c565);
     }
     // `taskYIELD()` only switches to equal-priority tasks, which does not help

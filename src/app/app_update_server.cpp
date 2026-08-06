@@ -2561,6 +2561,10 @@ static esp_err_t HandleSystemStatus(httpd_req_t* req) {
   body += std::to_string(static_cast<unsigned>(DisplayControlGetBrightness()));
   body += ",\"x_compensation_enabled\":";
   body += Hub75GetXCompensationEnabled() ? "true" : "false";
+  body += ",\"cyan_green_compensation_enabled\":";
+  body += Hub75GetCyanGreenCompensationEnabled() ? "true" : "false";
+  body += ",\"color_remap\":";
+  body += std::to_string(Hub75GetColorRemap());
   body += "},\"storage\":{\"mounted\":";
   body += littlefs_ok ? "true" : "false";
   body += ",\"used_bytes\":";
@@ -2754,6 +2758,92 @@ static esp_err_t HandleSystemDisplayXCompensationPost(httpd_req_t* req) {
            enabled
                ? "{\"ok\":true,\"enabled\":true,\"persisted\":true,\"reboot_required\":true}"
                : "{\"ok\":true,\"enabled\":false,\"persisted\":true,\"reboot_required\":true}");
+  return ESP_OK;
+}
+
+static esp_err_t HandleSystemDisplayCyanGreenCompensationGet(httpd_req_t* req) {
+  const bool enabled = Hub75GetCyanGreenCompensationEnabled();
+  SendJson(req, "200 OK", enabled ? "{\"ok\":true,\"enabled\":true}" : "{\"ok\":true,\"enabled\":false}");
+  return ESP_OK;
+}
+
+static esp_err_t HandleSystemDisplayCyanGreenCompensationPost(httpd_req_t* req) {
+  std::string body;
+  if (!ReadRequestBodyToString(req, 256, &body)) {
+    SendJson(req, "400 Bad Request", "{\"ok\":false,\"error\":\"invalid body\"}");
+    return ESP_OK;
+  }
+
+  cJSON* root = cJSON_ParseWithLength(body.c_str(), body.size());
+  if (!root) {
+    SendJson(req, "400 Bad Request", "{\"ok\":false,\"error\":\"invalid json\"}");
+    return ESP_OK;
+  }
+
+  const cJSON* enabled_item = cJSON_GetObjectItemCaseSensitive(root, "enabled");
+  if (!cJSON_IsBool(enabled_item)) {
+    cJSON_Delete(root);
+    SendJson(req, "400 Bad Request", "{\"ok\":false,\"error\":\"enabled bool required\"}");
+    return ESP_OK;
+  }
+
+  const bool enabled = cJSON_IsTrue(enabled_item);
+  Hub75SetCyanGreenCompensationEnabled(enabled);
+  const bool saved = Hub75SavePersistentConfig();
+  cJSON_Delete(root);
+
+  if (!saved) {
+    SendJson(req, "500 Internal Server Error", "{\"ok\":false,\"error\":\"save failed\"}");
+    return ESP_OK;
+  }
+
+  SendJson(req, "200 OK",
+           enabled
+               ? "{\"ok\":true,\"enabled\":true,\"persisted\":true,\"reboot_required\":false}"
+               : "{\"ok\":true,\"enabled\":false,\"persisted\":true,\"reboot_required\":false}");
+  return ESP_OK;
+}
+
+static esp_err_t HandleSystemDisplayColorRemapGet(httpd_req_t* req) {
+  char resp[64];
+  snprintf(resp, sizeof(resp), "{\"ok\":true,\"color_remap\":%d}", Hub75GetColorRemap());
+  SendJson(req, "200 OK", resp);
+  return ESP_OK;
+}
+
+static esp_err_t HandleSystemDisplayColorRemapPost(httpd_req_t* req) {
+  std::string body;
+  if (!ReadRequestBodyToString(req, 256, &body)) {
+    SendJson(req, "400 Bad Request", "{\"ok\":false,\"error\":\"invalid body\"}");
+    return ESP_OK;
+  }
+
+  cJSON* root = cJSON_ParseWithLength(body.c_str(), body.size());
+  if (!root) {
+    SendJson(req, "400 Bad Request", "{\"ok\":false,\"error\":\"invalid json\"}");
+    return ESP_OK;
+  }
+
+  const cJSON* remap_item = cJSON_GetObjectItemCaseSensitive(root, "color_remap");
+  if (!cJSON_IsNumber(remap_item) || remap_item->valueint < 0 || remap_item->valueint > 2) {
+    cJSON_Delete(root);
+    SendJson(req, "400 Bad Request", "{\"ok\":false,\"error\":\"color_remap must be 0, 1, or 2\"}");
+    return ESP_OK;
+  }
+
+  Hub75SetColorRemap(remap_item->valueint);
+  const int remap = Hub75GetColorRemap();
+  const bool saved = Hub75SavePersistentConfig();
+  cJSON_Delete(root);
+
+  if (!saved) {
+    SendJson(req, "500 Internal Server Error", "{\"ok\":false,\"error\":\"save failed\"}");
+    return ESP_OK;
+  }
+
+  char resp[96];
+  snprintf(resp, sizeof(resp), "{\"ok\":true,\"color_remap\":%d,\"persisted\":true,\"reboot_required\":true}", remap);
+  SendJson(req, "200 OK", resp);
   return ESP_OK;
 }
 
@@ -3654,6 +3744,50 @@ bool AppUpdateServerStart(AppUpdateReloadCallback reload_cb, AppUpdateSwitchCall
   x_comp_post.handler = HandleSystemDisplayXCompensationPost;
   if (httpd_register_uri_handler(g_httpd, &x_comp_post) != ESP_OK) {
     ESP_LOGE(kTag, "register x_compensation POST failed");
+    httpd_stop(g_httpd);
+    g_httpd = nullptr;
+    return false;
+  }
+
+  httpd_uri_t cyan_comp_get = {};
+  cyan_comp_get.uri = "/api/system/display/cyan_green_compensation";
+  cyan_comp_get.method = HTTP_GET;
+  cyan_comp_get.handler = HandleSystemDisplayCyanGreenCompensationGet;
+  if (httpd_register_uri_handler(g_httpd, &cyan_comp_get) != ESP_OK) {
+    ESP_LOGE(kTag, "register cyan_green_compensation GET failed");
+    httpd_stop(g_httpd);
+    g_httpd = nullptr;
+    return false;
+  }
+
+  httpd_uri_t cyan_comp_post = {};
+  cyan_comp_post.uri = "/api/system/display/cyan_green_compensation";
+  cyan_comp_post.method = HTTP_POST;
+  cyan_comp_post.handler = HandleSystemDisplayCyanGreenCompensationPost;
+  if (httpd_register_uri_handler(g_httpd, &cyan_comp_post) != ESP_OK) {
+    ESP_LOGE(kTag, "register cyan_green_compensation POST failed");
+    httpd_stop(g_httpd);
+    g_httpd = nullptr;
+    return false;
+  }
+
+  httpd_uri_t color_remap_get = {};
+  color_remap_get.uri = "/api/system/display/color_remap";
+  color_remap_get.method = HTTP_GET;
+  color_remap_get.handler = HandleSystemDisplayColorRemapGet;
+  if (httpd_register_uri_handler(g_httpd, &color_remap_get) != ESP_OK) {
+    ESP_LOGE(kTag, "register color_remap GET failed");
+    httpd_stop(g_httpd);
+    g_httpd = nullptr;
+    return false;
+  }
+
+  httpd_uri_t color_remap_post = {};
+  color_remap_post.uri = "/api/system/display/color_remap";
+  color_remap_post.method = HTTP_POST;
+  color_remap_post.handler = HandleSystemDisplayColorRemapPost;
+  if (httpd_register_uri_handler(g_httpd, &color_remap_post) != ESP_OK) {
+    ESP_LOGE(kTag, "register color_remap POST failed");
     httpd_stop(g_httpd);
     g_httpd = nullptr;
     return false;

@@ -646,7 +646,7 @@ static void MountLittlefs() {
   }
 
   if (!Hub75LoadPersistentConfig()) {
-    ESP_LOGI(kTag, "hub75 config not found/invalid, using defaults");
+    ESP_LOGI(kTag, "hub75 config not found/invalid, using legacy-safe panel config");
   }
 
   LogInstalledLuaApps();
