@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-08-13T09:17:44.620681+00:00",
+  "generated_at": "2026-08-13T10:01:38.450230+00:00",
   "channel": "beta",
   "category_order": [
     "art",
@@ -124,13 +124,13 @@
     {
       "id": "stock_chart",
       "name": "Stock Chart",
-      "version": "1.0.17",
+      "version": "1.0.18",
       "category": "finance",
       "description": "",
-      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/stock_chart-1.0.17.zip",
+      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/stock_chart-1.0.18.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/thumbs/stock_chart.png?v=7bcf98b4faaa",
       "thumbnail_sha256": "7bcf98b4faaafb1548b5b42f2cf1004d5a090f217f4fafbdba751ed5142db071",
-      "crc32": "bd574b33",
+      "crc32": "6c9c2628",
       "size": 18268,
       "entry": "app.bin",
       "min_fw": "0.0.0"
