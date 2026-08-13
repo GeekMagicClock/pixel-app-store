@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-08-13T04:33:16.244805+00:00",
+  "generated_at": "2026-08-13T04:40:03.240076+00:00",
   "channel": "beta",
   "category_order": [
     "art",
@@ -306,14 +306,14 @@
     {
       "id": "matrix_rain_scene",
       "name": "Matrix Rain Scene",
-      "version": "1.0.8",
+      "version": "1.0.9",
       "category": "media",
       "description": "Monochrome terminal rain with falling code trails.",
-      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/matrix_rain_scene-1.0.8.zip",
+      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/matrix_rain_scene-1.0.9.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/thumbs/matrix_rain_scene.png?v=27fe97fcf955",
       "thumbnail_sha256": "27fe97fcf95565759d1b30e35ceae9cdccd61a998574ec8d8bd38c255a17edbb",
-      "crc32": "883e5517",
-      "size": 3423,
+      "crc32": "9a5286eb",
+      "size": 3367,
       "entry": "app.bin",
       "min_fw": "0.0.0"
     },
