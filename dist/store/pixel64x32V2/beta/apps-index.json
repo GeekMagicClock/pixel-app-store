@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-08-13T02:44:23.953667+00:00",
+  "generated_at": "2026-08-13T04:23:16.988407+00:00",
   "channel": "beta",
   "category_order": [
     "art",
@@ -642,14 +642,14 @@
     {
       "id": "crt_clock",
       "name": "CRT Terminal Clock",
-      "version": "1.0.8",
+      "version": "1.0.9",
       "category": "time",
       "description": "Green phosphor terminal style clock.",
-      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/crt_clock-1.0.8.zip",
+      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/crt_clock-1.0.9.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/thumbs/crt_clock.png?v=2faee38609f0",
       "thumbnail_sha256": "2faee38609f0dfba0833fb3a110f8fafd61dbc1efeedcb31af0ecc4ea541a221",
-      "crc32": "fd18a2de",
-      "size": 5108,
+      "crc32": "2331e1fd",
+      "size": 5126,
       "entry": "app.bin",
       "min_fw": "0.0.0"
     },
