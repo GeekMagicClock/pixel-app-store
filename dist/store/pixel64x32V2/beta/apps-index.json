@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-08-13T06:48:38.086952+00:00",
+  "generated_at": "2026-08-13T06:48:48.560514+00:00",
   "channel": "beta",
   "category_order": [
     "art",
@@ -544,14 +544,14 @@
     {
       "id": "soccer_scoreboard",
       "name": "Soccer Scoreboard",
-      "version": "1.0.21",
+      "version": "1.0.22",
       "category": "sports",
       "description": "",
-      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/soccer_scoreboard-1.0.21.zip",
+      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/soccer_scoreboard-1.0.22.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/thumbs/soccer_scoreboard.png?v=4e632dc5eb53",
       "thumbnail_sha256": "4e632dc5eb536c6711fec3769a37501fd2cac30607534e8d7e964244647ee692",
-      "crc32": "87bf8b82",
-      "size": 25092,
+      "crc32": "c702a433",
+      "size": 24642,
       "entry": "app.bin",
       "min_fw": "0.0.0"
     },
