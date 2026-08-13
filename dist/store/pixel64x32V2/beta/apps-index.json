@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-08-13T02:24:23.393936+00:00",
+  "generated_at": "2026-08-13T02:25:35.505939+00:00",
   "channel": "beta",
   "category_order": [
     "art",
@@ -838,14 +838,14 @@
     {
       "id": "openmeteo_3day",
       "name": "3-Day Forecast",
-      "version": "1.0.23",
+      "version": "1.0.24",
       "category": "weather",
       "description": "",
-      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/openmeteo_3day-1.0.23.zip",
+      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/openmeteo_3day-1.0.24.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/thumbs/openmeteo_3day.png?v=4a1a13e5be68",
       "thumbnail_sha256": "4a1a13e5be68c0cc7284f80471b57f85dc0098be29717d8baba664967d7c6093",
-      "crc32": "9a84cdf6",
-      "size": 9746,
+      "crc32": "f98e2c13",
+      "size": 9744,
       "entry": "app.bin",
       "min_fw": "0.0.0"
     },
