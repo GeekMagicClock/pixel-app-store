@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-08-13T07:41:49.519107+00:00",
+  "generated_at": "2026-08-13T08:33:20.767327+00:00",
   "channel": "beta",
   "category_order": [
     "art",
@@ -110,14 +110,14 @@
     {
       "id": "stock1",
       "name": "Stock Brief",
-      "version": "1.1.15",
+      "version": "1.1.16",
       "category": "finance",
       "description": "",
-      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/stock1-1.1.15.zip",
+      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/stock1-1.1.16.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/thumbs/stock1.png?v=607e84eb7e96",
       "thumbnail_sha256": "607e84eb7e962740808a783bf3c1506badeef4dbb031f1041e37bd2c49f71c42",
-      "crc32": "9f1dc9a4",
-      "size": 8830,
+      "crc32": "76ac49ad",
+      "size": 9044,
       "entry": "app.bin",
       "min_fw": "0.0.0"
     },
