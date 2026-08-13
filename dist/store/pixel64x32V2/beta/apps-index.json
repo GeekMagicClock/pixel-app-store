@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-08-13T02:26:45.450869+00:00",
+  "generated_at": "2026-08-13T02:44:23.953667+00:00",
   "channel": "beta",
   "category_order": [
     "art",
@@ -824,14 +824,14 @@
     {
       "id": "zelda_clock",
       "name": "Zelda HUD Clock",
-      "version": "1.0.7",
+      "version": "1.0.8",
       "category": "time",
       "description": "Adventure HUD clock with hearts, rupees, and dungeon panel styling.",
-      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/zelda_clock-1.0.7.zip",
+      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/zelda_clock-1.0.8.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/thumbs/zelda_clock.png?v=7d7f2ee53250",
       "thumbnail_sha256": "7d7f2ee5325063f2c4bb4d9a0248a01a8d6c86f8f7be4dbb8f3d5cc21b1aee66",
-      "crc32": "4e390ef6",
-      "size": 5194,
+      "crc32": "dbcdd91a",
+      "size": 5191,
       "entry": "app.bin",
       "min_fw": "0.0.0"
     },
