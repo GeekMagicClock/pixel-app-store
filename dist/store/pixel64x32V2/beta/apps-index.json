@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-08-13T04:23:16.988407+00:00",
+  "generated_at": "2026-08-13T04:33:16.244805+00:00",
   "channel": "beta",
   "category_order": [
     "art",
@@ -712,14 +712,14 @@
     {
       "id": "mario_clock",
       "name": "Mario Clock",
-      "version": "1.0.21",
+      "version": "1.0.22",
       "category": "time",
       "description": "8-bit platformer clock inspired by open-source Mario clock faces.",
-      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/mario_clock-1.0.21.zip",
+      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/mario_clock-1.0.22.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/thumbs/mario_clock.png?v=1415857cd460",
       "thumbnail_sha256": "1415857cd4601da9a97ef79c633ac1e095d7fcd4fd5084653c6402a1d0f94570",
-      "crc32": "283617db",
-      "size": 8985,
+      "crc32": "679d4b32",
+      "size": 8983,
       "entry": "app.bin",
       "min_fw": "0.0.0"
     },
