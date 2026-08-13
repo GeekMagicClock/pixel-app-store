@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-08-13T05:31:25.983129+00:00",
+  "generated_at": "2026-08-13T06:39:37.748311+00:00",
   "channel": "beta",
   "category_order": [
     "art",
@@ -376,14 +376,14 @@
     {
       "id": "baseball_scoreboard",
       "name": "Baseball Scoreboard",
-      "version": "1.0.20",
+      "version": "1.0.21",
       "category": "sports",
       "description": "",
-      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/baseball_scoreboard-1.0.20.zip",
+      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/baseball_scoreboard-1.0.21.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/thumbs/baseball_scoreboard.png?v=8f5e794e4f17",
       "thumbnail_sha256": "8f5e794e4f177234400cfd45063613d1e35692f32257e21169639f63349c63b4",
-      "crc32": "b129ebb5",
-      "size": 23629,
+      "crc32": "de1c7c1f",
+      "size": 24112,
       "entry": "app.bin",
       "min_fw": "0.0.0"
     },
