@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-08-13T06:39:57.826570+00:00",
+  "generated_at": "2026-08-13T06:41:11.314129+00:00",
   "channel": "beta",
   "category_order": [
     "art",
@@ -460,14 +460,14 @@
     {
       "id": "hockey_scoreboard",
       "name": "Hockey Scoreboard",
-      "version": "1.0.20",
+      "version": "1.0.21",
       "category": "sports",
       "description": "",
-      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/hockey_scoreboard-1.0.20.zip",
+      "zip_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/hockey_scoreboard-1.0.21.zip",
       "thumbnail_url": "https://raw.githubusercontent.com/GeekMagicClock/pixel-app-store/main/dist/store/pixel64x32V2/beta/thumbs/hockey_scoreboard.png?v=e31659f2a1f7",
       "thumbnail_sha256": "e31659f2a1f7442c6d4abe3406f020440e8d0ec19902fe07bc540bf80a9a842a",
-      "crc32": "53f1a421",
-      "size": 23575,
+      "crc32": "155354e2",
+      "size": 24049,
       "entry": "app.bin",
       "min_fw": "0.0.0"
     },
